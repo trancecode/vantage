@@ -1,0 +1,28 @@
+[window]
+title = "Vantage"
+width = 0
+height = 0
+fullscreen = true
+
+[camera]
+move_speed = 5.0
+zoom_speed = 0.1
+
+[debug]
+enabled = true
+http_enabled = false
+http_port = 8967
+
+[screenshot]
+path = ""
+delay = "0s"
+frequency = "0s"
+
+[run]
+for = "0s"
+
+[log]
+level = "info"
+
+[render]
+use_placeholder_sprite_images = false
