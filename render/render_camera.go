@@ -16,13 +16,9 @@ type Camera struct {
 	pos                       geometry.Vector2
 	zoom                      float64
 	screenMultiplier          float64 // Multiplier to normalize zoom across different screen sizes
-	moveSpeed                 float64
-	zoomSpeed                 float64
 	minZoom                   float64
 	maxZoom                   float64
-	screenWidth, screenHeight int     // Add screen dimension fields
-	lastMouseX, lastMouseY    int     // Previous frame's mouse position for MMB drag
-	isMMBPressed              bool    // Whether MMB is currently pressed
+	screenWidth, screenHeight int
 }
 
 // NewCamera creates and returns a new Camera with default values.
@@ -35,8 +31,6 @@ func NewCamera(screenWidth, screenHeight int) *Camera { // Modified to take scre
 		pos:              geometry.NewVector2(0, 0),
 		zoom:             1.0, // User-facing default zoom is 1.0
 		screenMultiplier: screenMultiplier,
-		moveSpeed:        5,
-		zoomSpeed:        0.1,
 		minZoom:          0.2,
 		maxZoom:          5,
 		screenWidth:      screenWidth,
@@ -49,13 +43,11 @@ func NewCamera(screenWidth, screenHeight int) *Camera { // Modified to take scre
 // making it suitable for UI elements that should remain in screen coordinates.
 func NewScreenCamera(screenWidth, screenHeight int) *Camera {
 	return &Camera{
-		pos:          geometry.NewVector2(0, 0),
-		zoom:         1,
-		moveSpeed:    0,
-		zoomSpeed:    0,
-		minZoom:      1,
-		maxZoom:      1,
-		screenWidth:  screenWidth,
+		pos:         geometry.NewVector2(0, 0),
+		zoom:        1,
+		minZoom:     1,
+		maxZoom:     1,
+		screenWidth: screenWidth,
 		screenHeight: screenHeight,
 	}
 }
@@ -85,80 +77,21 @@ func (c *Camera) Zoom() float64 {
 	return c.zoom * c.screenMultiplier
 }
 
-// SetZoom sets the camera's zoom level.
+// SetZoom sets the camera's zoom level, clamped to the camera's limits.
 func (c *Camera) SetZoom(zoom float64) {
 	c.zoom = zoom
+	c.clampZoom()
+}
+
+// AddZoom adjusts the zoom level by delta, clamped to the camera's limits.
+func (c *Camera) AddZoom(delta float64) {
+	c.zoom += delta
+	c.clampZoom()
 }
 
 // Move moves the camera by the given delta.
 func (c *Camera) Move(delta geometry.Vector2) {
 	c.pos = c.pos.Add(delta)
-}
-
-// MoveSpeed returns the camera's movement speed.
-func (c *Camera) MoveSpeed() float64 {
-	return c.moveSpeed
-}
-
-// ZoomSpeed returns the camera's zoom speed.
-func (c *Camera) ZoomSpeed() float64 {
-	return c.zoomSpeed
-}
-
-// HandleInput processes camera movement and zoom based on user input.
-func (c *Camera) HandleInput() {
-	// Handle camera
-	moveSpeed := c.MoveSpeed() * c.Zoom() // Adjust move speed based on effective zoom
-	delta := geometry.NewVector2(0, 0)
-
-	// Position - WASD controls
-	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		delta = geometry.NewVector2(delta.X(), delta.Y()+moveSpeed)
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		delta = geometry.NewVector2(delta.X(), delta.Y()-moveSpeed)
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		delta = geometry.NewVector2(delta.X()-moveSpeed, delta.Y())
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		delta = geometry.NewVector2(delta.X()+moveSpeed, delta.Y())
-	}
-	c.Move(delta)
-
-	// Middle mouse button drag for panning
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) {
-		currentX, currentY := ebiten.CursorPosition()
-		if c.isMMBPressed {
-			// Calculate delta from last position
-			deltaX := float64(currentX - c.lastMouseX)
-			deltaY := float64(currentY - c.lastMouseY)
-			// Move camera by delta (inverted so dragging feels natural)
-			c.pos = geometry.NewVector2(c.pos.X()+deltaX, c.pos.Y()+deltaY)
-		}
-		// Update state for next frame
-		c.lastMouseX = currentX
-		c.lastMouseY = currentY
-		c.isMMBPressed = true
-	} else {
-		c.isMMBPressed = false
-	}
-
-	// Scroll wheel zoom
-	_, wheelY := ebiten.Wheel()
-	if wheelY != 0 {
-		c.zoom += wheelY * c.ZoomSpeed()
-	}
-
-	// Zoom - Q/E keys (keep as alternative)
-	if ebiten.IsKeyPressed(ebiten.KeyQ) {
-		c.zoom -= c.ZoomSpeed()
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyE) {
-		c.zoom += c.ZoomSpeed()
-	}
-
-	c.clampZoom()
 }
 
 func (c *Camera) clampZoom() {
@@ -228,6 +161,3 @@ func (c *Camera) WorldToScreen(worldPos geometry.Vector2) geometry.Vector2 {
 	return geometry.NewVector2(screenX, screenY)
 }
 
-func (c *Camera) CursorPosition() geometry.Vector2 {
-	return c.ScreenToWorld(geometry.NewVector2(ebiten.CursorPosition()))
-}
