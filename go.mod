@@ -5,6 +5,7 @@ go 1.26.4
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.9
 	github.com/rs/zerolog v1.35.1
+	github.com/spf13/pflag v1.0.10
 )
 
 require (
