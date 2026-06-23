@@ -81,3 +81,78 @@ When running in an interactive session (i.e., a user is directly interacting wit
 - Commit and push changes directly to `main`
 - Only create a branch and PR when the user explicitly asks for one
 - If the task involves large or complex changes, ask the user whether they prefer a direct commit to `main` or a PR
+
+## Repository-Specific Guidelines
+
+This section contains guidelines specific to this repository that extend the universal guidelines above.
+
+### About this repository
+
+Vantage is a reusable 2D game engine built on [Ebitengine](https://ebitengine.org/) and the entity-component-system module [`github.com/trancecode/ecs`](https://github.com/trancecode/ecs). Games consume it as a Go module. Keep the engine free of any single game's content or rules: game-specific assets, catalogs, and logic belong in the consuming game, not here.
+
+### Code Style and Documentation
+
+* Follow the style guide from [doc/styleguide.md](doc/styleguide.md)
+* Use the `documentation-checklist` skill before marking PRs as ready for review
+
+### Go Version Consistency
+
+The whole repository uses a single Go version.
+
+* `go.mod` is the canonical Go version for the repository. Its `go` directive defines the version every other surface must match.
+* All other Go-version references (workflow `go-version` references, Dockerfiles, tool configs) must equal the `go.mod` version. There is no intentional version skew.
+* If you add a new file that references a Go version, register it wherever the version-sync check looks so it stays in sync. Forgetting to do so silently reintroduces version skew.
+
+### Go-Specific Testing Requirements
+
+**IMPORTANT**: Before pushing any Go code changes, run the following.
+
+#### Environment Setup
+
+The default Go module cache may not be writable. Always set a custom module cache location:
+```bash
+export GOMODCACHE=/tmp/go-mod-cache
+```
+
+#### Required Checks
+
+1. **Run lint checks**: `export GOMODCACHE=/tmp/go-mod-cache && task lint`
+2. **Run tests**: `export GOMODCACHE=/tmp/go-mod-cache && task test:headless`
+   * Use `task test:headless` instead of `go test`. The `render`, `ui`, and `scene` packages initialize Ebiten/GLFW, which needs a display. The headless target runs tests under a virtual display (xvfb), avoiding X11/GLFW initialization errors.
+3. **Run go vet**: `go vet` must complete successfully.
+
+#### When Tests Cannot Be Run
+
+If the testing commands fail due to environment issues:
+- DO NOT push the changes
+- Comment on the PR explaining which tests could not be run, with the specific error messages
+- Wait for human review before proceeding
+
+#### Pre-Push Checklist for Go Code
+- [ ] Set `GOMODCACHE=/tmp/go-mod-cache`
+- [ ] Run `task lint` successfully
+- [ ] Run `task test:headless` successfully
+- [ ] Run `go vet` successfully
+- [ ] No lint warnings or errors
+
+### Dependency Management for Go
+
+**IMPORTANT**: When adding new Go module dependencies, document them in the PR description:
+
+* Package name and version
+* Purpose: why the dependency is needed
+* Justification: what problem it solves
+* Scope: clearly mark test-only dependencies
+
+Failure to document new dependencies delays PR reviews.
+
+### Performance Optimization
+
+* ALWAYS optimize for code clarity and simplicity over performance optimization unless there are explicit performance requirements to meet.
+* NEVER optimize prematurely.
+* Whenever there's a potential optimization opportunity for the code change you're making, document it in [doc/performance_optimization.md](doc/performance_optimization.md).
+* When making code changes, review the list of potential performance optimizations and clean up the ones made irrelevant by the current changes.
+
+### Debugging and Development Tools Documentation
+
+* When implementing a new debugging or development tool, update [doc/debugging.md](doc/debugging.md) to document its purpose, usage, configuration options and defaults, code examples, and any keyboard shortcuts, UI controls, or command-line flags.
