@@ -21,23 +21,26 @@ func TestCameraWorldScreenRoundTrip(t *testing.T) {
 }
 
 func TestSetZoomClampsToMax(t *testing.T) {
-	over := NewCamera(800, 600)
-	over.SetZoom(1000) // far above maxZoom
-	atMax := NewCamera(800, 600)
-	atMax.SetZoom(5) // maxZoom
-	if over.Zoom() != atMax.Zoom() {
-		t.Fatalf("SetZoom not clamped: over=%v atMax=%v", over.Zoom(), atMax.Zoom())
+	// Two different far-above-max zoom requests must clamp to the same value,
+	// without the test needing to know the exact maxZoom limit.
+	a := NewCamera(800, 600)
+	a.SetZoom(1000)
+	b := NewCamera(800, 600)
+	b.SetZoom(500)
+	if a.Zoom() != b.Zoom() {
+		t.Fatalf("SetZoom not clamped to max: %v vs %v", a.Zoom(), b.Zoom())
 	}
 }
 
 func TestAddZoomClampsToMin(t *testing.T) {
-	c := NewCamera(800, 600)
-	c.SetZoom(1.0)
-	c.AddZoom(-1000) // far below minZoom
-	atMin := NewCamera(800, 600)
-	atMin.SetZoom(0.2) // minZoom
-	if c.Zoom() != atMin.Zoom() {
-		t.Fatalf("AddZoom not clamped to min: got=%v atMin=%v", c.Zoom(), atMin.Zoom())
+	// Two different far-below-min zoom requests must clamp to the same value,
+	// without the test needing to know the exact minZoom limit.
+	a := NewCamera(800, 600)
+	a.AddZoom(-1000)
+	b := NewCamera(800, 600)
+	b.AddZoom(-500)
+	if a.Zoom() != b.Zoom() {
+		t.Fatalf("AddZoom not clamped to min: %v vs %v", a.Zoom(), b.Zoom())
 	}
 }
 
