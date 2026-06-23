@@ -53,7 +53,7 @@ func (m *Manager) Update(duration time.Duration) error {
 	return nil
 }
 
-// Draw renders the visible scenes onto screen in ascending layer order.
+// Draw renders all registered scenes onto screen in ascending layer order.
 func (m *Manager) Draw(screen *ebiten.Image) {
 	sceneList := make([]Scene, 0, len(m.scenes))
 	for _, s := range m.scenes {

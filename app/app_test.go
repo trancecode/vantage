@@ -1,8 +1,12 @@
 package app
 
 import (
+	"errors"
 	"testing"
 	"time"
+
+	ebiten "github.com/hajimehoshi/ebiten/v2"
+	"github.com/trancecode/vantage/scene"
 )
 
 func TestNewAppHasManager(t *testing.T) {
@@ -21,22 +25,29 @@ func TestRequestExitMakesUpdateReturnErrExit(t *testing.T) {
 	}
 }
 
-func TestOnUpdateErrorStopsLoop(t *testing.T) {
+func TestOnUpdateErrorStopsLoopBeforeScenes(t *testing.T) {
 	a := New(Config{})
-	sentinel := time.Duration(0)
-	wantErr := errTest
-	a.OnUpdate = func(d time.Duration) error {
-		sentinel = d
-		return wantErr
-	}
+	notUpdated := &countingScene{name: "s"}
+	a.Manager().AddScene(notUpdated)
+	wantErr := errors.New("stop")
+	a.OnUpdate = func(d time.Duration) error { return wantErr }
 	if err := a.Update(); err != wantErr {
 		t.Fatalf("expected propagated OnUpdate error, got %v", err)
 	}
-	_ = sentinel
+	if notUpdated.updates != 0 {
+		t.Fatalf("scenes must not update after OnUpdate error, got %d", notUpdated.updates)
+	}
 }
 
-var errTest = &appTestError{}
+// countingScene is a minimal Scene that counts Update calls.
+type countingScene struct {
+	scene.BaseScene
+	name    scene.SceneName
+	updates int
+}
 
-type appTestError struct{}
-
-func (*appTestError) Error() string { return "test error" }
+func (c *countingScene) SceneName() scene.SceneName { return c.name }
+func (c *countingScene) Init(w, h int)              {}
+func (c *countingScene) LayerIndex() int            { return 0 }
+func (c *countingScene) Update(time.Duration) error { c.updates++; return nil }
+func (c *countingScene) Draw(*ebiten.Image)         {}

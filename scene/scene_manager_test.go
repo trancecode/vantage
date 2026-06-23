@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -46,6 +47,16 @@ func TestManagerUpdateAllAndPropagatesError(t *testing.T) {
 	}
 	if good.updates != 1 {
 		t.Fatalf("expected 1 update, got %d", good.updates)
+	}
+}
+
+func TestManagerUpdatePropagatesSceneError(t *testing.T) {
+	m := NewManager()
+	boom := errors.New("boom")
+	m.AddScene(&fakeScene{name: "bad", updateErr: boom})
+	err := m.Update(time.Second)
+	if err == nil || !errors.Is(err, boom) {
+		t.Fatalf("expected wrapped boom error, got %v", err)
 	}
 }
 
