@@ -92,7 +92,7 @@ Vantage is a reusable 2D game engine built on [Ebitengine](https://ebitengine.or
 
 ### Code Style and Documentation
 
-* Follow the style guide from [doc/styleguide.md](doc/styleguide.md)
+* Follow the style guide from [docs/styleguide.md](docs/styleguide.md)
 * Use the `documentation-checklist` skill before marking PRs as ready for review
 
 ### Go Version Consistency
@@ -150,9 +150,9 @@ Failure to document new dependencies delays PR reviews.
 
 * ALWAYS optimize for code clarity and simplicity over performance optimization unless there are explicit performance requirements to meet.
 * NEVER optimize prematurely.
-* Whenever there's a potential optimization opportunity for the code change you're making, document it in [doc/performance_optimization.md](doc/performance_optimization.md).
+* Whenever there's a potential optimization opportunity for the code change you're making, document it in [docs/performance_optimization.md](docs/performance_optimization.md).
 * When making code changes, review the list of potential performance optimizations and clean up the ones made irrelevant by the current changes.
 
 ### Debugging and Development Tools Documentation
 
-* When implementing a new debugging or development tool, update [doc/debugging.md](doc/debugging.md) to document its purpose, usage, configuration options and defaults, code examples, and any keyboard shortcuts, UI controls, or command-line flags.
+* When implementing a new debugging or development tool, update [docs/debugging.md](docs/debugging.md) to document its purpose, usage, configuration options and defaults, code examples, and any keyboard shortcuts, UI controls, or command-line flags.
