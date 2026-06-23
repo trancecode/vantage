@@ -18,29 +18,12 @@ var ErrExit = errors.New("application exit requested")
 
 var logger = util.Logger
 
-// Config configures an App's window and run behavior. Games fill this in and
-// pass it to New; the engine owns the Ebiten window and run loop.
-type Config struct {
-	// WindowTitle is the OS window title.
-	WindowTitle string
-	// WindowWidth and WindowHeight set the window size in pixels. When either
-	// is zero, the App uses the monitor size and goes fullscreen.
-	WindowWidth  int
-	WindowHeight int
-	// ExitAfter, when non-zero, exits the app after this much wall-clock time.
-	// Intended for automated testing and profiling.
-	ExitAfter time.Duration
-	// Screenshot configures automatic screenshot capture (disabled when its
-	// Path is empty).
-	Screenshot ScreenshotConfig
-}
-
 // App is the engine's top-level game object. It implements ebiten.Game so that
 // games never have to: games register scenes on the Manager and optionally set
 // OnUpdate for global per-frame logic.
 type App struct {
-	config  Config
-	manager *scene.Manager
+	settings *Settings
+	manager  *scene.Manager
 
 	// OnUpdate, when set, runs once per frame before scenes update. Games use
 	// it for global input and logic (menus, pause, hotkeys) without
@@ -55,11 +38,11 @@ type App struct {
 	exitAt                    time.Time
 }
 
-// New returns an App with the given configuration and an empty scene Manager.
-func New(config Config) *App {
+// New returns an App driven by the given settings, with an empty scene Manager.
+func New(settings *Settings) *App {
 	return &App{
-		config:  config,
-		manager: scene.NewManager(),
+		settings: settings,
+		manager:  scene.NewManager(),
 	}
 }
 
@@ -73,29 +56,35 @@ func (a *App) RequestExit() {
 	a.exitRequested = true
 }
 
-// Run sets up the window, initializes scenes, and runs the Ebiten loop. It
-// returns nil on a clean exit and any other error from the loop.
+// Run applies settings, sets up the window, initializes scenes, and runs the
+// Ebiten loop. It returns nil on a clean exit.
 func (a *App) Run() error {
-	if a.config.WindowWidth > 0 && a.config.WindowHeight > 0 {
-		ebiten.SetWindowSize(a.config.WindowWidth, a.config.WindowHeight)
+	a.settings.Apply()
+
+	if a.settings.Window.Width > 0 && a.settings.Window.Height > 0 {
+		ebiten.SetWindowSize(a.settings.Window.Width, a.settings.Window.Height)
 	} else {
 		w, h := ebiten.Monitor().Size()
 		ebiten.SetWindowSize(w, h)
 		ebiten.SetFullscreen(true)
 	}
-	ebiten.SetWindowTitle(a.config.WindowTitle)
+	ebiten.SetWindowTitle(a.settings.Window.Title)
 
 	a.screenWidth, a.screenHeight = ebiten.Monitor().Size()
 	a.manager.Init(a.screenWidth, a.screenHeight)
 
-	if a.config.ExitAfter > 0 {
-		a.exitAt = time.Now().Add(a.config.ExitAfter)
+	if a.settings.Run.For.Duration > 0 {
+		a.exitAt = time.Now().Add(a.settings.Run.For.Duration)
 	}
 
-	if a.config.Screenshot.Path != "" {
-		a.screenshot = newScreenshotCapturer(a.config.Screenshot)
+	if a.settings.Screenshot.Path != "" {
+		a.screenshot = newScreenshotCapturer(
+			a.settings.Screenshot.Path,
+			a.settings.Screenshot.Delay.Duration,
+			a.settings.Screenshot.Frequency.Duration,
+		)
 		util.Logger.Info().Msgf("Screenshot capture enabled: path=%s delay=%s frequency=%s",
-			a.config.Screenshot.Path, a.config.Screenshot.Delay, a.config.Screenshot.Frequency)
+			a.settings.Screenshot.Path, a.settings.Screenshot.Delay.Duration, a.settings.Screenshot.Frequency.Duration)
 	}
 
 	if err := ebiten.RunGame(a); err != nil {

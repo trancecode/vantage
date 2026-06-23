@@ -13,16 +13,6 @@ import (
 	ebiten "github.com/hajimehoshi/ebiten/v2"
 )
 
-// ScreenshotConfig configures automatic screenshot capture. When Path is empty,
-// capture is disabled. A Path containing a '%d'-style verb enables frame
-// sequences captured every Frequency of simulated time after the initial Delay;
-// otherwise a single screenshot is captured once after Delay.
-type ScreenshotConfig struct {
-	Path      string
-	Delay     time.Duration
-	Frequency time.Duration
-}
-
 // screenshotCapturer tracks simulated time and decides when to capture frames.
 type screenshotCapturer struct {
 	path      string
@@ -36,12 +26,12 @@ type screenshotCapturer struct {
 	done               bool
 }
 
-func newScreenshotCapturer(cfg ScreenshotConfig) *screenshotCapturer {
+func newScreenshotCapturer(path string, delay, frequency time.Duration) *screenshotCapturer {
 	return &screenshotCapturer{
-		path:      cfg.Path,
-		delay:     cfg.Delay,
-		frequency: cfg.Frequency,
-		sequence:  strings.Contains(cfg.Path, "%"),
+		path:      path,
+		delay:     delay,
+		frequency: frequency,
+		sequence:  strings.Contains(path, "%"),
 	}
 }
 

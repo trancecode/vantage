@@ -10,14 +10,14 @@ import (
 )
 
 func TestNewAppHasManager(t *testing.T) {
-	a := New(Config{WindowTitle: "test"})
+	a := New(&Settings{})
 	if a.Manager() == nil {
 		t.Fatal("expected non-nil Manager")
 	}
 }
 
 func TestRequestExitMakesUpdateReturnErrExit(t *testing.T) {
-	a := New(Config{})
+	a := New(&Settings{})
 	a.RequestExit()
 	err := a.Update()
 	if err != ErrExit {
@@ -26,7 +26,7 @@ func TestRequestExitMakesUpdateReturnErrExit(t *testing.T) {
 }
 
 func TestOnUpdateErrorStopsLoopBeforeScenes(t *testing.T) {
-	a := New(Config{})
+	a := New(&Settings{})
 	notUpdated := &countingScene{name: "s"}
 	a.Manager().AddScene(notUpdated)
 	wantErr := errors.New("stop")

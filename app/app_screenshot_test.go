@@ -6,7 +6,7 @@ import (
 )
 
 func TestSingleCaptureAfterDelay(t *testing.T) {
-	c := newScreenshotCapturer(ScreenshotConfig{Path: "/tmp/shot.png", Delay: time.Second})
+	c := newScreenshotCapturer("/tmp/shot.png", time.Second, 0)
 	c.tick(500 * time.Millisecond)
 	if c.shouldCapture {
 		t.Fatal("should not capture before delay")
@@ -18,11 +18,7 @@ func TestSingleCaptureAfterDelay(t *testing.T) {
 }
 
 func TestSequenceCapturesAtFrequency(t *testing.T) {
-	c := newScreenshotCapturer(ScreenshotConfig{
-		Path:      "/tmp/frame-%d.png",
-		Delay:     0,
-		Frequency: time.Second,
-	})
+	c := newScreenshotCapturer("/tmp/frame-%d.png", 0, time.Second)
 	if !c.sequence {
 		t.Fatal("expected sequence mode for path containing percent-d verb")
 	}
