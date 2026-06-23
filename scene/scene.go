@@ -10,6 +10,9 @@ import (
 // SceneName constants; the engine reserves only DialogSceneName.
 type SceneName string
 
+// DialogSceneName is the SceneName used by the engine's DialogScene.
+const DialogSceneName SceneName = "dialog"
+
 // Scene defines the interface for game scenes.
 type Scene interface {
 	// SceneName returns the name of the scene
