@@ -16,6 +16,8 @@ import (
 // because a game requested exit or the configured ExitAfter elapsed.
 var ErrExit = errors.New("application exit requested")
 
+var logger = util.Logger
+
 // Config configures an App's window and run behavior. Games fill this in and
 // pass it to New; the engine owns the Ebiten window and run loop.
 type Config struct {
@@ -28,6 +30,9 @@ type Config struct {
 	// ExitAfter, when non-zero, exits the app after this much wall-clock time.
 	// Intended for automated testing and profiling.
 	ExitAfter time.Duration
+	// Screenshot configures automatic screenshot capture (disabled when its
+	// Path is empty).
+	Screenshot ScreenshotConfig
 }
 
 // App is the engine's top-level game object. It implements ebiten.Game so that
@@ -45,6 +50,7 @@ type App struct {
 	screenWidth, screenHeight int
 	lastFrameRealTime         time.Time
 	watchdog                  *util.Watchdog
+	screenshot                *screenshotCapturer
 	exitRequested             bool
 	exitAt                    time.Time
 }
@@ -86,6 +92,12 @@ func (a *App) Run() error {
 		a.exitAt = time.Now().Add(a.config.ExitAfter)
 	}
 
+	if a.config.Screenshot.Path != "" {
+		a.screenshot = newScreenshotCapturer(a.config.Screenshot)
+		util.Logger.Info().Msgf("Screenshot capture enabled: path=%s delay=%s frequency=%s",
+			a.config.Screenshot.Path, a.config.Screenshot.Delay, a.config.Screenshot.Frequency)
+	}
+
 	if err := ebiten.RunGame(a); err != nil {
 		if errors.Is(err, ErrExit) {
 			return nil
@@ -110,6 +122,10 @@ func (a *App) Update() error {
 	}
 	duration := time.Since(a.lastFrameRealTime)
 	defer func() { a.lastFrameRealTime = time.Now() }()
+
+	if a.screenshot != nil {
+		a.screenshot.tick(duration)
+	}
 
 	if a.exitRequested {
 		return ErrExit
@@ -139,6 +155,9 @@ func (a *App) Update() error {
 func (a *App) Draw(screen *ebiten.Image) {
 	util.Log.PrintFpsCounter()
 	a.manager.Draw(screen)
+	if a.screenshot != nil {
+		a.screenshot.capture(screen)
+	}
 	util.Log.Draw(screen)
 }
 
