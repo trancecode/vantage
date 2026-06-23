@@ -8,6 +8,7 @@ require (
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
+	github.com/trancecode/ecs v0.1.1-0.20260620052537-953afc80bc40
 )
 
 require (
