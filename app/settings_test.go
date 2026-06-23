@@ -80,6 +80,7 @@ func TestApplySetsGlobals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	util.DebugMode = false
 	s.Apply()
 	if !util.DebugMode {
 		t.Fatal("Apply did not set util.DebugMode")

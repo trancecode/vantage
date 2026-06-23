@@ -13,7 +13,7 @@ import (
 )
 
 // ErrExit is returned from Run when the application exits normally, either
-// because a game requested exit or the configured ExitAfter elapsed.
+// because a game requested exit or the configured run-for duration elapsed.
 var ErrExit = errors.New("application exit requested")
 
 var logger = util.Logger

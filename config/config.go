@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -143,7 +144,7 @@ func (l *Loader) applyOverride(override string) error {
 		// Retry treating the value as a string so bare values like 10s work.
 		quoted := fmt.Sprintf("[%s]\n%s = %q\n", section, key, value)
 		if _, err2 := toml.Decode(quoted, ptr); err2 != nil {
-			return fmt.Errorf("config override %q: %w", override, err2)
+			return fmt.Errorf("config override %q: %w", override, errors.Join(err, err2))
 		}
 	}
 	return nil

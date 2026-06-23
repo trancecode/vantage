@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type netSettings struct {
@@ -144,4 +145,21 @@ func TestDuplicateSectionPanics(t *testing.T) {
 	l := New()
 	l.RegisterTarget("a", &a{})
 	l.RegisterTarget("b", &b{})
+}
+
+func TestDurationOverride(t *testing.T) {
+	type cfg struct {
+		Timing struct {
+			Interval Duration `toml:"interval"`
+		} `toml:"timing"`
+	}
+	c := &cfg{}
+	l := New()
+	l.RegisterTarget("cfg", c)
+	if err := l.Load("", []string{"timing.interval=90s"}); err != nil {
+		t.Fatal(err)
+	}
+	if c.Timing.Interval.Duration != 90*time.Second {
+		t.Fatalf("interval = %v, want 90s", c.Timing.Interval.Duration)
+	}
 }
