@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	flag "github.com/spf13/pflag"
 	"github.com/trancecode/vantage/geometry"
 )
 
-var usePlaceholderSpriteImages = flag.Bool("use_placeholder_sprite_images", false, "Use a placeholder image when there's no image for a given animation type.")
+// UsePlaceholderSpriteImages, when true, makes Sprite.Image return a placeholder
+// for a missing animation type instead of panicking. Set by engine configuration.
+var UsePlaceholderSpriteImages bool
 
 // Sprite represents a game sprite with animations.
 type Sprite struct {
@@ -55,7 +56,7 @@ func (s *Sprite) AddImage(animationType AnimationType, img *ebiten.Image) {
 // It logs a fatal error if the animation type does not exist.
 func (s *Sprite) Image(animationType AnimationType) *ebiten.Image {
 	if _, ok := s.Animations[animationType]; !ok || len(s.Animations[animationType].Images) == 0 {
-		if !(*usePlaceholderSpriteImages) {
+		if !UsePlaceholderSpriteImages {
 			panic(fmt.Sprintf("no such animation type: %s", animationType))
 		}
 		// TODO: return a default image
