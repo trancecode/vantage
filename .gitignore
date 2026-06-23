@@ -1,0 +1,15 @@
+.superpowers/
+
+# Binaries and build output
+*.exe
+*.test
+*.out
+/vantage
+
+# Go workspace / cache
+go.work
+go.work.sum
+
+# Editor
+.vscode/
+.idea/
