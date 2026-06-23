@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/trancecode/vantage/geometry"
 	flag "github.com/spf13/pflag"
+	"github.com/trancecode/vantage/geometry"
 )
 
 var usePlaceholderSpriteImages = flag.Bool("use_placeholder_sprite_images", false, "Use a placeholder image when there's no image for a given animation type.")

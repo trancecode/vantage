@@ -66,17 +66,20 @@ func (cc *CameraController) HandleInput() {
 		cc.isMMBPressed = false
 	}
 
-	// Scroll wheel zoom.
+	// Accumulate zoom from wheel and Q/E into a single delta, clamped once,
+	// matching the original single-clamp-per-frame behavior.
+	zoomDelta := 0.0
 	if _, wheelY := ebiten.Wheel(); wheelY != 0 {
-		c.AddZoom(wheelY * cc.ZoomSpeed)
+		zoomDelta += wheelY * cc.ZoomSpeed
 	}
-
-	// Q/E keyboard zoom.
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
-		c.AddZoom(-cc.ZoomSpeed)
+		zoomDelta -= cc.ZoomSpeed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyE) {
-		c.AddZoom(cc.ZoomSpeed)
+		zoomDelta += cc.ZoomSpeed
+	}
+	if zoomDelta != 0 {
+		cc.Camera.AddZoom(zoomDelta)
 	}
 }
 

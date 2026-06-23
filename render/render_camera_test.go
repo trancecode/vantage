@@ -44,6 +44,17 @@ func TestAddZoomClampsToMin(t *testing.T) {
 	}
 }
 
+func TestAddZoomClampsToMax(t *testing.T) {
+	// Two different far-above-max AddZoom requests must clamp to the same value.
+	a := NewCamera(800, 600)
+	a.AddZoom(1000)
+	b := NewCamera(800, 600)
+	b.AddZoom(500)
+	if a.Zoom() != b.Zoom() {
+		t.Fatalf("AddZoom not clamped to max: %v vs %v", a.Zoom(), b.Zoom())
+	}
+}
+
 func TestNewCameraControllerDefaults(t *testing.T) {
 	cc := NewCameraController(NewCamera(800, 600))
 	if cc.Camera == nil {

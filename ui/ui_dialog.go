@@ -330,9 +330,9 @@ func (d *Dialog) dialogSize() (float64, float64) {
 	}
 
 	height += float64(len(d.Options)) * dialogOptionHeight // Option buttons
-	height += dialogSpacing                                 // Gap before cancel
-	height += dialogOptionHeight                            // Cancel button
-	height += dialogPaddingY                                // Bottom padding
+	height += dialogSpacing                                // Gap before cancel
+	height += dialogOptionHeight                           // Cancel button
+	height += dialogPaddingY                               // Bottom padding
 
 	return width, height
 }

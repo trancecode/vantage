@@ -48,11 +48,11 @@ type TextWriter struct {
 	Size              int
 	Font              *text.GoTextFaceSource
 	Color             color.Color
-	Background        *color.Color // Optional background color
-	BackgroundPadding int          // Padding around background (default: 2)
-	Scaling           bool         // Whether text scales with camera zoom
-	MaxZoom           float64      // Max zoom level for text visibility (0 = use default)
-	HAlign            HAlignment   // Horizontal alignment
+	Background        *color.Color  // Optional background color
+	BackgroundPadding int           // Padding around background (default: 2)
+	Scaling           bool          // Whether text scales with camera zoom
+	MaxZoom           float64       // Max zoom level for text visibility (0 = use default)
+	HAlign            HAlignment    // Horizontal alignment
 	segments          []textSegment // Built text segments
 
 	// Cached background image to avoid per-frame GPU allocations
@@ -237,7 +237,7 @@ func (t *TextWriter) Draw(screen *ebiten.Image, camera *Camera, position geometr
 		startX -= totalWidth / 2
 	case Right:
 		startX -= totalWidth
-	// Left is default (no adjustment)
+		// Left is default (no adjustment)
 	}
 
 	// Render background if set

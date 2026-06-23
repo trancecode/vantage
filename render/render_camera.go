@@ -22,7 +22,7 @@ type Camera struct {
 }
 
 // NewCamera creates and returns a new Camera with default values.
-func NewCamera(screenWidth, screenHeight int) *Camera { // Modified to take screen dimensions
+func NewCamera(screenWidth, screenHeight int) *Camera {
 	// Calculate multiplier to show exactly 20 tiles vertically
 	targetTilesVertical := 20.0
 	screenMultiplier := float64(screenHeight) / (targetTilesVertical * TileSize)
@@ -43,11 +43,11 @@ func NewCamera(screenWidth, screenHeight int) *Camera { // Modified to take scre
 // making it suitable for UI elements that should remain in screen coordinates.
 func NewScreenCamera(screenWidth, screenHeight int) *Camera {
 	return &Camera{
-		pos:         geometry.NewVector2(0, 0),
-		zoom:        1,
-		minZoom:     1,
-		maxZoom:     1,
-		screenWidth: screenWidth,
+		pos:          geometry.NewVector2(0, 0),
+		zoom:         1,
+		minZoom:      1,
+		maxZoom:      1,
+		screenWidth:  screenWidth,
 		screenHeight: screenHeight,
 	}
 }
@@ -160,4 +160,3 @@ func (c *Camera) WorldToScreen(worldPos geometry.Vector2) geometry.Vector2 {
 	screenY := worldY*effectiveZoom + (c.pos.Y() + float64(c.screenHeight)/2)
 	return geometry.NewVector2(screenX, screenY)
 }
-

@@ -7,6 +7,7 @@ import (
 )
 
 // AnimationType represents different animation states for sprites.
+//
 //go:generate stringer -type=AnimationType -output=render_animation_string.go
 type AnimationType int
 
