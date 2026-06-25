@@ -96,7 +96,7 @@ func (s *Sprite) AllAnimations() []AnimationType {
 }
 
 // Draw draws the sprite at the given position with the specified animation type.
-func (s *Sprite) Draw(p geometry.Vector2, a AnimationType, screen *ebiten.Image, c *Camera) {
+func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType) {
 	var img *ebiten.Image
 
 	op := &ebiten.DrawImageOptions{}
@@ -130,7 +130,7 @@ func (s *Sprite) Draw(p geometry.Vector2, a AnimationType, screen *ebiten.Image,
 }
 
 // DrawAnimation draws the sprite at the given position with the specified animation type.
-func (s *Sprite) DrawAnimation(p geometry.Vector2, a AnimationType, duration time.Duration, screen *ebiten.Image, c *Camera) {
+func (s *Sprite) DrawAnimation(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType, duration time.Duration) {
 	var requiresFlip bool
 	animation, animationExists := s.Animations[a]
 
