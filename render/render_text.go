@@ -199,7 +199,7 @@ func (t *TextWriter) Draw(screen *ebiten.Image, camera *Camera, position geometr
 		if maxZoom == 0 {
 			maxZoom = DefaultMaxZoomForText
 		}
-		if camera.Zoom() > maxZoom {
+		if camera.EffectiveZoom() > maxZoom {
 			return // Hide text at extreme zoom levels
 		}
 	}
@@ -210,7 +210,7 @@ func (t *TextWriter) Draw(screen *ebiten.Image, camera *Camera, position geometr
 	// Calculate effective text size
 	size := t.Size
 	if t.Scaling {
-		size = int(float64(t.Size) * camera.Zoom())
+		size = int(float64(t.Size) * camera.EffectiveZoom())
 	}
 
 	// If no segments were built, nothing to render

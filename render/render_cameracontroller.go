@@ -34,7 +34,7 @@ func NewCameraController(camera *Camera) *CameraController {
 // HandleInput reads input for the current frame and pans/zooms the camera.
 func (cc *CameraController) HandleInput() {
 	c := cc.Camera
-	moveSpeed := cc.MoveSpeed * c.Zoom()
+	moveSpeed := cc.MoveSpeed * c.EffectiveZoom()
 	delta := geometry.NewVector2(0, 0)
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {

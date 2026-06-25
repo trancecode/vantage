@@ -74,9 +74,28 @@ func (c *Camera) SetZeroAsTopLeft() {
 	c.pos = geometry.NewVector2(-c.screenWidth/2, -c.screenHeight/2)
 }
 
-// Zoom returns the camera's effective zoom level (user zoom * screen multiplier).
+// Zoom returns the camera's user-level zoom. This is the value passed to
+// SetZoom/AddZoom and is independent of screen size; 1.0 is the default framing.
 func (c *Camera) Zoom() float64 {
+	return c.zoom
+}
+
+// EffectiveZoom returns the screen-adjusted zoom actually applied to the
+// world-to-screen transform: the user zoom scaled by a screen-size
+// normalization factor so that a given user zoom frames the same number of
+// tiles on any resolution.
+func (c *Camera) EffectiveZoom() float64 {
 	return c.zoom * c.screenMultiplier
+}
+
+// MinZoom returns the minimum user-level zoom the camera clamps to.
+func (c *Camera) MinZoom() float64 {
+	return c.minZoom
+}
+
+// MaxZoom returns the maximum user-level zoom the camera clamps to.
+func (c *Camera) MaxZoom() float64 {
+	return c.maxZoom
 }
 
 // SetZoom sets the camera's zoom level, clamped to the camera's limits.
@@ -117,7 +136,7 @@ func (c *Camera) ScreenHeight() int {
 
 // CameraDebugInfo returns a human-readable string of the camera's position and effective zoom, for debug overlays.
 func (c *Camera) CameraDebugInfo() string {
-	return fmt.Sprintf("Camera X: %f | Camera Y: %f | Camera Zoom: %f", c.pos.X(), c.pos.Y(), c.Zoom())
+	return fmt.Sprintf("Camera X: %f | Camera Y: %f | Camera Zoom: %f", c.pos.X(), c.pos.Y(), c.EffectiveZoom())
 }
 
 // DrawImageOptions returns draw options that map a pixel-space position p into screen space under the current camera
@@ -125,7 +144,7 @@ func (c *Camera) CameraDebugInfo() string {
 func (c *Camera) DrawImageOptions(p geometry.Vector2) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(p.X(), p.Y())
-	effectiveZoom := c.Zoom()
+	effectiveZoom := c.EffectiveZoom()
 	op.GeoM.Scale(effectiveZoom, effectiveZoom)
 
 	// Apply camera's position and the offset to center (0,0)
@@ -137,7 +156,7 @@ func (c *Camera) DrawImageOptions(p geometry.Vector2) *ebiten.DrawImageOptions {
 // It is the tile-space counterpart to DrawImageOptions.
 func (c *Camera) Adjust(op *ebiten.DrawImageOptions, p geometry.Vector2) {
 	op.GeoM.Translate(float64(p.X())*TileSize, float64(p.Y())*TileSize) // Apply TileSize
-	effectiveZoom := c.Zoom()
+	effectiveZoom := c.EffectiveZoom()
 	op.GeoM.Scale(effectiveZoom, effectiveZoom)
 	// Apply camera's position and the offset to center (0,0)
 	op.GeoM.Translate(c.pos.X()+float64(c.screenWidth/2), c.pos.Y()+float64(c.screenHeight/2))
@@ -146,7 +165,7 @@ func (c *Camera) Adjust(op *ebiten.DrawImageOptions, p geometry.Vector2) {
 // ScreenToWorld converts screen coordinates to world coordinates.
 func (c *Camera) ScreenToWorld(screenPos geometry.Vector2) geometry.Vector2 {
 	// Reverse the camera translation and centering offset, and adjust for zoom
-	effectiveZoom := c.Zoom()
+	effectiveZoom := c.EffectiveZoom()
 	worldX := (screenPos.X() - (c.pos.X() + float64(c.screenWidth)/2)) / effectiveZoom
 	worldY := (screenPos.Y() - (c.pos.Y() + float64(c.screenHeight)/2)) / effectiveZoom
 
@@ -161,7 +180,7 @@ func (c *Camera) WorldToScreen(worldPos geometry.Vector2) geometry.Vector2 {
 	worldY := worldPos.Y() * TileSize
 
 	// Apply zoom, camera translation, and centering offset
-	effectiveZoom := c.Zoom()
+	effectiveZoom := c.EffectiveZoom()
 	screenX := worldX*effectiveZoom + (c.pos.X() + float64(c.screenWidth)/2)
 	screenY := worldY*effectiveZoom + (c.pos.Y() + float64(c.screenHeight)/2)
 	return geometry.NewVector2(screenX, screenY)
