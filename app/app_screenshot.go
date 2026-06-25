@@ -36,6 +36,13 @@ func newScreenshotCapturer(path string, delay, frequency time.Duration) *screens
 }
 
 // tick advances simulated time and sets shouldCapture when a frame is due.
+//
+// Timing is advanced here (in Update) but the pixel grab happens in capture
+// (in Draw), since rendered pixels are only available during Draw. A due
+// capture therefore lands on the next Draw after the interval elapses; if Draw
+// runs less often than Update, sequence frames catch up one per Draw rather
+// than landing on the exact simulated interval. This matters only for
+// high-frequency capture where Draw lags Update.
 func (s *screenshotCapturer) tick(duration time.Duration) {
 	s.totalSimulatedTime += duration
 	if s.done || s.totalSimulatedTime < s.delay {
