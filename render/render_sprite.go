@@ -98,27 +98,17 @@ func (s *Sprite) AllAnimations() []AnimationType {
 // Draw draws the sprite at the given position with the specified animation type.
 func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType) {
 	var img *ebiten.Image
+	requiresFlip := false
 
-	op := &ebiten.DrawImageOptions{}
-
-	// Apply sprite's scale
-	op.GeoM.Scale(s.Scale, s.Scale)
-
-	// Apply sprite's zero position offset
-	op.GeoM.Translate(-s.ZeroPosition.X(), -s.ZeroPosition.Y())
-
-	// Check if we need to flip horizontally
+	// A missing animation can be rendered by horizontally flipping its mirror.
 	if _, ok := s.Animations[a]; !ok {
 		if existingAnimationType, shouldFlip := AnimationsToGenerate[a]; shouldFlip {
 			img = s.Image(existingAnimationType)
 			if _, ok := s.Animations[existingAnimationType]; ok {
-				op.GeoM.Scale(-1, 1)
+				requiresFlip = true
 			}
 		}
 	}
-
-	// Adjust for the camera position and zoom
-	c.Adjust(op, p)
 
 	if img == nil {
 		img = s.Image(a)
@@ -126,7 +116,23 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 	if img == nil {
 		return
 	}
+
+	op := s.buildDrawOp(p, requiresFlip, c)
 	screen.DrawImage(img, op)
+}
+
+// buildDrawOp builds the draw options for the sprite at world-tile position p:
+// sprite scale, zero-position offset, optional horizontal flip, then the camera
+// transform.
+func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera) *ebiten.DrawImageOptions {
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(s.Scale, s.Scale)
+	op.GeoM.Translate(-s.ZeroPosition.X(), -s.ZeroPosition.Y())
+	if requiresFlip {
+		op.GeoM.Scale(-1, 1)
+	}
+	c.Adjust(op, p)
+	return op
 }
 
 // DrawAnimation draws the sprite at the given position with the specified animation type.
@@ -156,26 +162,11 @@ func (s *Sprite) DrawAnimation(screen *ebiten.Image, c *Camera, p geometry.Vecto
 	}
 
 	img := animation.Images[frameIndex]
-
-	op := &ebiten.DrawImageOptions{}
-
-	// Apply sprite's scale
-	op.GeoM.Scale(s.Scale, s.Scale)
-
-	// Apply sprite's zero position offset
-	op.GeoM.Translate(-s.ZeroPosition.X(), -s.ZeroPosition.Y())
-
-	// Check if we need to flip horizontally
-	if requiresFlip {
-		op.GeoM.Scale(-1, 1)
-	}
-
-	// Adjust for the camera position and zoom
-	c.Adjust(op, p)
-
 	if img == nil {
 		return
 	}
+
+	op := s.buildDrawOp(p, requiresFlip, c)
 	screen.DrawImage(img, op)
 }
 
