@@ -107,22 +107,21 @@ func (t *TextWriter) WithFont(font *text.GoTextFaceSource) *TextWriter {
 	return &n
 }
 
-// WithScaling configures whether text scales with camera zoom.
-// When enabled is false, text maintains fixed pixel size regardless of zoom.
-// Optional maxZoom parameter sets the maximum zoom level for text visibility;
-// text is hidden at zoom levels above this value. If not specified, uses DefaultMaxZoomForText.
-func (t *TextWriter) WithScaling(enabled bool, maxZoom ...float64) *TextWriter {
+// WithScaling configures whether text scales with camera zoom. When disabled,
+// text maintains a fixed pixel size regardless of zoom (and is hidden above the
+// MaxZoom threshold; see WithMaxZoom).
+func (t *TextWriter) WithScaling(enabled bool) *TextWriter {
 	n := *t
 	n.Scaling = enabled
-	n.MaxZoom = 0 // Use default
-	if len(maxZoom) > 0 {
-		n.MaxZoom = maxZoom[0]
-	}
+	return &n
+}
 
-	if n.MaxZoom != 0 && n.Scaling {
-		panic("maxZoom parameter is only valid when scaling is disabled")
-	}
-
+// WithMaxZoom sets the maximum effective zoom at which fixed-size text remains
+// visible; above it the text is hidden. It only applies when scaling is
+// disabled (see WithScaling). A zero value uses DefaultMaxZoomForText.
+func (t *TextWriter) WithMaxZoom(maxZoom float64) *TextWriter {
+	n := *t
+	n.MaxZoom = maxZoom
 	return &n
 }
 
