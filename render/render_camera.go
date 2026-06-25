@@ -139,27 +139,28 @@ func (c *Camera) CameraDebugInfo() string {
 	return fmt.Sprintf("Camera X: %f | Camera Y: %f | Camera Zoom: %f", c.pos.X(), c.pos.Y(), c.EffectiveZoom())
 }
 
+// applyTransform applies the camera's zoom-and-center transform to op for a
+// pixel-space position (pixelX, pixelY). The centering offset uses float
+// division so it agrees with ScreenToWorld/WorldToScreen.
+func (c *Camera) applyTransform(op *ebiten.DrawImageOptions, pixelX, pixelY float64) {
+	op.GeoM.Translate(pixelX, pixelY)
+	effectiveZoom := c.EffectiveZoom()
+	op.GeoM.Scale(effectiveZoom, effectiveZoom)
+	op.GeoM.Translate(c.pos.X()+float64(c.screenWidth)/2, c.pos.Y()+float64(c.screenHeight)/2)
+}
+
 // DrawImageOptions returns draw options that map a pixel-space position p into screen space under the current camera
 // transform. Unlike Adjust, p is in pixels (not tile units) and a fresh options value is returned.
 func (c *Camera) DrawImageOptions(p geometry.Vector2) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(p.X(), p.Y())
-	effectiveZoom := c.EffectiveZoom()
-	op.GeoM.Scale(effectiveZoom, effectiveZoom)
-
-	// Apply camera's position and the offset to center (0,0)
-	op.GeoM.Translate(c.pos.X()+float64(c.screenWidth/2), c.pos.Y()+float64(c.screenHeight/2))
+	c.applyTransform(op, p.X(), p.Y())
 	return op
 }
 
 // Adjust applies the camera transform in-place to op for a world position p given in tile units (scaled by TileSize).
 // It is the tile-space counterpart to DrawImageOptions.
 func (c *Camera) Adjust(op *ebiten.DrawImageOptions, p geometry.Vector2) {
-	op.GeoM.Translate(float64(p.X())*TileSize, float64(p.Y())*TileSize) // Apply TileSize
-	effectiveZoom := c.EffectiveZoom()
-	op.GeoM.Scale(effectiveZoom, effectiveZoom)
-	// Apply camera's position and the offset to center (0,0)
-	op.GeoM.Translate(c.pos.X()+float64(c.screenWidth/2), c.pos.Y()+float64(c.screenHeight/2))
+	c.applyTransform(op, p.X()*TileSize, p.Y()*TileSize)
 }
 
 // ScreenToWorld converts screen coordinates to world coordinates.
