@@ -286,7 +286,6 @@ func (d *Dialog) dialogSize() (float64, float64) {
 	// Measure title width
 	titleFace := &text.GoTextFace{Source: asset.DefaultProportionalFont, Size: float64(dialogTitleSize)}
 	titleWidth := text.Advance(d.Title, titleFace)
-	titleMetrics := titleFace.Metrics()
 
 	// Measure option widths
 	optionFace := &text.GoTextFace{Source: asset.DefaultProportionalFont, Size: float64(dialogFontSize)}
@@ -317,18 +316,8 @@ func (d *Dialog) dialogSize() (float64, float64) {
 		width = dialogMinWidth
 	}
 
-	// Height: title + context + options + cancel + padding
-	height := dialogPaddingY // Top padding
-	height += titleMetrics.HAscent + titleMetrics.HDescent
-	height += dialogSpacing
-
-	if d.Context != "" {
-		contextFace := &text.GoTextFace{Source: asset.DefaultProportionalFont, Size: float64(dialogFontSize)}
-		contextMetrics := contextFace.Metrics()
-		height += contextMetrics.HAscent + contextMetrics.HDescent
-		height += dialogSpacing
-	}
-
+	// Height: content above options + options + cancel + padding
+	height := d.contentHeightAboveOptions()
 	height += float64(len(d.Options)) * dialogOptionHeight // Option buttons
 	height += dialogSpacing                                // Gap before cancel
 	height += dialogOptionHeight                           // Cancel button
@@ -338,21 +327,28 @@ func (d *Dialog) dialogSize() (float64, float64) {
 }
 
 func (d *Dialog) optionsStartY(dialogY float64) float64 {
+	return dialogY + d.contentHeightAboveOptions()
+}
+
+// contentHeightAboveOptions returns the vertical space occupied by the top
+// padding, the title, and the optional context (each followed by spacing) —
+// i.e. the offset from the dialog's top edge to where the option buttons begin.
+func (d *Dialog) contentHeightAboveOptions() float64 {
 	titleFace := &text.GoTextFace{Source: asset.DefaultProportionalFont, Size: float64(dialogTitleSize)}
 	titleMetrics := titleFace.Metrics()
 
-	y := dialogY + dialogPaddingY
-	y += titleMetrics.HAscent + titleMetrics.HDescent
-	y += dialogSpacing
+	h := dialogPaddingY
+	h += titleMetrics.HAscent + titleMetrics.HDescent
+	h += dialogSpacing
 
 	if d.Context != "" {
 		contextFace := &text.GoTextFace{Source: asset.DefaultProportionalFont, Size: float64(dialogFontSize)}
 		contextMetrics := contextFace.Metrics()
-		y += contextMetrics.HAscent + contextMetrics.HDescent
-		y += dialogSpacing
+		h += contextMetrics.HAscent + contextMetrics.HDescent
+		h += dialogSpacing
 	}
 
-	return y
+	return h
 }
 
 func (d *Dialog) drawBorder(screen *ebiten.Image, x, y, width, height float64, c color.RGBA) {
