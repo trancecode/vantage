@@ -123,6 +123,9 @@ func (s *Sprite) Draw(p geometry.Vector2, a AnimationType, screen *ebiten.Image,
 	if img == nil {
 		img = s.Image(a)
 	}
+	if img == nil {
+		return
+	}
 	screen.DrawImage(img, op)
 }
 
@@ -170,6 +173,9 @@ func (s *Sprite) DrawAnimation(p geometry.Vector2, a AnimationType, duration tim
 	// Adjust for the camera position and zoom
 	c.Adjust(op, p)
 
+	if img == nil {
+		return
+	}
 	screen.DrawImage(img, op)
 }
 

@@ -42,6 +42,9 @@ func (s *screenshotCapturer) tick(duration time.Duration) {
 		return
 	}
 	if s.sequence {
+		if s.frequency <= 0 {
+			return
+		}
 		timeSinceDelay := s.totalSimulatedTime - s.delay
 		expectedCaptures := int(timeSinceDelay/s.frequency) + 1
 		if expectedCaptures > s.captureCount {

@@ -43,12 +43,13 @@ func NewCamera(screenWidth, screenHeight int) *Camera {
 // making it suitable for UI elements that should remain in screen coordinates.
 func NewScreenCamera(screenWidth, screenHeight int) *Camera {
 	return &Camera{
-		pos:          geometry.NewVector2(0, 0),
-		zoom:         1,
-		minZoom:      1,
-		maxZoom:      1,
-		screenWidth:  screenWidth,
-		screenHeight: screenHeight,
+		pos:              geometry.NewVector2(0, 0),
+		zoom:             1,
+		screenMultiplier: 1.0,
+		minZoom:          1,
+		maxZoom:          1,
+		screenWidth:      screenWidth,
+		screenHeight:     screenHeight,
 	}
 }
 
