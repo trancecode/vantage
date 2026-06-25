@@ -5,6 +5,8 @@ import (
 	"slices"
 )
 
+// ElementWithPriority is implemented by any value that can be stored in a PriorityQueue.
+// Priority returns the sort key; lower values dequeue first (min-heap).
 type ElementWithPriority interface {
 	Priority() int64
 }
@@ -37,6 +39,8 @@ func (pq *internalPriorityQueue[T]) Swap(i, j int) {
 	pq.elements[i], pq.elements[j] = pq.elements[j], pq.elements[i]
 }
 
+// PriorityQueue is a generic min-heap priority queue. Elements with lower
+// Priority() values are returned first by Next and Peek.
 type PriorityQueue[T ElementWithPriority] struct {
 	internal *internalPriorityQueue[T]
 }
@@ -55,6 +59,8 @@ func (pq *PriorityQueue[T]) Add(element T) {
 	heap.Push(pq.internal, element)
 }
 
+// Peek returns the lowest-priority element without removing it from the queue.
+// The second return value is false if the queue is empty.
 func (pq *PriorityQueue[T]) Peek() (T, bool) {
 	if len(pq.internal.elements) == 0 {
 		var empty T
@@ -64,6 +70,8 @@ func (pq *PriorityQueue[T]) Peek() (T, bool) {
 	return pq.internal.elements[0], true
 }
 
+// Next removes and returns the lowest-priority element from the queue.
+// The second return value is false if the queue is empty.
 func (pq *PriorityQueue[T]) Next() (T, bool) {
 	if len(pq.internal.elements) == 0 {
 		var empty T

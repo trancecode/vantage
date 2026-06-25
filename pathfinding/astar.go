@@ -82,7 +82,7 @@ var directions = []Coord{
 // Movement costs: cardinal = 1.0, diagonal = sqrt(2)
 const (
 	cardinalCost = 1.0
-	diagonalCost = 1.414213562373095 // sqrt(2)
+	diagonalCost = math.Sqrt2
 )
 
 // isCardinalDirection returns true if the direction is cardinal (N, E, S, W)

@@ -54,7 +54,7 @@ func debugIndexHandler(w http.ResponseWriter, r *http.Request) {
 	html := `<!DOCTYPE html>
 <html>
 <head>
-    <title>NRGine Debug Server</title>
+    <title>Vantage Debug Server</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
         h1 { color: #333; }
@@ -66,8 +66,8 @@ func debugIndexHandler(w http.ResponseWriter, r *http.Request) {
     </style>
 </head>
 <body>
-    <h1>NRGine Debug Server</h1>
-    <p>Welcome to the NRGine debug server. Use the links below to access debugging information:</p>
+    <h1>Vantage Debug Server</h1>
+    <p>Welcome to the Vantage debug server. Use the links below to access debugging information:</p>
     
     <h2>Performance Profiling (pprof)</h2>
     <ul>

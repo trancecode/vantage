@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	TileSize = 16
+	TileSize                 = 16
+	defaultVerticalTileCount = 20.0
 )
 
 // Camera represents the game's camera.
@@ -23,8 +24,8 @@ type Camera struct {
 
 // NewCamera creates and returns a new Camera with default values.
 func NewCamera(screenWidth, screenHeight int) *Camera {
-	// Calculate multiplier to show exactly 20 tiles vertically
-	targetTilesVertical := 20.0
+	// Calculate multiplier to show exactly defaultVerticalTileCount tiles vertically
+	targetTilesVertical := defaultVerticalTileCount
 	screenMultiplier := float64(screenHeight) / (targetTilesVertical * TileSize)
 
 	return &Camera{
@@ -114,10 +115,13 @@ func (c *Camera) ScreenHeight() int {
 	return c.screenHeight
 }
 
+// CameraDebugInfo returns a human-readable string of the camera's position and effective zoom, for debug overlays.
 func (c *Camera) CameraDebugInfo() string {
 	return fmt.Sprintf("Camera X: %f | Camera Y: %f | Camera Zoom: %f", c.pos.X(), c.pos.Y(), c.Zoom())
 }
 
+// DrawImageOptions returns draw options that map a pixel-space position p into screen space under the current camera
+// transform. Unlike Adjust, p is in pixels (not tile units) and a fresh options value is returned.
 func (c *Camera) DrawImageOptions(p geometry.Vector2) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(p.X(), p.Y())
@@ -129,7 +133,8 @@ func (c *Camera) DrawImageOptions(p geometry.Vector2) *ebiten.DrawImageOptions {
 	return op
 }
 
-// Adjust adjust the camera for a draw operation
+// Adjust applies the camera transform in-place to op for a world position p given in tile units (scaled by TileSize).
+// It is the tile-space counterpart to DrawImageOptions.
 func (c *Camera) Adjust(op *ebiten.DrawImageOptions, p geometry.Vector2) {
 	op.GeoM.Translate(float64(p.X())*TileSize, float64(p.Y())*TileSize) // Apply TileSize
 	effectiveZoom := c.Zoom()

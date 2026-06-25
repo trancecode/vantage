@@ -17,8 +17,8 @@ var (
 	Logger zerolog.Logger
 )
 
-// gameTimeConsoleWriter is a custom writer that formats game logs with game time 
-// positioned right after the level and before the message, as requested in issue #37
+// gameTimeConsoleWriter is a custom writer that formats game logs with game time
+// positioned right after the level and before the message.
 type gameTimeConsoleWriter struct {
 	out     io.Writer
 	noColor bool
@@ -31,17 +31,17 @@ func (w *gameTimeConsoleWriter) Write(p []byte) (n int, err error) {
 		// If it's not JSON, just pass through
 		return w.out.Write(p)
 	}
-	
+
 	// Format manually in the desired format: timestamp level [game_time] message fields
 	var output bytes.Buffer
-	
+
 	// Timestamp
 	if timestamp, ok := logEntry["time"].(string); ok {
 		if t, err := time.Parse(time.RFC3339, timestamp); err == nil {
 			output.WriteString(t.Format(time.DateTime))
 		}
 	}
-	
+
 	// Level
 	if level, ok := logEntry["level"].(string); ok {
 		output.WriteString(" ")
@@ -65,11 +65,11 @@ func (w *gameTimeConsoleWriter) Write(p []byte) (n int, err error) {
 			output.WriteString(level)
 		}
 	}
-	
-	// Game time (right after level) - this is the key fix for issue #37
+
+	// Game time (right after level)
 	if gameTimeRaw, ok := logEntry["game_time"]; ok {
 		var gameTimeStr string
-		
+
 		// Convert the raw value to a proper duration string using DurationString
 		switch v := gameTimeRaw.(type) {
 		case json.Number:
@@ -92,23 +92,23 @@ func (w *gameTimeConsoleWriter) Write(p []byte) (n int, err error) {
 			// Fallback to string representation
 			gameTimeStr = fmt.Sprintf("%v", v)
 		}
-		
+
 		// Handle zero duration specially for display
 		if gameTimeStr == "" {
 			gameTimeStr = "0s"
 		}
-		
+
 		output.WriteString(" [")
 		output.WriteString(gameTimeStr)
 		output.WriteString("]")
 	}
-	
+
 	// Message
 	if message, ok := logEntry["message"].(string); ok {
 		output.WriteString(" ")
 		output.WriteString(message)
 	}
-	
+
 	// Other fields (excluding standard ones and game_time)
 	for key, value := range logEntry {
 		if key == "time" || key == "level" || key == "message" || key == "game_time" {
@@ -116,7 +116,7 @@ func (w *gameTimeConsoleWriter) Write(p []byte) (n int, err error) {
 		}
 		output.WriteString(fmt.Sprintf(" %s=%v", key, value))
 	}
-	
+
 	output.WriteString("\n")
 	return w.out.Write(output.Bytes())
 }
@@ -126,7 +126,7 @@ func NewConsoleWriter() io.Writer {
 	// Check if running inside VS Code Studio (when RUNNING_IN_VSCODE is set)
 	// and disable color output to avoid ANSI escape codes in the output
 	noColor := os.Getenv("RUNNING_IN_VSCODE") != ""
-	
+
 	return &gameTimeConsoleWriter{
 		out:     os.Stdout,
 		noColor: noColor,

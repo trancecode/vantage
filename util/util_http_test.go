@@ -42,7 +42,7 @@ func TestDebugIndexHandler(t *testing.T) {
 		"/debug/pprof/goroutine",
 		"/debug/pprof/heap",
 		"/debug/vars",
-		"NRGine Debug Server",
+		"Vantage Debug Server",
 	}
 
 	for _, link := range expectedLinks {

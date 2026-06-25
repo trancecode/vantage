@@ -302,6 +302,9 @@ var (
 	}
 )
 
+// LoadSprite slices img into a grid of width columns by height rows, assigns the frame indexes in indexes to each
+// AnimationType, and sets per-animation durations (defaulting to one second when unspecified). Note: width and height
+// are column/row counts, not pixel dimensions.
 func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType][]int, durations map[AnimationType]time.Duration) (*Sprite, error) {
 	sprite := NewSprite()
 	// Get the size of each tile
@@ -334,6 +337,7 @@ func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType]
 	return sprite, nil
 }
 
+// MustLoadSprite is like LoadSprite but panics on error.
 func MustLoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType][]int, durations map[AnimationType]time.Duration) *Sprite {
 	sprite, err := LoadSprite(img, width, height, indexes, durations)
 	if err != nil {

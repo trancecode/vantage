@@ -50,6 +50,7 @@ func (d *durationStringer) String() string {
 	return DurationString(d.d)
 }
 
+// DurationStringer returns a fmt.Stringer that formats d using DurationString.
 func DurationStringer(d time.Duration) fmt.Stringer {
 	return &durationStringer{d: d}
 }
@@ -71,7 +72,7 @@ func (t Time) Add(d time.Duration) Time {
 	return Time(time.Duration(t) + d)
 }
 
-// SubDuration subtracts a duration from the Time instance and returns a new Time instance.
+// Sub returns the duration elapsed from other to t.
 func (t Time) Sub(other Time) time.Duration {
 	return time.Duration(t) - time.Duration(other)
 }
