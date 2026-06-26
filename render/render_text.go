@@ -25,16 +25,16 @@ var (
 	TextDefault = NewTextWriter()
 )
 
-// HAlignment represents horizontal text alignment options.
-type HAlignment int
+// TextAlignment represents horizontal text alignment options.
+type TextAlignment int
 
 const (
-	// Left aligns text to the left.
-	Left HAlignment = iota
-	// Center centers text horizontally.
-	Center
-	// Right aligns text to the right.
-	Right
+	// AlignLeft aligns text to the left.
+	AlignLeft TextAlignment = iota
+	// AlignCenter centers text horizontally.
+	AlignCenter
+	// AlignRight aligns text to the right.
+	AlignRight
 )
 
 // textSegment represents a segment of text with a specific color.
@@ -52,7 +52,7 @@ type TextWriter struct {
 	BackgroundPadding int           // Padding around background (default: 2)
 	Scaling           bool          // Whether text scales with camera zoom
 	MaxZoom           float64       // Max zoom level for text visibility (0 = use default)
-	HAlign            HAlignment    // Horizontal alignment
+	Align             TextAlignment // Horizontal alignment
 	segments          []textSegment // Built text segments
 
 	// Cached background image to avoid per-frame GPU allocations
@@ -70,7 +70,7 @@ func NewTextWriter() *TextWriter {
 		BackgroundPadding: 2,
 		Scaling:           false,
 		MaxZoom:           0, // Use DefaultMaxZoomForText
-		HAlign:            Left,
+		Align:             AlignLeft,
 		segments:          nil,
 	}
 }
@@ -125,10 +125,10 @@ func (t *TextWriter) WithMaxZoom(maxZoom float64) *TextWriter {
 	return &n
 }
 
-// WithHAlignment sets the horizontal alignment of the text.
-func (t *TextWriter) WithHAlignment(align HAlignment) *TextWriter {
+// WithAlignment sets the horizontal alignment of the text.
+func (t *TextWriter) WithAlignment(align TextAlignment) *TextWriter {
 	n := *t
-	n.HAlign = align
+	n.Align = align
 	return &n
 }
 
@@ -231,20 +231,17 @@ func (t *TextWriter) Draw(screen *ebiten.Image, camera *Camera, position geometr
 
 	// Calculate starting X based on alignment
 	startX := screenPos.X()
-	switch t.HAlign {
-	case Center:
+	switch t.Align {
+	case AlignCenter:
 		startX -= totalWidth / 2
-	case Right:
+	case AlignRight:
 		startX -= totalWidth
-		// Left is default (no adjustment)
+		// AlignLeft is default (no adjustment)
 	}
 
 	// Render background if set
 	if t.Background != nil {
 		padding := float64(t.BackgroundPadding)
-		if padding == 0 {
-			padding = 2.0 // Default padding
-		}
 
 		// Create or reuse cached background image
 		bgWidth := int(totalWidth + padding*2)

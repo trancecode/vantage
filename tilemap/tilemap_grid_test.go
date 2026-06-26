@@ -17,13 +17,13 @@ func TestSpatialGrid_AddRemoveEntity(t *testing.T) {
 	grid.AddEntity(entityID, pos)
 
 	key := grid.cellCoord(pos)
-	if _, ok := grid.Cells[key][entityID]; !ok {
+	if _, ok := grid.cells[key][entityID]; !ok {
 		t.Errorf("Entity not added to grid correctly")
 	}
 
 	grid.RemoveEntity(entityID, pos)
 
-	if _, ok := grid.Cells[key][entityID]; ok {
+	if _, ok := grid.cells[key][entityID]; ok {
 		t.Errorf("Entity not removed from grid correctly")
 	}
 }
@@ -39,17 +39,17 @@ func TestSpatialGrid_UpdateEntityPosition(t *testing.T) {
 	oldKey := grid.cellCoord(oldPos)
 	newKey := grid.cellCoord(newPos)
 
-	if _, ok := grid.Cells[oldKey][entityID]; !ok {
+	if _, ok := grid.cells[oldKey][entityID]; !ok {
 		t.Errorf("Entity not added to grid correctly at old position")
 	}
 
 	grid.UpdateEntityPosition(entityID, oldPos, newPos)
 
-	if _, ok := grid.Cells[oldKey][entityID]; ok {
+	if _, ok := grid.cells[oldKey][entityID]; ok {
 		t.Errorf("Entity not removed from old position correctly")
 	}
 
-	if _, ok := grid.Cells[newKey][entityID]; !ok {
+	if _, ok := grid.cells[newKey][entityID]; !ok {
 		t.Errorf("Entity not added to new position correctly")
 	}
 }
@@ -83,7 +83,7 @@ func TestSpatialGrid_GetRange(t *testing.T) {
 
 	expectedEntities := []ecs.EntityId{e1, e2}
 	if !reflect.DeepEqual(foundEntities, expectedEntities) {
-		t.Errorf("Incorrect entities found in range. Expected: %v, Got: %v\nGrid Cells: %v", expectedEntities, foundEntities, grid.Cells)
+		t.Errorf("Incorrect entities found in range. Expected: %v, Got: %v\nGrid Cells: %v", expectedEntities, foundEntities, grid.cells)
 	}
 }
 
@@ -126,7 +126,7 @@ func TestSpatialGrid_NegativePosition(t *testing.T) {
 	}
 
 	grid.AddEntity(entityID, pos)
-	if _, ok := grid.Cells[TileCoord{X: -1, Y: -1}][entityID]; !ok {
+	if _, ok := grid.cells[TileCoord{X: -1, Y: -1}][entityID]; !ok {
 		t.Errorf("Entity not stored in floored negative cell")
 	}
 

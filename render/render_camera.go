@@ -29,7 +29,7 @@ func NewCamera(screenWidth, screenHeight int) *Camera {
 	screenMultiplier := float64(screenHeight) / (targetTilesVertical * TileSize)
 
 	return &Camera{
-		pos:              geometry.NewVector2(0, 0),
+		pos:              geometry.Zero2D(),
 		zoom:             1.0, // User-facing default zoom is 1.0
 		screenMultiplier: screenMultiplier,
 		minZoom:          0.2,
@@ -44,7 +44,7 @@ func NewCamera(screenWidth, screenHeight int) *Camera {
 // making it suitable for UI elements that should remain in screen coordinates.
 func NewScreenCamera(screenWidth, screenHeight int) *Camera {
 	return &Camera{
-		pos:              geometry.NewVector2(0, 0),
+		pos:              geometry.Zero2D(),
 		zoom:             1,
 		screenMultiplier: 1.0,
 		minZoom:          1,
@@ -66,7 +66,7 @@ func (c *Camera) SetPosition(pos geometry.Vector2) {
 
 // SetZeroAsCenter sets the camera's position so that (0,0) in world space is at the center of the screen.
 func (c *Camera) SetZeroAsCenter() {
-	c.pos = geometry.NewVector2(0, 0)
+	c.pos = geometry.Zero2D()
 }
 
 // SetZeroAsTopLeft sets the camera's position so that (0,0) in world space is at the top-left of the screen.

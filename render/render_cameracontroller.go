@@ -18,7 +18,7 @@ type CameraController struct {
 	ZoomSpeed float64
 
 	lastMouseX, lastMouseY int
-	isMMBPressed           bool
+	mmbPressed             bool
 }
 
 // NewCameraController returns a controller driving the given camera with the
@@ -35,7 +35,7 @@ func NewCameraController(camera *Camera) *CameraController {
 func (cc *CameraController) HandleInput() {
 	c := cc.Camera
 	moveSpeed := cc.MoveSpeed * c.EffectiveZoom()
-	delta := geometry.NewVector2(0, 0)
+	delta := geometry.Zero2D()
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		delta = geometry.NewVector2(delta.X(), delta.Y()+moveSpeed)
@@ -54,16 +54,16 @@ func (cc *CameraController) HandleInput() {
 	// Middle mouse button drag for panning.
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) {
 		currentX, currentY := ebiten.CursorPosition()
-		if cc.isMMBPressed {
+		if cc.mmbPressed {
 			deltaX := float64(currentX - cc.lastMouseX)
 			deltaY := float64(currentY - cc.lastMouseY)
 			c.SetPosition(geometry.NewVector2(c.Position().X()+deltaX, c.Position().Y()+deltaY))
 		}
 		cc.lastMouseX = currentX
 		cc.lastMouseY = currentY
-		cc.isMMBPressed = true
+		cc.mmbPressed = true
 	} else {
-		cc.isMMBPressed = false
+		cc.mmbPressed = false
 	}
 
 	// Accumulate zoom from wheel and Q/E into a single delta, clamped once,

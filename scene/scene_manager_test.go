@@ -81,7 +81,7 @@ func TestManagerShowOnly(t *testing.T) {
 	b := &fakeScene{name: "b"}
 	m.AddScene(a)
 	m.AddScene(b)
-	m.ShowOnly(map[SceneName]bool{"a": true})
+	m.ShowOnly("a")
 	if !a.IsVisible() {
 		t.Fatal("scene a should be visible")
 	}

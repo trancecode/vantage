@@ -12,18 +12,18 @@ type EntitySet map[ecs.EntityId]struct{}
 
 // SpatialGrid divides the game world into cells, allowing for efficient spatial queries.
 type SpatialGrid struct {
-	// CellSize is the size of each cell in world units.
-	CellSize float64
-	// Cells is a map of TileCoord to a set of entities within that cell.
-	Cells map[TileCoord]EntitySet
+	// cellSize is the size of each cell in world units.
+	cellSize float64
+	// cells maps a TileCoord to the set of entities within that cell.
+	cells map[TileCoord]EntitySet
 }
 
 // NewSpatialGrid creates a new SpatialGrid with the specified cell size.
 // cellSize determines the size of each cell in world units.
 func NewSpatialGrid(cellSize float64) *SpatialGrid {
 	return &SpatialGrid{
-		CellSize: cellSize,
-		Cells:    make(map[TileCoord]EntitySet),
+		cellSize: cellSize,
+		cells:    make(map[TileCoord]EntitySet),
 	}
 }
 
@@ -31,20 +31,20 @@ func NewSpatialGrid(cellSize float64) *SpatialGrid {
 // entity is the ID of the entity, and position is its world position.
 func (sg *SpatialGrid) AddEntity(entity ecs.EntityId, position geometry.Vector2) {
 	key := sg.cellCoord(position)
-	if _, exists := sg.Cells[key]; !exists {
-		sg.Cells[key] = make(EntitySet)
+	if _, exists := sg.cells[key]; !exists {
+		sg.cells[key] = make(EntitySet)
 	}
-	sg.Cells[key][entity] = struct{}{}
+	sg.cells[key][entity] = struct{}{}
 }
 
 // RemoveEntity removes an entity from the SpatialGrid at the given position.
 // entity is the ID of the entity, and position is its world position.
 func (sg *SpatialGrid) RemoveEntity(entity ecs.EntityId, position geometry.Vector2) {
 	key := sg.cellCoord(position)
-	if _, exists := sg.Cells[key]; !exists {
+	if _, exists := sg.cells[key]; !exists {
 		return
 	}
-	delete(sg.Cells[key], entity)
+	delete(sg.cells[key], entity)
 }
 
 // UpdateEntityPosition moves an entity from its old position to a new position within the SpatialGrid.
@@ -76,7 +76,7 @@ func (sg *SpatialGrid) GetRange(rect geometry.Rectangle) []ecs.EntityId {
 	for x := min.X; x <= max.X; x++ {
 		for y := min.Y; y <= max.Y; y++ {
 			key := TileCoord{X: x, Y: y}
-			if cell, exists := sg.Cells[key]; exists {
+			if cell, exists := sg.cells[key]; exists {
 				for entity := range cell {
 					entities = append(entities, entity)
 				}
@@ -91,7 +91,7 @@ func (sg *SpatialGrid) GetRange(rect geometry.Rectangle) []ecs.EntityId {
 // position is the world position to convert into a cell coordinate.
 func (sg *SpatialGrid) cellCoord(position geometry.Vector2) TileCoord {
 	return TileCoord{
-		X: int(math.Floor(position.X() / sg.CellSize)),
-		Y: int(math.Floor(position.Y() / sg.CellSize)),
+		X: int(math.Floor(position.X() / sg.cellSize)),
+		Y: int(math.Floor(position.Y() / sg.cellSize)),
 	}
 }

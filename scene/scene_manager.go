@@ -76,10 +76,14 @@ func (m *Manager) SetVisible(name SceneName, visible bool) {
 	s.SetVisible(visible)
 }
 
-// ShowOnly makes the scenes in the set visible and hides all others.
-func (m *Manager) ShowOnly(visible map[SceneName]bool) {
+// ShowOnly makes the named scenes visible and hides all others.
+func (m *Manager) ShowOnly(names ...SceneName) {
+	show := make(map[SceneName]bool, len(names))
+	for _, n := range names {
+		show[n] = true
+	}
 	for name, s := range m.scenes {
-		s.SetVisible(visible[name])
+		s.SetVisible(show[name])
 	}
 }
 
