@@ -113,7 +113,10 @@ func (a *App) Update() error {
 	defer func() { a.lastFrameRealTime = time.Now() }()
 
 	if a.screenshot != nil {
-		a.screenshot.tick(duration)
+		// Clamp the game-time advance so screenshots land on exact game-time
+		// targets; this may hold the simulation (advance 0) for the frame a
+		// capture is taken.
+		duration = a.screenshot.advance(duration)
 	}
 
 	if a.exitRequested {

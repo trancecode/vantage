@@ -13,17 +13,20 @@ import (
 	ebiten "github.com/hajimehoshi/ebiten/v2"
 )
 
-// screenshotCapturer tracks simulated time and decides when to capture frames.
+// screenshotCapturer schedules screenshots at exact game-time targets. It works
+// in game time — the duration by which the engine advances the simulation each
+// frame — not wall-clock time: delay and frequency are game-time offsets.
 type screenshotCapturer struct {
 	path      string
 	delay     time.Duration
 	frequency time.Duration
 	sequence  bool
 
-	totalSimulatedTime time.Duration
-	captureCount       int
-	shouldCapture      bool
-	done               bool
+	gameTime      time.Duration // game time advanced so far
+	carry         time.Duration // game time deferred from a clamped frame
+	captureCount  int
+	shouldCapture bool
+	done          bool
 }
 
 func newScreenshotCapturer(path string, delay, frequency time.Duration) *screenshotCapturer {
@@ -35,31 +38,54 @@ func newScreenshotCapturer(path string, delay, frequency time.Duration) *screens
 	}
 }
 
-// tick advances simulated time and sets shouldCapture when a frame is due.
-//
-// Timing is advanced here (in Update) but the pixel grab happens in capture
-// (in Draw), since rendered pixels are only available during Draw. A due
-// capture therefore lands on the next Draw after the interval elapses; if Draw
-// runs less often than Update, sequence frames catch up one per Draw rather
-// than landing on the exact simulated interval. This matters only for
-// high-frequency capture where Draw lags Update.
-func (s *screenshotCapturer) tick(duration time.Duration) {
-	s.totalSimulatedTime += duration
-	if s.done || s.totalSimulatedTime < s.delay {
-		return
+// advance reports how much game time the engine should actually advance this
+// frame, given the proposed frameDuration. When advancing by the full amount
+// would cross the next screenshot's target game time, it clamps the advance so
+// game time lands exactly on the target, defers the remainder to the next frame
+// (carry), and flags a capture. While that capture is pending (set here,
+// consumed by capture in Draw) it returns 0, holding the simulation at the
+// target until the frame is grabbed. So screenshots always land on exact
+// game-time targets, regardless of how Ebiten interleaves Update and Draw.
+func (s *screenshotCapturer) advance(frameDuration time.Duration) time.Duration {
+	if s.done {
+		return frameDuration
 	}
-	if s.sequence {
-		if s.frequency <= 0 {
-			return
-		}
-		timeSinceDelay := s.totalSimulatedTime - s.delay
-		expectedCaptures := int(timeSinceDelay/s.frequency) + 1
-		if expectedCaptures > s.captureCount {
-			s.shouldCapture = true
-		}
-	} else if s.captureCount == 0 {
-		s.shouldCapture = true
+	if s.shouldCapture {
+		// Hold the simulation until the pending capture has been drawn.
+		return 0
 	}
+
+	d := frameDuration + s.carry
+	s.carry = 0
+
+	target := s.nextTarget()
+	if target < 0 || s.gameTime+d < target {
+		s.gameTime += d
+		return d
+	}
+
+	// Clamp so game time lands exactly on the target; carry the remainder.
+	advance := target - s.gameTime
+	s.carry = d - advance
+	s.gameTime = target
+	s.shouldCapture = true
+	return advance
+}
+
+// nextTarget returns the game time of the next screenshot, or a negative value
+// if none remains (a single shot already taken, or a sequence with no positive
+// frequency).
+func (s *screenshotCapturer) nextTarget() time.Duration {
+	if !s.sequence {
+		if s.captureCount > 0 {
+			return -1
+		}
+		return s.delay
+	}
+	if s.frequency <= 0 {
+		return -1
+	}
+	return s.delay + time.Duration(s.captureCount)*s.frequency
 }
 
 // capture writes a screenshot of screen if one is due this frame.
