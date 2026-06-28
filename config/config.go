@@ -29,7 +29,7 @@ func (d *Duration) UnmarshalText(text []byte) error {
 
 // MarshalText renders the duration as a Go duration string.
 func (d Duration) MarshalText() ([]byte, error) {
-	return []byte(d.Duration.String()), nil
+	return []byte(d.String()), nil
 }
 
 // Loader assembles layered configuration into one or more registered target
