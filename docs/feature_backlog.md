@@ -23,7 +23,7 @@ individual games, so every game gets it for free.
 
 **Notes.**
 
-* nrg already produces PNG frame sequences via the screenshot path with a
+* The screenshot path already produces PNG frame sequences with a
   `%d` verb, which an external tool can assemble into video. In-engine video
   recording would remove that external step.
 * Build this onto the `App` capture path (see `app/app_screenshot.go`). The

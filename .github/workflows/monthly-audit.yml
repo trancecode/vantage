@@ -105,7 +105,7 @@ jobs:
              - GitHub Actions workflows (`.github/workflows/*`)
              - Labels and issue templates
 
-          4. **Success Reference**: Review the successful manual audit example (nrg#290) for inspiration
+          4. **Success Reference**: Review past successful manual audit examples for inspiration
 
           ## Deliverables
 
