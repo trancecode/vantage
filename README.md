@@ -1,5 +1,7 @@
 # Vantage
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/trancecode/vantage.svg)](https://pkg.go.dev/github.com/trancecode/vantage)
+
 A reusable 2D game engine for Go, built on [Ebitengine](https://ebitengine.org/)
 and the [`trancecode/ecs`](https://github.com/trancecode/ecs) entity-component-system
 module. Extracted from the NRG game.
