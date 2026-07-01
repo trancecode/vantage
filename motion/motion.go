@@ -12,13 +12,13 @@ const (
 	SpeedRun  = 2.0 // Speed in tiles per second
 )
 
-// MovingComponent handles movement of entities in the game world.
-type MovingComponent struct {
-	// MoveDestination is the target position the entity is moving towards.
-	MoveDestination geometry.Vector2
+// Movement holds an entity's in-progress move: where it is headed and how fast.
+type Movement struct {
+	// Destination is the target position the entity is moving towards.
+	Destination geometry.Vector2
 
-	// MoveSpeed is the movement speed in tiles per second.
-	MoveSpeed float64
+	// Speed is the movement speed in tiles per second.
+	Speed float64
 }
 
 // MovementResult represents the result of processing a single entity's movement.
