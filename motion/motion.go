@@ -17,9 +17,6 @@ type MovingComponent struct {
 	// MoveDestination is the target position the entity is moving towards.
 	MoveDestination geometry.Vector2
 
-	// MoveDirection is the current movement direction vector (unit vector).
-	MoveDirection geometry.Vector2
-
 	// MoveSpeed is the movement speed in tiles per second.
 	MoveSpeed float64
 }
