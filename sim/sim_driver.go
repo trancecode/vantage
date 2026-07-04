@@ -21,7 +21,10 @@ type EventSource interface {
 	NextEventTime() (t util.Time, ok bool)
 
 	// RunDue handles every event due at now (event time at or before now).
-	// Handling an event may queue new events, including at now.
+	// Handling an event may queue new events, including at now; the driver
+	// re-drains until every source is quiet, so a handler that unconditionally
+	// re-queues an event at now never lets the current instant settle and stalls
+	// the driver.
 	RunDue(now util.Time)
 }
 
@@ -66,7 +69,7 @@ func (d *Driver) RunUntil(target util.Time) {
 				stop = t
 			}
 		}
-		// A past event (t <= now) must not rewind the clock; it is dispatched
+		// A past event (t < now) must not rewind the clock; it is dispatched
 		// by the drain below at the current instant instead.
 		if stop < d.now {
 			stop = d.now
