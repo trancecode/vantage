@@ -18,6 +18,17 @@ func (r *recordingTick) Tick(elapsed time.Duration) {
 	r.elapsed = append(r.elapsed, elapsed)
 }
 
+// labeledTick appends its label to a shared log on every Tick call, so the
+// relative ordering of multiple tick systems is observable.
+type labeledTick struct {
+	label string
+	log   *[]string
+}
+
+func (l *labeledTick) Tick(time.Duration) {
+	*l.log = append(*l.log, l.label)
+}
+
 // testSource is an EventSource backed by an EventQueue. Each dispatched event
 // is appended (with the source's label) to the shared log, so cross-source
 // ordering is observable. onRun, if set, runs after each dispatch and may queue
@@ -133,9 +144,9 @@ func TestDriverPastEventDoesNotRewindClock(t *testing.T) {
 	// The past event is dispatched, but the clock only ever moved forward.
 	assert.Equal(t, []string{"a"}, log)
 	assert.Equal(t, util.Time(20), d.Now())
-	for _, e := range tick.elapsed {
-		assert.GreaterOrEqual(t, e, time.Duration(0))
-	}
+	// 10 to reach the first target, 0 for the clamp-to-now stop that dispatches
+	// the past event at 4, then 10 to reach the second target.
+	assert.Equal(t, []time.Duration{10, 0, 10}, tick.elapsed)
 }
 
 func TestDriverNoEventsAdvancesToTarget(t *testing.T) {
@@ -147,4 +158,60 @@ func TestDriverNoEventsAdvancesToTarget(t *testing.T) {
 
 	assert.Equal(t, util.Time(8), d.Now())
 	assert.Equal(t, []time.Duration{8}, tick.elapsed)
+}
+
+func TestDriverDispatchesEventExactlyAtTarget(t *testing.T) {
+	var log []string
+	src := newTestSource("a", &log)
+	src.queue.Add(testEvent{at: util.Time(10), key: 1})
+
+	d := NewDriver()
+	d.RegisterEventSource(src)
+
+	d.RunUntil(util.Time(10))
+
+	// The event's time equals the target, so it is drained on the final loop
+	// iteration rather than being left pending.
+	assert.Equal(t, []string{"a"}, log)
+	assert.Equal(t, util.Time(10), d.Now())
+}
+
+func TestDriverRunsTickSystemsInRegistrationOrder(t *testing.T) {
+	var log []string
+	first := &labeledTick{label: "first", log: &log}
+	second := &labeledTick{label: "second", log: &log}
+
+	d := NewDriver()
+	d.RegisterTickSystem(first)
+	d.RegisterTickSystem(second)
+
+	d.RunUntil(util.Time(5))
+	d.RunUntil(util.Time(10))
+
+	// Two stops (5 and 10): at each, "first" must be invoked before "second".
+	assert.Equal(t, []string{"first", "second", "first", "second"}, log)
+}
+
+func TestDriverStaggeredMultiSourceDispatchOrder(t *testing.T) {
+	var log []string
+	src1 := newTestSource("src1", &log)
+	src2 := newTestSource("src2", &log)
+
+	src1.queue.Add(testEvent{at: util.Time(3), key: 1})
+	src1.queue.Add(testEvent{at: util.Time(8), key: 1})
+	src2.queue.Add(testEvent{at: util.Time(5), key: 1})
+
+	tick := &recordingTick{}
+
+	d := NewDriver()
+	d.RegisterTickSystem(tick)
+	d.RegisterEventSource(src1)
+	d.RegisterEventSource(src2)
+
+	d.RunUntil(util.Time(10))
+
+	// Stops at 3 (src1), 5 (src2), 8 (src1), 10 (target): elapsed 3, 2, 3, 2.
+	assert.Equal(t, []time.Duration{3, 2, 3, 2}, tick.elapsed)
+	assert.Equal(t, []string{"src1", "src2", "src1"}, log)
+	assert.Equal(t, util.Time(10), d.Now())
 }
