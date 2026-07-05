@@ -38,7 +38,8 @@ own a single ordered queue it can snapshot and read ahead.
 * Phase 1 (this work): the `Event` type, the `EventQueue` (add, peek, pop, len,
   `PeekAhead`, `Snapshot`, `Restore`), and the `Driver`. Depends only on
   `EntityId.Compare` (already shipped in ecs `v0.1.1`), so no ecs change and no
-  vantage save-format decision are needed. Ships as vantage `v0.1.5`.
+  vantage save-format decision are needed. Ships as vantage `v0.1.6` (`v0.1.5`
+  is taken by the `motion.System` work).
 * Phase 2 (deferred): byte serialization (`EventQueue.MarshalBinary` /
   `UnmarshalBinary`), which needs `ecs.EntityId` marshaling and the chosen
   vantage save format. Not blocking phase 1.
@@ -251,5 +252,7 @@ Per game (`lockstep/core` first, then `nrg/rts`):
   `World` snapshot/restore (entities plus the allocator counter) that a full
   savegame needs anyway. This design needs only the former; the latter can
   follow as its own ecs work.
-* Coordinate the `sim.TickSystem` interface with the in-progress vantage
-  movement-system rework so the two agree on the tick signature.
+* Resolved: the vantage movement rework landed as `motion.System`, which already
+  implements `Tick(elapsed time.Duration)`, matching `sim.TickSystem`. The games
+  register `motion.System` as the driver's tick system; no interface change
+  needed.
