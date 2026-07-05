@@ -28,6 +28,11 @@ type System struct {
 	// Grid, when non-nil, is kept in sync as entities move.
 	Grid *tilemap.SpatialGrid
 
+	// Occupancy, when non-nil, tracks tile reservations: MoveEntity refuses
+	// destinations reserved by another entity and moves the reservation as
+	// the entity departs.
+	Occupancy *tilemap.TileOccupancyManager
+
 	// OnArrival, when non-nil, is called for each entity that reaches its
 	// destination during a Tick, after its Movement has been removed.
 	OnArrival func(MovementResult)
