@@ -3,10 +3,13 @@
 // content (what an event does) stays in the consuming game.
 //
 // Key exports:
-//   - EventQueue: a generic min-heap whose dequeue order is a pure function of
-//     the queued set, ordered lexicographically by event time then a
-//     caller-supplied tie-break, so insertion order cannot change outcomes.
+//   - Event: a scheduled occurrence about a single entity, ordered
+//     lexicographically by Time, then Key (a client-defined discriminator),
+//     then Entity, so dequeue order is a pure function of the queued set.
+//   - EventQueue: a min-heap of Events with ordered read-ahead (PeekAhead) and
+//     in-memory snapshot and rebuild (Snapshot, Restore).
 //   - Driver: owns the game clock and advances it event by event, running
-//     registered TickSystems over each elapsed interval and draining registered
-//     EventSources at each stop until every source is quiet at that instant.
+//     registered TickSystems over each interval and draining the event queue at
+//     each stop through a single EventHandler, resolving same-instant cascades
+//     before the clock moves.
 package sim
