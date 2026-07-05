@@ -45,6 +45,12 @@ type System struct {
 	// benchmark reports.
 	RecordPhase func(name string, elapsed time.Duration)
 
+	// MaxMoveActionDistance caps how far a single MoveEntityTowards step may
+	// reach, in tiles. Games use a value just above sqrt(2) for
+	// one-tile-per-action movement including diagonals. Required (> 0) by
+	// MoveEntityTowards and MoveEntityTowardsArea.
+	MaxMoveActionDistance float64
+
 	// OnArrival, when non-nil, is called for each entity that reaches its
 	// destination during a Tick, after its Movement has been removed.
 	OnArrival func(MovementResult)
