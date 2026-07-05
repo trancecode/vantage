@@ -169,7 +169,8 @@ func NewDriver(handler EventHandler) *Driver
 func (d *Driver) RegisterTickSystem(s TickSystem)
 func (d *Driver) Queue() *EventQueue      // schedule, UI read-ahead, snapshot
 func (d *Driver) Now() util.Time
-func (d *Driver) RestoreNow(t util.Time)  // set the clock at load only
+func (d *Driver) RestoreNow(t util.Time)      // set the clock at load only
+func (d *Driver) RestoreQueue(q *EventQueue)  // install a rebuilt queue at load only
 func (d *Driver) RunUntil(target util.Time)
 ```
 
@@ -205,7 +206,8 @@ Byte-level serialization is deferred until the vantage save format is chosen and
 `ecs.EntityId` marshaling exists (see Phasing). The phase 1 shape already makes
 it straightforward when the time comes: a savegame persists the driver clock
 (`Now()`, a `util.Time`) and the event set (`Queue().Snapshot()`), and load
-reseats the clock (`RestoreNow`) and rebuilds the queue (`Restore`). Because
+reseats the clock (`RestoreNow`) and installs the rebuilt queue
+(`RestoreQueue(Restore(events))`). Because
 dequeue order is a pure function of the set, no heap layout needs preserving.
 Tick systems and the handler are code, not state, and are re-registered on load.
 Broader world state (entities, components, the id allocator counter) is
