@@ -3,44 +3,45 @@ package sim
 import (
 	"testing"
 
+	"github.com/trancecode/ecs/ecs"
 	"github.com/trancecode/vantage/util"
 )
 
-// benchEvent is a minimal Element with an integer tie-break, mirroring the
-// per-entity key shape the games use.
-type benchEvent struct {
-	at  util.Time
-	key int
+// benchEntities pre-allocates a pool of entities to key benchmark events on.
+func benchEntities(n int) []ecs.EntityId {
+	w := ecs.NewWorld()
+	ids := make([]ecs.EntityId, n)
+	for i := range ids {
+		ids[i] = w.NewEntity()
+	}
+	return ids
 }
-
-func (e benchEvent) EventTime() util.Time          { return e.at }
-func (e benchEvent) TieBreak(other benchEvent) int { return e.key - other.key }
 
 // BenchmarkEventQueueAdd measures raw insertion into a growing queue.
 func BenchmarkEventQueueAdd(b *testing.B) {
-	q := NewEventQueue[benchEvent]()
+	pool := benchEntities(1024)
+	q := NewEventQueue()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Pseudo-random-ish times to avoid always inserting at the tail.
-		q.Add(benchEvent{at: util.Time((i * 2654435761) & 0xffffff), key: i})
+		q.Add(Event{Time: util.Time((i * 2654435761) & 0xffffff), Entity: pool[i&1023], Key: uint64(i)})
 	}
 }
 
-// BenchmarkEventQueueSteadyState measures the real scheduler pattern at a fixed
-// occupancy: pop the earliest event and immediately schedule a new future one,
-// so the queue stays at size n across the loop.
+// BenchmarkEventQueueSteadyState measures the scheduler pattern at fixed
+// occupancy: pop the earliest event and schedule a new future one.
 func BenchmarkEventQueueSteadyState(b *testing.B) {
+	pool := benchEntities(1024)
 	for _, n := range []int{100, 1000, 10000, 100000} {
 		b.Run(sizeLabel(n), func(b *testing.B) {
-			q := NewEventQueue[benchEvent]()
+			q := NewEventQueue()
 			for i := 0; i < n; i++ {
-				q.Add(benchEvent{at: util.Time((i * 2654435761) & 0xffffff), key: i})
+				q.Add(Event{Time: util.Time((i * 2654435761) & 0xffffff), Entity: pool[i&1023], Key: uint64(i)})
 			}
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				e, _ := q.Next()
-				// Reschedule further out so it does not re-pop immediately.
-				q.Add(benchEvent{at: e.at + 0x1000, key: e.key})
+				e, _ := q.Pop()
+				q.Add(Event{Time: e.Time + 0x1000, Entity: e.Entity, Key: e.Key})
 			}
 		})
 	}

@@ -4,91 +4,128 @@ import (
 	"container/heap"
 	"slices"
 
+	"github.com/trancecode/ecs/ecs"
 	"github.com/trancecode/vantage/util"
 )
 
-// Element is implemented by values stored in an EventQueue.
-type Element[T any] interface {
-	// EventTime is the game time at which the element is due.
-	EventTime() util.Time
+// Event is a scheduled occurrence about a single entity. It carries no payload
+// beyond these fields; a handler resolves what to do from the entity's
+// components and from Key.
+type Event struct {
+	// Time is the game time at which the event is due.
+	Time util.Time
 
-	// TieBreak defines a strict total order among elements that share the same
-	// EventTime. It returns a negative value if the receiver sorts before other,
-	// positive if after. It must never return 0 for two distinct queued
-	// elements: the queue does not fall back to insertion order, so a duplicate
-	// key leaves the relative order of those elements unspecified.
-	TieBreak(other T) int
+	// Entity is the entity the event concerns.
+	Entity ecs.EntityId
+
+	// Key is a client-defined discriminator, typically the event type. It may
+	// pack a type, subtype, or counter into its bits. It participates in
+	// ordering and uniqueness.
+	Key uint64
 }
 
 // eventLess reports whether a sorts before b under the queue's hardwired
-// lexicographic order: EventTime first, then TieBreak among same-time peers.
-func eventLess[T Element[T]](a, b T) bool {
-	if at, bt := a.EventTime(), b.EventTime(); at != bt {
-		return at < bt
+// lexicographic order: Time first, then Key, then Entity.
+func eventLess(a, b Event) bool {
+	if a.Time != b.Time {
+		return a.Time < b.Time
 	}
-	return a.TieBreak(b) < 0
+	if a.Key != b.Key {
+		return a.Key < b.Key
+	}
+	return a.Entity.Compare(b.Entity) < 0
 }
 
-type internalEventQueue[T Element[T]] struct {
-	elements []T
+type internalEventQueue struct {
+	elements []Event
 }
 
-func (q *internalEventQueue[T]) Len() int { return len(q.elements) }
+func (q *internalEventQueue) Len() int { return len(q.elements) }
 
-func (q *internalEventQueue[T]) Less(i, j int) bool {
+func (q *internalEventQueue) Less(i, j int) bool {
 	return eventLess(q.elements[i], q.elements[j])
 }
 
-func (q *internalEventQueue[T]) Swap(i, j int) {
+func (q *internalEventQueue) Swap(i, j int) {
 	q.elements[i], q.elements[j] = q.elements[j], q.elements[i]
 }
 
-func (q *internalEventQueue[T]) Push(element any) {
-	q.elements = append(q.elements, element.(T))
+func (q *internalEventQueue) Push(x any) {
+	q.elements = append(q.elements, x.(Event))
 }
 
-func (q *internalEventQueue[T]) Pop() any {
+func (q *internalEventQueue) Pop() any {
 	old := q.elements
 	n := len(old)
-	element := old[n-1]
+	e := old[n-1]
 	q.elements = slices.Delete(old, n-1, n) // Avoid memory leak.
-	return element
+	return e
 }
 
-// EventQueue is a generic deterministic min-heap of scheduled events. Elements
-// dequeue in lexicographic order of (EventTime, TieBreak); the order is a pure
-// function of the queued set, independent of insertion order.
-type EventQueue[T Element[T]] struct {
-	internal *internalEventQueue[T]
+// EventQueue is a deterministic min-heap of scheduled events. Dequeue order is a
+// pure function of the queued set (lexicographic by Time, then Key, then
+// Entity), independent of insertion order.
+type EventQueue struct {
+	internal *internalEventQueue
 }
 
 // NewEventQueue returns an empty EventQueue.
-func NewEventQueue[T Element[T]]() *EventQueue[T] {
-	return &EventQueue[T]{internal: &internalEventQueue[T]{}}
+func NewEventQueue() *EventQueue {
+	return &EventQueue{internal: &internalEventQueue{}}
 }
 
-// Len returns the number of queued elements.
-func (q *EventQueue[T]) Len() int { return q.internal.Len() }
+// Restore rebuilds a queue from a snapshot (as returned by Snapshot). Input
+// order does not matter; the result dequeues in the queue's canonical order.
+func Restore(events []Event) *EventQueue {
+	q := NewEventQueue()
+	q.internal.elements = append(q.internal.elements, events...)
+	heap.Init(q.internal)
+	return q
+}
 
-// Add inserts element into the queue.
-func (q *EventQueue[T]) Add(element T) { heap.Push(q.internal, element) }
+// Len returns the number of queued events.
+func (q *EventQueue) Len() int { return q.internal.Len() }
 
-// Peek returns the earliest element without removing it. The second return
-// value is false if the queue is empty.
-func (q *EventQueue[T]) Peek() (T, bool) {
+// Add inserts e into the queue.
+func (q *EventQueue) Add(e Event) { heap.Push(q.internal, e) }
+
+// Peek returns the earliest event without removing it. ok is false if the queue
+// is empty.
+func (q *EventQueue) Peek() (Event, bool) {
 	if len(q.internal.elements) == 0 {
-		var empty T
-		return empty, false
+		return Event{}, false
 	}
 	return q.internal.elements[0], true
 }
 
-// Next removes and returns the earliest element. The second return value is
-// false if the queue is empty.
-func (q *EventQueue[T]) Next() (T, bool) {
+// Pop removes and returns the earliest event. ok is false if the queue is empty.
+func (q *EventQueue) Pop() (Event, bool) {
 	if len(q.internal.elements) == 0 {
-		var empty T
-		return empty, false
+		return Event{}, false
 	}
-	return heap.Pop(q.internal).(T), true
+	return heap.Pop(q.internal).(Event), true
+}
+
+// PeekAhead returns the next n events in dequeue order without removing them,
+// clamped to the number queued. It is for UI read-ahead and is not on the hot
+// path; it copies the backing heap.
+func (q *EventQueue) PeekAhead(n int) []Event {
+	if n > q.Len() {
+		n = q.Len()
+	}
+	if n <= 0 {
+		return nil
+	}
+	scratch := &internalEventQueue{elements: append([]Event(nil), q.internal.elements...)}
+	result := make([]Event, 0, n)
+	for i := 0; i < n; i++ {
+		result = append(result, heap.Pop(scratch).(Event))
+	}
+	return result
+}
+
+// Snapshot returns every queued event in unspecified order, for serialization
+// and for rebuilding a queue with Restore.
+func (q *EventQueue) Snapshot() []Event {
+	return append([]Event(nil), q.internal.elements...)
 }
