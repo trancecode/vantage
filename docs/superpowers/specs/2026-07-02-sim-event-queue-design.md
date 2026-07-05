@@ -1,5 +1,9 @@
 # Sim package design: deterministic event scheduling
 
+> Superseded by `2026-07-05-sim-event-queue-v2-design.md`, which replaces the
+> generic `Element[T]` / `EventQueue[T]` and `EventSource` model with a single
+> serializable event queue keyed by `(Time, Key, Entity)`. Retained for history.
+
 ## Context
 
 Both games built on vantage duplicate the same scheduling machinery:
