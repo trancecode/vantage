@@ -140,3 +140,33 @@ func TestDriverRestoreNow(t *testing.T) {
 	assert.Equal(t, util.Time(105), d.Now())
 	assert.Equal(t, []time.Duration{3, 2}, tick.elapsed) // 100->103, 103->105
 }
+
+func TestDriverDispatchesEventExactlyAtTarget(t *testing.T) {
+	e := newEntities(1)
+	h := &recordingHandler{}
+	d := NewDriver(h)
+	d.Queue().Add(Event{Time: util.Time(10), Key: 1, Entity: e[0]})
+
+	d.RunUntil(util.Time(10))
+
+	require.Len(t, h.handled, 1)
+	assert.Equal(t, util.Time(10), h.handled[0].Time) // event at exactly the target is dispatched
+	assert.Equal(t, util.Time(10), d.Now())
+}
+
+func TestDriverRestoreQueue(t *testing.T) {
+	e := newEntities(2)
+	snap := []Event{
+		{Time: util.Time(5), Key: 1, Entity: e[0]},
+		{Time: util.Time(8), Key: 1, Entity: e[1]},
+	}
+	h := &recordingHandler{}
+	d := NewDriver(h)
+	d.RestoreQueue(Restore(snap))
+
+	d.RunUntil(util.Time(10))
+
+	require.Len(t, h.handled, 2)
+	assert.Equal(t, util.Time(5), h.handled[0].Time)
+	assert.Equal(t, util.Time(8), h.handled[1].Time)
+}

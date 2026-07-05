@@ -14,7 +14,9 @@ type TickSystem interface {
 
 // EventHandler dispatches a due event at the given game time. The game switches
 // on Event.Key (and/or inspects Entity's components) to run the right logic.
-// Handling may schedule new events, including at now.
+// Handling may schedule new events, including at now; a handler that
+// unconditionally re-schedules an event at now never lets the current instant
+// settle and stalls the driver's drain loop.
 type EventHandler interface {
 	HandleEvent(now util.Time, e Event)
 }
@@ -54,6 +56,10 @@ func (d *Driver) Now() util.Time { return d.now }
 // RestoreNow reseats the clock. It is for reloading a savegame before any
 // RunUntil call; the clock is otherwise advanced only by RunUntil.
 func (d *Driver) RestoreNow(t util.Time) { d.now = t }
+
+// RestoreQueue replaces the driver's event queue, for reloading a savegame
+// before any RunUntil call. Pair it with RestoreNow.
+func (d *Driver) RestoreQueue(q *EventQueue) { d.queue = q }
 
 // RunUntil advances the clock to target, stopping at each due event. At every
 // stop it runs each tick system, in registration order, with the elapsed
