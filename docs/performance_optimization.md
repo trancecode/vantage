@@ -27,3 +27,16 @@ allocations and the per-operation interface dispatch, at the cost of ~30 extra
 lines. Left as-is because the scheduler is not alloc-bound at realistic event
 rates (100k events/sec is ~3 MB/s of tiny, short-lived garbage); revisit if the
 event queue shows up in allocation profiles under load.
+
+## Path-following search costs (motion/motion_towards.go)
+
+`MoveEntityTowardsArea` searches concentric square rings around the area center
+and calls `FindPathBetween` (a full A* run) for every candidate tile in every
+ring, so a single bounded move step can trigger dozens of full pathfinding
+searches. A cheaper reachability probe, memoization of results across
+candidates, or a single multi-goal search from the entity would cut this
+substantially. Separately, `MoveEntityTowards`'s fallback (taken whenever no
+waypoint on the direct path is reachable) scans an O(maxTileDistance^2) grid of
+tiles around the entity, calling `CanReach` per cell. Both are ported verbatim
+from the game sources (nrg/lockstep) and are only worth optimizing if profiling
+shows them hot.
