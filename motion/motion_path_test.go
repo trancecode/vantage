@@ -128,3 +128,16 @@ func TestFindPathBetween_RecordsPhase(t *testing.T) {
 		t.Errorf("expected one 'pathfinding' phase record, got %v", phases)
 	}
 }
+
+func TestFindPathBetween_SameTileReturnsEmpty(t *testing.T) {
+	s, _ := newTestSystem()
+	s.Terrain = &testTerrain{width: 10, height: 10}
+	origin := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 2, Y: 2})
+	destination := origin.Add(geometry.NewVector2(0.2, 0.1))
+
+	path := s.FindPathBetween(origin, destination)
+
+	if len(path) != 0 {
+		t.Errorf("expected empty path for same-tile request, got %v", path)
+	}
+}
