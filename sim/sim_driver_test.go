@@ -5,153 +5,102 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/trancecode/vantage/util"
 )
 
-// recordingTick records the elapsed duration of every Tick call.
+// recordingHandler records handled events in order. onHandle, if set, runs after
+// each event and may schedule follow-up events.
+type recordingHandler struct {
+	handled  []Event
+	onHandle func(now util.Time, e Event)
+}
+
+func (h *recordingHandler) HandleEvent(now util.Time, e Event) {
+	h.handled = append(h.handled, e)
+	if h.onHandle != nil {
+		h.onHandle(now, e)
+	}
+}
+
+// recordingTick records the elapsed duration of every Tick.
 type recordingTick struct {
 	elapsed []time.Duration
 }
 
-func (r *recordingTick) Tick(elapsed time.Duration) {
-	r.elapsed = append(r.elapsed, elapsed)
-}
+func (r *recordingTick) Tick(elapsed time.Duration) { r.elapsed = append(r.elapsed, elapsed) }
 
-// labeledTick appends its label to a shared log on every Tick call, so the
-// relative ordering of multiple tick systems is observable.
+// labeledTick appends its label to a shared log on each Tick.
 type labeledTick struct {
 	label string
 	log   *[]string
 }
 
-func (l *labeledTick) Tick(time.Duration) {
-	*l.log = append(*l.log, l.label)
-}
-
-// testSource is an EventSource backed by an EventQueue. Each dispatched event
-// is appended (with the source's label) to the shared log, so cross-source
-// ordering is observable. onRun, if set, runs after each dispatch and may queue
-// follow-up events to exercise cascades.
-type testSource struct {
-	label string
-	queue *EventQueue[testEvent]
-	log   *[]string
-	onRun func(now util.Time, s *testSource)
-}
-
-func newTestSource(label string, log *[]string) *testSource {
-	return &testSource{label: label, queue: NewEventQueue[testEvent](), log: log}
-}
-
-func (s *testSource) NextEventTime() (util.Time, bool) {
-	if e, ok := s.queue.Peek(); ok {
-		return e.EventTime(), true
-	}
-	return 0, false
-}
-
-func (s *testSource) RunDue(now util.Time) {
-	for {
-		e, ok := s.queue.Peek()
-		if !ok || e.EventTime() > now {
-			return
-		}
-		s.queue.Next()
-		*s.log = append(*s.log, s.label)
-		if s.onRun != nil {
-			s.onRun(now, s)
-		}
-	}
-}
+func (t *labeledTick) Tick(_ time.Duration) { *t.log = append(*t.log, t.label) }
 
 func TestDriverStopPointsAndElapsed(t *testing.T) {
-	var log []string
-	src := newTestSource("a", &log)
-	src.queue.Add(testEvent{at: util.Time(3), key: 1})
-	src.queue.Add(testEvent{at: util.Time(7), key: 1})
-
+	e := newEntities(2)
+	h := &recordingHandler{}
 	tick := &recordingTick{}
 
-	d := NewDriver()
+	d := NewDriver(h)
 	d.RegisterTickSystem(tick)
-	d.RegisterEventSource(src)
+	d.Queue().Add(Event{Time: util.Time(3), Key: 1, Entity: e[0]})
+	d.Queue().Add(Event{Time: util.Time(7), Key: 1, Entity: e[1]})
 
 	d.RunUntil(util.Time(10))
 
-	// Stops at 3 (event), 7 (event), 10 (target): elapsed 3, 4, 3.
 	assert.Equal(t, []time.Duration{3, 4, 3}, tick.elapsed)
 	assert.Equal(t, util.Time(10), d.Now())
-	assert.Equal(t, []string{"a", "a"}, log)
+	require.Len(t, h.handled, 2)
+	assert.Equal(t, util.Time(3), h.handled[0].Time)
+	assert.Equal(t, util.Time(7), h.handled[1].Time)
 }
 
-func TestDriverSameInstantCascadeAcrossDrainedSource(t *testing.T) {
-	var log []string
-	first := newTestSource("first", &log)
-	second := newTestSource("second", &log)
+func TestDriverSameInstantCascade(t *testing.T) {
+	e := newEntities(2)
+	h := &recordingHandler{}
 
-	// first has an event at 5 whose handler queues an event at 5 in second,
-	// which is registered BEFORE first and so is drained before first each pass.
-	first.queue.Add(testEvent{at: util.Time(5), key: 1})
-	first.onRun = func(now util.Time, _ *testSource) {
-		second.queue.Add(testEvent{at: now, key: 1})
+	d := NewDriver(h)
+	// Handling the key-1 event schedules a key-2 event at the same instant.
+	h.onHandle = func(now util.Time, ev Event) {
+		if ev.Key == 1 {
+			d.Queue().Add(Event{Time: now, Key: 2, Entity: e[1]})
+		}
 	}
-
-	d := NewDriver()
-	d.RegisterEventSource(second)
-	d.RegisterEventSource(first)
+	d.Queue().Add(Event{Time: util.Time(5), Key: 1, Entity: e[0]})
 
 	d.RunUntil(util.Time(10))
 
-	// The cascaded "second" event must be handled at instant 5, before the
-	// clock advances to the target.
-	assert.Equal(t, []string{"first", "second"}, log)
+	require.Len(t, h.handled, 2)
+	assert.Equal(t, uint64(1), h.handled[0].Key)
+	assert.Equal(t, uint64(2), h.handled[1].Key)
+	assert.Equal(t, util.Time(5), h.handled[1].Time) // cascaded event handled at instant 5
 	assert.Equal(t, util.Time(10), d.Now())
-}
-
-func TestDriverDrainsInRegistrationOrder(t *testing.T) {
-	var log []string
-	src1 := newTestSource("src1", &log)
-	src2 := newTestSource("src2", &log)
-
-	src1.queue.Add(testEvent{at: util.Time(5), key: 1})
-	src2.queue.Add(testEvent{at: util.Time(5), key: 1})
-
-	d := NewDriver()
-	d.RegisterEventSource(src1)
-	d.RegisterEventSource(src2)
-
-	d.RunUntil(util.Time(10))
-
-	assert.Equal(t, []string{"src1", "src2"}, log)
 }
 
 func TestDriverPastEventDoesNotRewindClock(t *testing.T) {
-	var log []string
-	src := newTestSource("a", &log)
+	e := newEntities(1)
+	h := &recordingHandler{}
 	tick := &recordingTick{}
 
-	d := NewDriver()
+	d := NewDriver(h)
 	d.RegisterTickSystem(tick)
-	d.RegisterEventSource(src)
 
-	// Advance to 10 first.
 	d.RunUntil(util.Time(10))
-	// Now queue an event in the past and advance to 20.
-	src.queue.Add(testEvent{at: util.Time(4), key: 1})
+	// Schedule an event in the past, then advance to 20.
+	d.Queue().Add(Event{Time: util.Time(4), Key: 1, Entity: e[0]})
 	d.RunUntil(util.Time(20))
 
-	// The past event is dispatched, but the clock only ever moved forward.
-	assert.Equal(t, []string{"a"}, log)
+	require.Len(t, h.handled, 1)
 	assert.Equal(t, util.Time(20), d.Now())
-	// 10 to reach the first target, 0 for the clamp-to-now stop that dispatches
-	// the past event at 4, then 10 to reach the second target.
 	assert.Equal(t, []time.Duration{10, 0, 10}, tick.elapsed)
 }
 
 func TestDriverNoEventsAdvancesToTarget(t *testing.T) {
 	tick := &recordingTick{}
-	d := NewDriver()
+	d := NewDriver(&recordingHandler{})
 	d.RegisterTickSystem(tick)
 
 	d.RunUntil(util.Time(8))
@@ -160,58 +109,34 @@ func TestDriverNoEventsAdvancesToTarget(t *testing.T) {
 	assert.Equal(t, []time.Duration{8}, tick.elapsed)
 }
 
-func TestDriverDispatchesEventExactlyAtTarget(t *testing.T) {
-	var log []string
-	src := newTestSource("a", &log)
-	src.queue.Add(testEvent{at: util.Time(10), key: 1})
-
-	d := NewDriver()
-	d.RegisterEventSource(src)
-
-	d.RunUntil(util.Time(10))
-
-	// The event's time equals the target, so it is drained on the final loop
-	// iteration rather than being left pending.
-	assert.Equal(t, []string{"a"}, log)
-	assert.Equal(t, util.Time(10), d.Now())
-}
-
 func TestDriverRunsTickSystemsInRegistrationOrder(t *testing.T) {
+	e := newEntities(1)
 	var log []string
-	first := &labeledTick{label: "first", log: &log}
-	second := &labeledTick{label: "second", log: &log}
+	d := NewDriver(&recordingHandler{})
+	d.RegisterTickSystem(&labeledTick{label: "first", log: &log})
+	d.RegisterTickSystem(&labeledTick{label: "second", log: &log})
+	d.Queue().Add(Event{Time: util.Time(5), Key: 1, Entity: e[0]})
 
-	d := NewDriver()
-	d.RegisterTickSystem(first)
-	d.RegisterTickSystem(second)
-
-	d.RunUntil(util.Time(5))
 	d.RunUntil(util.Time(10))
 
-	// Two stops (5 and 10): at each, "first" must be invoked before "second".
 	assert.Equal(t, []string{"first", "second", "first", "second"}, log)
 }
 
-func TestDriverStaggeredMultiSourceDispatchOrder(t *testing.T) {
-	var log []string
-	src1 := newTestSource("src1", &log)
-	src2 := newTestSource("src2", &log)
-
-	src1.queue.Add(testEvent{at: util.Time(3), key: 1})
-	src1.queue.Add(testEvent{at: util.Time(8), key: 1})
-	src2.queue.Add(testEvent{at: util.Time(5), key: 1})
-
+func TestDriverRestoreNow(t *testing.T) {
+	e := newEntities(1)
+	h := &recordingHandler{}
 	tick := &recordingTick{}
 
-	d := NewDriver()
+	d := NewDriver(h)
 	d.RegisterTickSystem(tick)
-	d.RegisterEventSource(src1)
-	d.RegisterEventSource(src2)
+	d.RestoreNow(util.Time(100))
+	assert.Equal(t, util.Time(100), d.Now())
 
-	d.RunUntil(util.Time(10))
+	d.Queue().Add(Event{Time: util.Time(103), Key: 1, Entity: e[0]})
+	d.RunUntil(util.Time(105))
 
-	// Stops at 3 (src1), 5 (src2), 8 (src1), 10 (target): elapsed 3, 2, 3, 2.
-	assert.Equal(t, []time.Duration{3, 2, 3, 2}, tick.elapsed)
-	assert.Equal(t, []string{"src1", "src2", "src1"}, log)
-	assert.Equal(t, util.Time(10), d.Now())
+	require.Len(t, h.handled, 1)
+	assert.Equal(t, util.Time(103), h.handled[0].Time)
+	assert.Equal(t, util.Time(105), d.Now())
+	assert.Equal(t, []time.Duration{3, 2}, tick.elapsed) // 100->103, 103->105
 }
