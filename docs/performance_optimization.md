@@ -13,3 +13,17 @@ single `copy(rgbaImg.Pix, pixels)`, which is both simpler and substantially
 faster for large frames (the per-pixel path does ~2M bounds-checked calls at
 1080p). Left as-is for now because capture is not on the hot path; revisit if
 high-frequency frame-sequence capture becomes a bottleneck.
+
+## Alloc-free event queue heap (sim/sim_eventqueue.go)
+
+`EventQueue` (like `util.PriorityQueue`) is built on `container/heap`, whose
+interface is `any`-based. Each `Add` boxes the element into an interface and
+each `Next` boxes the popped value on the way out, so a pop-and-reschedule cycle
+costs 2 allocations. Benchmarks (`sim_eventqueue_bench_test.go`) measure a
+steady-state pop+insert at ~156 ns (100 queued) rising to ~280 ns (100k queued),
+each with 2 allocs/op. A generics-native heap — hand-written sift-up/sift-down
+over the `[]T` backing slice instead of `container/heap` — would remove both
+allocations and the per-operation interface dispatch, at the cost of ~30 extra
+lines. Left as-is because the scheduler is not alloc-bound at realistic event
+rates (100k events/sec is ~3 MB/s of tiny, short-lived garbage); revisit if the
+event queue shows up in allocation profiles under load.
