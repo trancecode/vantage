@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/trancecode/ecs/ecs"
+	"github.com/trancecode/vantage/pathfinding"
 	"github.com/trancecode/vantage/tilemap"
 )
 
@@ -32,6 +33,17 @@ type System struct {
 	// destinations reserved by another entity and moves the reservation as
 	// the entity departs.
 	Occupancy *tilemap.TileOccupancyManager
+
+	// Terrain provides walkability for CanReach and the pathfinding helpers.
+	// FindTilePath, FindPathBetween, MoveEntityTowards and
+	// MoveEntityTowardsArea require it and panic when it is nil; a nil
+	// Terrain makes CanReach treat every tile as walkable.
+	Terrain pathfinding.TerrainProvider
+
+	// RecordPhase, when non-nil, receives wall time spent in instrumented
+	// hot spots ("pathfinding", "move_towards_area") so games can feed their
+	// benchmark reports.
+	RecordPhase func(name string, elapsed time.Duration)
 
 	// OnArrival, when non-nil, is called for each entity that reaches its
 	// destination during a Tick, after its Movement has been removed.
