@@ -91,6 +91,17 @@ func TestMoveEntityTowards_NoPath(t *testing.T) {
 	}
 }
 
+func TestMoveEntityTowards_PanicsWithoutMaxMoveActionDistance(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when MaxMoveActionDistance is not configured")
+		}
+	}()
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	s.MaxMoveActionDistance = 0
+	s.MoveEntityTowards(e.id, tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0}), 1.0)
+}
+
 func TestMoveEntityTowardsArea_AlreadyInside(t *testing.T) {
 	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 5, Y: 5})
 	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 6})

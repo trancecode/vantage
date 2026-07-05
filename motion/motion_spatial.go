@@ -9,6 +9,8 @@ type Spatial struct {
 	// Position is the current world coordinates of the entity in tile units.
 	Position geometry.Vector2
 
-	// Direction is the facing direction vector for orientation (unit vector).
+	// Direction is the facing direction vector for orientation. It is not
+	// necessarily normalized: MoveEntity stores the raw displacement toward
+	// the destination.
 	Direction geometry.Vector2
 }

@@ -129,15 +129,28 @@ func TestFindPathBetween_RecordsPhase(t *testing.T) {
 	}
 }
 
-func TestFindPathBetween_SameTileReturnsEmpty(t *testing.T) {
+func TestFindPathBetween_SameTileReturnsTileCenter(t *testing.T) {
 	s, _ := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
-	origin := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 2, Y: 2})
-	destination := origin.Add(geometry.NewVector2(0.2, 0.1))
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 2, Y: 2})
+	origin := center.Add(geometry.NewVector2(0.2, 0.1))
 
-	path := s.FindPathBetween(origin, destination)
+	path := s.FindPathBetween(origin, center)
+
+	if len(path) != 1 || path[0] != center {
+		t.Errorf("expected single waypoint at tile center %v, got %v", center, path)
+	}
+}
+
+func TestFindPathBetween_SameTileAtCenterReturnsEmpty(t *testing.T) {
+	s, _ := newTestSystem()
+	s.Terrain = &testTerrain{width: 10, height: 10}
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 2, Y: 2})
+	destination := center.Add(geometry.NewVector2(0.2, 0.1))
+
+	path := s.FindPathBetween(center, destination)
 
 	if len(path) != 0 {
-		t.Errorf("expected empty path for same-tile request, got %v", path)
+		t.Errorf("expected empty path when already at the tile center, got %v", path)
 	}
 }

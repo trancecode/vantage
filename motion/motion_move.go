@@ -60,7 +60,11 @@ func (m MoveStart) Started() bool { return m.Outcome == MoveOutcomeStarted }
 // from its current tile to the destination tile as the move starts.
 //
 // The entity's facing direction is set toward the destination. The entity
-// must have a Spatial; MoveEntity panics otherwise.
+// must have a Spatial; MoveEntity panics otherwise. speed must be positive,
+// otherwise the returned Duration is meaningless. MoveEntity is intended for
+// entities settled on their reserved tile: redirecting an entity mid-move can
+// strand its old destination reservation and clear a tile it no longer
+// holds.
 func (s *System) MoveEntity(id ecs.EntityId, destination geometry.Vector2, speed float64) MoveStart {
 	sc, ok := s.Spatials.Get(id)
 	if !ok {

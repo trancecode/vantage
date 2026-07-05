@@ -14,12 +14,22 @@ import (
 // destination: it follows the A* path from FindPathBetween but only as far
 // as MaxMoveActionDistance, respecting walkable terrain and tile
 // reservations. When no waypoint along the path is directly reachable, it
-// falls back to the reachable adjacent tile that gets closest to the path.
+// falls back to the reachable adjacent tile that gets closest to the path. A
+// destination within the entity's current tile starts a move to that tile's
+// center, unless the entity is already there.
 //
 // The returned MoveStart reports whether a step was started; callers use it
-// to update entity states or fall through to a wait directive. The entity
-// must have a Spatial; MoveEntityTowards panics otherwise.
+// to update entity states or fall through to a wait directive.
+// MoveOutcomeNoPath means no walkable route toward destination was found (the
+// entity is boxed in), which also covers the case where the entity is
+// already exactly at destination. The entity must have a Spatial;
+// MoveEntityTowards panics otherwise. MaxMoveActionDistance must be
+// configured (> 0); MoveEntityTowards panics otherwise.
 func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.Vector2, speed float64) MoveStart {
+	if s.MaxMoveActionDistance <= 0 {
+		panic(fmt.Sprintf("moving entity %v towards destination: MaxMoveActionDistance not configured", entityId))
+	}
+
 	sc, ok := s.Spatials.Get(entityId)
 	if !ok {
 		panic(fmt.Sprintf("moving entity %v towards destination: no Spatial component", entityId))
@@ -89,6 +99,10 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Vector2, radius, speed float64) MoveStart {
 	if s.RecordPhase != nil {
 		defer func(start time.Time) { s.RecordPhase("move_towards_area", time.Since(start)) }(time.Now())
+	}
+
+	if s.MaxMoveActionDistance <= 0 {
+		panic(fmt.Sprintf("moving entity %v towards area: MaxMoveActionDistance not configured", entityId))
 	}
 
 	sc, ok := s.Spatials.Get(entityId)

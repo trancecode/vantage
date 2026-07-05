@@ -67,8 +67,9 @@ func (s *System) FindTilePath(start, goal tilemap.TileCoord) []tilemap.TileCoord
 // tile is skipped when origin already sits at its center, and the final
 // waypoint is constrained to the goal tile's center so entities stay
 // grid-aligned. It returns an empty slice when no path exists. A request
-// whose origin and destination fall in the same tile returns an empty slice:
-// the tile-level pathfinder treats it as no path needed.
+// whose origin and destination fall in the same tile returns a single
+// waypoint at that tile's center (empty when the origin already sits at the
+// center).
 func (s *System) FindPathBetween(origin, destination geometry.Vector2) []geometry.Vector2 {
 	if s.RecordPhase != nil {
 		defer func(start time.Time) { s.RecordPhase("pathfinding", time.Since(start)) }(time.Now())
@@ -76,6 +77,19 @@ func (s *System) FindPathBetween(origin, destination geometry.Vector2) []geometr
 
 	startTile := tilemap.WorldPositionToTile(origin)
 	goalTile := tilemap.WorldPositionToTile(destination)
+
+	// A request within a single tile cannot be planned by the tile-level
+	// pathfinder (start and goal are the same node), so handle it directly:
+	// steer to the tile's center, the grid-aligned position the multi-tile
+	// case also converges on. No occupancy check: the entity already stands
+	// in this tile.
+	if startTile == goalTile {
+		tileCenter := tilemap.TileToWorldPosition(goalTile)
+		if origin.DistanceTo(tileCenter) < 0.01 {
+			return []geometry.Vector2{}
+		}
+		return []geometry.Vector2{tileCenter}
+	}
 
 	tilePath := s.FindTilePath(startTile, goalTile)
 	if len(tilePath) == 0 {
