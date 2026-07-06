@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"reflect"
 	"time"
 
 	"github.com/trancecode/vantage/util"
@@ -21,14 +22,22 @@ type EventHandler interface {
 	HandleEvent(now util.Time, e Event)
 }
 
+// tickSystemEntry pairs a registered tick system with the label used to
+// attribute its wall time when a profiler is attached (its concrete type name).
+type tickSystemEntry struct {
+	label  string
+	system TickSystem
+}
+
 // Driver owns the game clock and advances it event by event, running tick
 // systems over each interval and draining the event queue at each stop through
 // the handler.
 type Driver struct {
 	now         util.Time
-	tickSystems []TickSystem
+	tickSystems []tickSystemEntry
 	queue       *EventQueue
 	handler     EventHandler
+	profiler    *util.Profiler
 }
 
 // NewDriver returns a Driver whose clock is at the zero time, with an empty
@@ -43,8 +52,22 @@ func NewDriver(handler EventHandler) *Driver {
 // RegisterTickSystem registers s. Tick systems run in registration order, which
 // defines their phase ordering.
 func (d *Driver) RegisterTickSystem(s TickSystem) {
-	d.tickSystems = append(d.tickSystems, s)
+	d.tickSystems = append(d.tickSystems, tickSystemEntry{
+		label:  reflect.TypeOf(s).String(),
+		system: s,
+	})
 }
+
+// SetProfiler attaches p so RunUntil records the wall time of each tick system
+// (labeled by its concrete type) and of the event drain (as "sim.drain"). A nil
+// profiler, the default, disables profiling with zero overhead. Set it before
+// RunUntil. Recorded timings are observational only and never affect the
+// simulation.
+func (d *Driver) SetProfiler(p *util.Profiler) { d.profiler = p }
+
+// Profiler returns the attached profiler, or nil. Games can Record their own
+// phase timings into it alongside the driver's system timings.
+func (d *Driver) Profiler() *util.Profiler { return d.profiler }
 
 // Queue returns the driver's event queue for scheduling, read-ahead, and
 // snapshotting.
@@ -83,17 +106,37 @@ func (d *Driver) RunUntil(target util.Time) {
 		elapsed := stop.Sub(d.now)
 		d.now = stop
 
-		for _, tickSystem := range d.tickSystems {
-			tickSystem.Tick(elapsed)
+		for i := range d.tickSystems {
+			ts := &d.tickSystems[i]
+			if d.profiler == nil {
+				ts.system.Tick(elapsed)
+				continue
+			}
+			start := time.Now()
+			ts.system.Tick(elapsed)
+			d.profiler.Record(ts.label, time.Since(start))
 		}
 
-		for {
-			e, ok := d.queue.Peek()
-			if !ok || e.Time > d.now {
-				break
-			}
-			d.queue.Pop()
-			d.handler.HandleEvent(d.now, e)
+		if d.profiler == nil {
+			d.drainDue()
+			continue
 		}
+		start := time.Now()
+		d.drainDue()
+		d.profiler.Record("sim.drain", time.Since(start))
+	}
+}
+
+// drainDue dispatches every event due at the current instant through the
+// handler, re-checking after each so same-instant cascades resolve before the
+// clock advances.
+func (d *Driver) drainDue() {
+	for {
+		e, ok := d.queue.Peek()
+		if !ok || e.Time > d.now {
+			return
+		}
+		d.queue.Pop()
+		d.handler.HandleEvent(d.now, e)
 	}
 }

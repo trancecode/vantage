@@ -7,4 +7,5 @@
 //   - PriorityQueue: generic min-heap used by pathfinding and scheduling
 //   - StartDebugHTTPServer: launches an HTTP server for runtime diagnostics
 //   - ScreenLogger: on-screen log overlay for development
+//   - Profiler: debug-only accumulator of named wall-time timings (hotspots)
 package util

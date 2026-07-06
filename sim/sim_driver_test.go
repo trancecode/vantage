@@ -170,3 +170,39 @@ func TestDriverRestoreQueue(t *testing.T) {
 	assert.Equal(t, util.Time(5), h.handled[0].Time)
 	assert.Equal(t, util.Time(8), h.handled[1].Time)
 }
+
+func TestDriverProfilesTickSystemsAndDrain(t *testing.T) {
+	e := newEntities(1)
+	h := &recordingHandler{}
+	tick := &recordingTick{}
+	p := util.NewProfiler()
+
+	d := NewDriver(h)
+	d.SetProfiler(p)
+	assert.Same(t, p, d.Profiler())
+	d.RegisterTickSystem(tick)
+	d.Queue().Add(Event{Time: util.Time(5), Key: 1, Entity: e[0]})
+
+	// Two stops (advance to 5, advance to 10): the tick system and the drain
+	// are each measured once per stop.
+	d.RunUntil(util.Time(10))
+
+	byName := map[string]int64{}
+	for _, pt := range p.Snapshot() {
+		byName[pt.Name] = pt.Calls
+	}
+	assert.Equal(t, int64(2), byName["*sim.recordingTick"], "tick system timed per stop, labeled by type")
+	assert.Equal(t, int64(2), byName["sim.drain"], "event drain timed per stop")
+}
+
+func TestDriverWithoutProfilerRecordsNothing(t *testing.T) {
+	e := newEntities(1)
+	h := &recordingHandler{}
+	d := NewDriver(h) // no profiler attached
+	d.RegisterTickSystem(&recordingTick{})
+	d.Queue().Add(Event{Time: util.Time(5), Key: 1, Entity: e[0]})
+
+	assert.Nil(t, d.Profiler())
+	assert.NotPanics(t, func() { d.RunUntil(util.Time(10)) })
+	assert.Equal(t, util.Time(10), d.Now())
+}
