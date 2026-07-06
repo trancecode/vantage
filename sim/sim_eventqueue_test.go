@@ -145,3 +145,68 @@ func TestEventQueueSnapshotRestoreRoundTrip(t *testing.T) {
 	restored := Restore(snap)
 	assert.Equal(t, want, drain(restored))
 }
+
+func TestEventQueueCancel(t *testing.T) {
+	e := newEntities(3)
+	q := NewEventQueue()
+	q.Add(Event{Time: util.Time(10), Entity: e[0], Key: 1})
+	q.Add(Event{Time: util.Time(20), Entity: e[1], Key: 1})
+	q.Add(Event{Time: util.Time(30), Entity: e[2], Key: 1})
+
+	got, ok := q.Cancel(e[1], 1)
+	require.True(t, ok)
+	assert.Equal(t, Event{Time: util.Time(20), Entity: e[1], Key: 1}, got)
+	assert.Equal(t, 2, q.Len())
+
+	// A second cancel of the same (entity, key), and an unknown (entity, key),
+	// both report not found.
+	_, ok = q.Cancel(e[1], 1)
+	assert.False(t, ok)
+	_, ok = q.Cancel(e[0], 99)
+	assert.False(t, ok)
+
+	// The remaining events still dequeue in order.
+	assert.Equal(t, []Event{
+		{Time: util.Time(10), Entity: e[0], Key: 1},
+		{Time: util.Time(30), Entity: e[2], Key: 1},
+	}, drain(q))
+}
+
+func TestEventQueueReschedule(t *testing.T) {
+	e := newEntities(3)
+	q := NewEventQueue()
+	q.Add(Event{Time: util.Time(10), Entity: e[0], Key: 1})
+	q.Add(Event{Time: util.Time(20), Entity: e[1], Key: 1})
+	q.Add(Event{Time: util.Time(30), Entity: e[2], Key: 1})
+
+	// Delay e[0]'s event past the others; it now dequeues last.
+	require.True(t, q.Reschedule(e[0], 1, util.Time(40)))
+	assert.Equal(t, 3, q.Len())
+
+	// Rescheduling an unknown (entity, key) reports not found and changes nothing.
+	assert.False(t, q.Reschedule(e[0], 99, util.Time(5)))
+
+	assert.Equal(t, []Event{
+		{Time: util.Time(20), Entity: e[1], Key: 1},
+		{Time: util.Time(30), Entity: e[2], Key: 1},
+		{Time: util.Time(40), Entity: e[0], Key: 1},
+	}, drain(q))
+}
+
+func TestEventQueueCancelAndRescheduleDistinguishByKey(t *testing.T) {
+	e := newEntities(1)
+	q := NewEventQueue()
+	q.Add(Event{Time: util.Time(10), Entity: e[0], Key: 1})
+	q.Add(Event{Time: util.Time(20), Entity: e[0], Key: 2})
+
+	// Same entity, different keys: operations target the matching key only.
+	require.True(t, q.Reschedule(e[0], 1, util.Time(30)))
+	got, ok := q.Cancel(e[0], 2)
+	require.True(t, ok)
+	assert.Equal(t, uint64(2), got.Key)
+
+	remaining, ok := q.Peek()
+	require.True(t, ok)
+	assert.Equal(t, Event{Time: util.Time(30), Entity: e[0], Key: 1}, remaining)
+	assert.Equal(t, 1, q.Len())
+}

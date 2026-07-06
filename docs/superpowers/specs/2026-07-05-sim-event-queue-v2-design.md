@@ -130,6 +130,15 @@ func (q *EventQueue) Snapshot() []Event
 // Restore rebuilds a queue from a snapshot (phase 1: in-memory reconstruction).
 func Restore(events []Event) *EventQueue
 
+// Reschedule and Cancel act on the queued event matching (entity, key),
+// assuming at most one such event exists. They scan the heap (O(n)) and are for
+// occasional use — delaying a pending event when its owner is staggered, or
+// cancelling one on interrupt/death — not the hot path. A live entity-to-position
+// index would make them O(log n) at the cost of taxing every Add/Pop; deferred
+// as a documented optimization until reschedule is shown to be hot.
+func (q *EventQueue) Reschedule(entity ecs.EntityId, key uint64, newTime util.Time) bool
+func (q *EventQueue) Cancel(entity ecs.EntityId, key uint64) (Event, bool)
+
 // Phase 2 (deferred, needs the save format and ecs.EntityId marshaling):
 //   func (q *EventQueue) MarshalBinary() ([]byte, error)
 //   func (q *EventQueue) UnmarshalBinary(data []byte) error

@@ -129,3 +129,43 @@ func (q *EventQueue) PeekAhead(n int) []Event {
 func (q *EventQueue) Snapshot() []Event {
 	return append([]Event(nil), q.internal.elements...)
 }
+
+// indexOf returns the heap position of the queued event matching (entity, key),
+// or -1 if none is queued. It assumes at most one queued event per
+// (entity, key), consistent with how callers that reschedule or cancel key
+// their events.
+func (q *EventQueue) indexOf(entity ecs.EntityId, key uint64) int {
+	for i, e := range q.internal.elements {
+		if e.Key == key && e.Entity == entity {
+			return i
+		}
+	}
+	return -1
+}
+
+// Cancel removes and returns the queued event matching (entity, key). ok is
+// false if no such event is queued. It assumes at most one event per
+// (entity, key). Cancel scans the heap, so it is O(n); it is meant for
+// occasional use (interrupting or cancelling a pending event), not the hot path.
+func (q *EventQueue) Cancel(entity ecs.EntityId, key uint64) (Event, bool) {
+	i := q.indexOf(entity, key)
+	if i < 0 {
+		return Event{}, false
+	}
+	return heap.Remove(q.internal, i).(Event), true
+}
+
+// Reschedule changes the time of the queued event matching (entity, key) to
+// newTime and restores heap order, returning whether such an event was found.
+// It assumes at most one event per (entity, key). Like Cancel it scans the heap
+// (O(n)) and is meant for occasional use, such as delaying a pending event when
+// its owner is staggered.
+func (q *EventQueue) Reschedule(entity ecs.EntityId, key uint64, newTime util.Time) bool {
+	i := q.indexOf(entity, key)
+	if i < 0 {
+		return false
+	}
+	q.internal.elements[i].Time = newTime
+	heap.Fix(q.internal, i)
+	return true
+}

@@ -28,6 +28,17 @@ lines. Left as-is because the scheduler is not alloc-bound at realistic event
 rates (100k events/sec is ~3 MB/s of tiny, short-lived garbage); revisit if the
 event queue shows up in allocation profiles under load.
 
+## Event queue Reschedule/Cancel index (sim/sim_eventqueue.go)
+
+`EventQueue.Reschedule` and `Cancel` locate their target with an O(n) scan
+(`indexOf`) before an O(log n) `heap.Fix`/`heap.Remove`. This keeps `Add`/`Pop`
+(the hot path) index-free. A live `map[(entity,key)]int` position index would
+make Reschedule/Cancel O(log n), but every `Add`/`Pop`/`Swap` would then have to
+maintain it, taxing the common path for a rare operation. Left as a scan because
+reschedules (stagger) and cancels (interrupt/death) are occasional and the queue
+holds roughly one event per active entity; revisit only if reschedule/cancel
+shows up as hot in a profile.
+
 ## Path-following search costs (motion/motion_towards.go)
 
 `MoveEntityTowardsArea` searches concentric square rings around the area center
