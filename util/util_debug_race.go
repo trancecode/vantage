@@ -41,3 +41,12 @@ func (s *ScreenLogger) Draw(screen interface{}) {
 func (s *ScreenLogger) PrintFpsCounter() {
 	s.Printf("FPS: %f", 60.0) // Mock FPS value
 }
+
+// PrintProfiler queues one debug line per recorded phase (name, total time,
+// average, call count), sorted by total time descending. Like the other prints
+// it is gated by DebugMode and rendered by the next Draw.
+func (s *ScreenLogger) PrintProfiler(p *Profiler) {
+	for _, t := range p.Snapshot() {
+		s.Printf("%-16s total %v  avg %v  x%d", t.Name, t.Total, t.Average(), t.Calls)
+	}
+}
