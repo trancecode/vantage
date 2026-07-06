@@ -39,20 +39,24 @@ design-heavier ecs world piece.
   Games use this instead of a bare `*rand.Rand` so the RNG state is saveable.
   (Brief: util-rng.)
 
-### Design-heavier (ecs world restore — NOT a Fable task)
+### Design-heavier (ecs world restore)
 
 ecs is a generic sparse-set ECS (`stores map[reflect.Type]componentStorage`,
 `Accessor[C].All() iter.Seq2[EntityId, *C]`, private `nextID atomic.Uint64`,
 `alive map[EntityId]struct{}`). To let a game save/restore the world without ecs
 knowing the component types, ecs needs three additions:
 
-* **Counter save/restore:** `func (w *World) NextEntityID() uint64` and
-  `func (w *World) RestoreNextID(n uint64)` — read the allocation counter on
-  save, reseat it on load so future `NewEntity` calls do not reuse loaded ids.
+* **Counter save/restore:** `func (w *World) EntityCounter() uint64` and
+  `func (w *World) RestoreEntityCounter(n uint64)` — read the allocation counter
+  on save, reseat it on load. The exact counter must round-trip (not merely
+  "max live id"): ids are an event-queue tie-breaker, so a loaded run must
+  allocate the same ids the saved run would have or determinism breaks.
 * **Restore an entity with a fixed id:** `func (w *World) RestoreEntity(id
-  EntityId)` — mark an id alive without allocating a fresh one (allocation is
-  what `NewEntity` does; restore must preserve the saved id). Components are then
-  attached via the existing `Accessor.Add(id, component)`.
+  EntityId) error` — mark an id alive without allocating a fresh one (allocation
+  is what `NewEntity` does; restore must preserve the saved id). It errors on
+  input a well-formed save cannot produce: the zero id, an id beyond the counter
+  (restore the counter first), a duplicate id, or a call during an iteration.
+  Components are then attached via the existing `Accessor.Add(id, component)`.
 * **Enumeration already exists:** `Accessor[C].All()` yields `(EntityId, *C)` for
   save; the game holds one Accessor per component type and iterates each.
 
@@ -68,7 +72,7 @@ Save (pseudocode; the game owns the byte format, e.g. length-prefixed sections):
 write(driver.Now())                        // clock
 write(driver.Queue().MarshalBinary())      // events
 write(rng.MarshalBinary())                 // RNG
-write(world.NextEntityID())                // allocation counter
+write(world.EntityCounter())               // allocation counter
 write(sorted live entity ids)              // for RestoreEntity on load
 for each component type T the game defines:
     for id, c := range accessorT.All():    // engine iteration
@@ -79,7 +83,7 @@ Load:
 
 ```
 w := ecs.NewWorld()
-w.RestoreNextID(readCounter)
+w.RestoreEntityCounter(readCounter)
 for id in readEntityIds: w.RestoreEntity(id)
 for each component type T: for each (id, blob): accessorT.Add(id, decode(blob))
 driver := sim.NewDriver(handler)
