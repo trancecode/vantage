@@ -7,4 +7,9 @@
 //
 // SpatialGrid partitions the world into configurable-size cells keyed by
 // TileCoord for efficient spatial neighbor queries.
+//
+// TileGrid is dense per-tile storage for map layers over a game-defined value
+// type. Terrain adapts a TileGrid to pathfinding.TerrainProvider through a
+// game-supplied speed function, so a game's tile types plug into pathfinding
+// and motion without engine knowledge of them.
 package tilemap
