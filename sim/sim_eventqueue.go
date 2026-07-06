@@ -2,6 +2,8 @@ package sim
 
 import (
 	"container/heap"
+	"encoding/binary"
+	"fmt"
 	"slices"
 
 	"github.com/trancecode/ecs/ecs"
@@ -128,6 +130,51 @@ func (q *EventQueue) PeekAhead(n int) []Event {
 // and for rebuilding a queue with Restore.
 func (q *EventQueue) Snapshot() []Event {
 	return append([]Event(nil), q.internal.elements...)
+}
+
+// MarshalBinary encodes the queued events as a uint32 count followed by 24 bytes
+// per event: Time (8, big-endian), Entity (8, via EntityId marshaling), Key
+// (8, big-endian). The order is Snapshot order; because dequeue order is a pure
+// function of the set, it need not be preserved.
+func (q *EventQueue) MarshalBinary() ([]byte, error) {
+	events := q.Snapshot()
+	buf := binary.BigEndian.AppendUint32(make([]byte, 0, 4+len(events)*24), uint32(len(events)))
+	for _, e := range events {
+		buf = binary.BigEndian.AppendUint64(buf, uint64(e.Time))
+		ent, err := e.Entity.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("marshaling event queue: %w", err)
+		}
+		buf = append(buf, ent...) // 8 bytes
+		buf = binary.BigEndian.AppendUint64(buf, e.Key)
+	}
+	return buf, nil
+}
+
+// UnmarshalBinary replaces the queue's contents with events decoded from data as
+// written by MarshalBinary.
+func (q *EventQueue) UnmarshalBinary(data []byte) error {
+	if len(data) < 4 {
+		return fmt.Errorf("sim.EventQueue.UnmarshalBinary: short header (%d bytes)", len(data))
+	}
+	n := binary.BigEndian.Uint32(data)
+	data = data[4:]
+	if len(data) != int(n)*24 {
+		return fmt.Errorf("sim.EventQueue.UnmarshalBinary: expected %d event bytes, got %d", int(n)*24, len(data))
+	}
+	events := make([]Event, 0, n)
+	for range n {
+		var e Event
+		e.Time = util.Time(binary.BigEndian.Uint64(data[0:8]))
+		if err := e.Entity.UnmarshalBinary(data[8:16]); err != nil {
+			return fmt.Errorf("unmarshaling event queue: %w", err)
+		}
+		e.Key = binary.BigEndian.Uint64(data[16:24])
+		events = append(events, e)
+		data = data[24:]
+	}
+	*q = *Restore(events)
+	return nil
 }
 
 // indexOf returns the heap position of the queued event matching (entity, key),

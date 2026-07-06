@@ -146,6 +146,34 @@ func TestEventQueueSnapshotRestoreRoundTrip(t *testing.T) {
 	assert.Equal(t, want, drain(restored))
 }
 
+func TestEventQueueBinaryRoundTrip(t *testing.T) {
+	e := newEntities(3)
+	q := NewEventQueue()
+	q.Add(Event{Time: util.Time(30), Key: 2, Entity: e[0]})
+	q.Add(Event{Time: util.Time(10), Key: 5, Entity: e[2]})
+	q.Add(Event{Time: util.Time(30), Key: 1, Entity: e[1]})
+	want := q.PeekAhead(99) // canonical order
+
+	b, err := q.MarshalBinary()
+	require.NoError(t, err)
+
+	got := NewEventQueue()
+	require.NoError(t, got.UnmarshalBinary(b))
+	assert.Equal(t, want, drain(got))
+}
+
+func TestEventQueueMarshalEmpty(t *testing.T) {
+	b, err := NewEventQueue().MarshalBinary()
+	require.NoError(t, err)
+	got := NewEventQueue()
+	require.NoError(t, got.UnmarshalBinary(b))
+	assert.Equal(t, 0, got.Len())
+}
+
+func TestEventQueueUnmarshalShort(t *testing.T) {
+	assert.Error(t, NewEventQueue().UnmarshalBinary([]byte{0, 0}))
+}
+
 func TestEventQueueCancel(t *testing.T) {
 	e := newEntities(3)
 	q := NewEventQueue()
