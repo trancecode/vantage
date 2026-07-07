@@ -2,6 +2,7 @@ package tilemap
 
 import (
 	"math"
+	"slices"
 
 	"github.com/trancecode/ecs/ecs"
 	"github.com/trancecode/vantage/geometry"
@@ -59,8 +60,11 @@ func (sg *SpatialGrid) UpdateEntityPosition(entity ecs.EntityId, oldPosition, ne
 	}
 }
 
-// GetRange returns all entities within the specified rectangular area.
-// It iterates through the cells that intersect with the rectangle and collects entities from those cells.
+// GetRange returns all entities within the specified rectangular area, in
+// EntityId (allocation) order. The order is part of the contract: cells hold
+// entities in sets, and leaking map iteration order to callers would make
+// consuming decisions (nearest-candidate ties, processing order) differ
+// between identical runs, breaking simulation determinism.
 //
 // Parameters:
 //   - rect: The rectangular area to search within.
@@ -84,6 +88,7 @@ func (sg *SpatialGrid) GetRange(rect geometry.Rectangle) []ecs.EntityId {
 		}
 	}
 
+	slices.SortFunc(entities, ecs.EntityId.Compare)
 	return entities
 }
 

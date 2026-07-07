@@ -69,14 +69,32 @@ func (g *savegameGame) HandleEvent(now util.Time, e Event) {
 
 // savegame is the game-owned save. Engine state crosses through the binary
 // forms; components use the game's own representation (its choice of format).
+// Components are stored as ordered sequences, not maps: store iteration order
+// is simulation state (tick systems process entities in Accessor.All order),
+// so a load must re-insert components in the exact saved order.
 type savegame struct {
 	now     util.Time
 	queue   []byte
 	rng     []byte
 	counter uint64
 	ids     [][]byte
-	hps     map[ecs.EntityId]hitPoints
-	scars   map[ecs.EntityId]scar
+	hps     []pair[hitPoints]
+	scars   []pair[scar]
+}
+
+// pair is one saved (entity, component) entry, in store order.
+type pair[C any] struct {
+	id ecs.EntityId
+	c  C
+}
+
+// collectOrdered copies an accessor's contents in iteration order for saving.
+func collectOrdered[C any](a ecs.Accessor[C]) []pair[C] {
+	var out []pair[C]
+	for id, c := range a.All() {
+		out = append(out, pair[C]{id: id, c: *c})
+	}
+	return out
 }
 
 func saveGame(t *testing.T, g *savegameGame) savegame {
@@ -91,16 +109,16 @@ func saveGame(t *testing.T, g *savegameGame) savegame {
 		queue:   queue,
 		rng:     rng,
 		counter: g.world.EntityCounter(),
-		hps:     collectAll(g.hps),
-		scars:   collectAll(g.scars),
+		hps:     collectOrdered(g.hps),
+		scars:   collectOrdered(g.scars),
 	}
-	for id := range s.hps {
-		b, err := id.MarshalBinary()
+	for _, p := range s.hps {
+		b, err := p.id.MarshalBinary()
 		require.NoError(t, err)
 		s.ids = append(s.ids, b)
 	}
-	for id := range s.scars {
-		b, err := id.MarshalBinary()
+	for _, p := range s.scars {
+		b, err := p.id.MarshalBinary()
 		require.NoError(t, err)
 		s.ids = append(s.ids, b)
 	}
@@ -117,11 +135,11 @@ func loadGame(t *testing.T, s savegame) *savegameGame {
 		require.NoError(t, id.UnmarshalBinary(b))
 		require.NoError(t, g.world.RestoreEntity(id))
 	}
-	for id, hp := range s.hps {
-		g.hps.Add(id, hp)
+	for _, p := range s.hps {
+		g.hps.Add(p.id, p.c)
 	}
-	for id, sc := range s.scars {
-		g.scars.Add(id, sc)
+	for _, p := range s.scars {
+		g.scars.Add(p.id, p.c)
 	}
 
 	require.NoError(t, g.rng.UnmarshalBinary(s.rng))
@@ -186,4 +204,29 @@ func TestSavegameRoundTripMidRunHasWorkLeft(t *testing.T) {
 	for _, hp := range collectAll(g.hps) {
 		require.Positive(t, hp.HP, "fighters must still be alive at the comparison point")
 	}
+}
+
+// TestSimulationRunsAreReproducible pins in-process determinism: two identical
+// seeded runs produce identical outcomes. Go randomizes map iteration per
+// range statement, so any map-order leak into simulation decisions fails this
+// test without needing separate processes. Games should keep an equivalent
+// test over their own world (same shape: build, run, fingerprint, compare).
+func TestSimulationRunsAreReproducible(t *testing.T) {
+	run := func() map[string]any {
+		g := newSavegameGame(util.NewRng(11, 47))
+		for i := range 3 {
+			id := g.world.NewEntity()
+			g.hps.Add(id, hitPoints{HP: 100})
+			g.driver.Queue().Add(Event{Time: util.Time(i + 1), Entity: id, Key: keyDamage})
+		}
+		g.driver.RunUntil(util.Time(25))
+		return map[string]any{
+			"hps":     collectAll(g.hps),
+			"scars":   collectAll(g.scars),
+			"events":  g.driver.Queue().PeekAhead(g.driver.Queue().Len()),
+			"counter": g.world.EntityCounter(),
+			"rng":     g.rng.Uint64(),
+		}
+	}
+	assert.Equal(t, run(), run())
 }

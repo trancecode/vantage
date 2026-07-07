@@ -2,6 +2,7 @@ package tilemap
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/trancecode/ecs/ecs"
@@ -138,5 +139,36 @@ func TestSpatialGrid_NegativePosition(t *testing.T) {
 	found := grid.GetRange(rect)
 	if !reflect.DeepEqual(found, []ecs.EntityId{entityID}) {
 		t.Errorf("Expected entity in negative range. Got: %v", found)
+	}
+}
+
+func TestGetRangeOrderIsDeterministic(t *testing.T) {
+	// Entities in the same cell live in a set; the query must not leak map
+	// iteration order, or AI decisions fed by it diverge between identical
+	// runs. The contract: allocation order (EntityId order).
+	w := ecs.NewWorld()
+	ids := make([]ecs.EntityId, 8)
+	for i := range ids {
+		ids[i] = w.NewEntity()
+	}
+
+	rect := geometry.NewRectangle(geometry.NewVector2(0, 0), geometry.NewVector2(10, 10))
+	for range 30 {
+		sg := NewSpatialGrid(100) // one big cell: all entities share the set
+		// Insert in a scrambled, run-varying order via map iteration.
+		scrambled := map[int]ecs.EntityId{}
+		for i, id := range ids {
+			scrambled[i] = id
+		}
+		for _, id := range scrambled {
+			sg.AddEntity(id, geometry.NewVector2(5, 5))
+		}
+		got := sg.GetRange(rect)
+		if !slices.IsSortedFunc(got, ecs.EntityId.Compare) {
+			t.Fatalf("GetRange must return entities in EntityId order, got %v", got)
+		}
+		if len(got) != len(ids) {
+			t.Fatalf("GetRange returned %d entities, want %d", len(got), len(ids))
+		}
 	}
 }

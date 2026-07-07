@@ -96,6 +96,27 @@ The engine never sees the game's component encoding; the game never reaches into
 engine internals. Determinism holds because ids, clock, queue, and RNG are all
 restored exactly.
 
+## Determinism constraints on the save format
+
+Two ordering rules the game-side format must respect, or a loaded run
+diverges from the saved one even though every value round-trips:
+
+* **Component store order is simulation state.** ecs stores iterate in
+  insertion order and tick systems consume `Accessor.All()` (for example
+  `motion.System` processes movers in store order, and processing order is
+  observable through tile-reservation conflicts). Save each component type as
+  an **ordered `(id, component)` sequence captured in `All()` order** and
+  re-`Add` in that exact order on load. Storing components in a Go map and
+  restoring by map iteration breaks this silently.
+* **No map-iteration order anywhere in the simulation path.** Engine queries
+  define deterministic orders (`SpatialGrid.GetRange` returns EntityId order);
+  game-side registries and side tables must sort or otherwise fix an order
+  before feeding candidates into decisions. The cheap regression gate is a
+  double-run test: build and run the same seeded world twice in one process
+  and require identical fingerprints (see `sim`'s
+  `TestSimulationRunsAreReproducible`), since Go randomizes map iteration per
+  range statement.
+
 ## Non-goals / notes
 
 * No versioned/upgradable save format in the engine — that is a game concern the
