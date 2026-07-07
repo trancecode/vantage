@@ -14,6 +14,26 @@ faster for large frames (the per-pixel path does ~2M bounds-checked calls at
 1080p). Left as-is for now because capture is not on the hot path; revisit if
 high-frequency frame-sequence capture becomes a bottleneck.
 
+## Frame capture pixel conversion (visualtest/capture/capture.go)
+
+`imageFromScreen` (used by `SavePNG`) converts the frame to an `*image.RGBA`
+with the same per-pixel `Set(...)` loop as `app.SaveScreenshot`, and carries
+the same optimization opportunity: `Image.ReadPixels` returns RGBA-ordered
+bytes that could be `copy`ed straight into `image.RGBA.Pix`. Left as-is to
+mirror the existing screenshot code; revisit alongside the app-side entry above
+if high-frequency capture becomes a bottleneck.
+
+## Image comparison pixel scan (visualtest/diff.go)
+
+`CompareImages` scans row by row, calling `image.Image.At` and converting each
+pixel through `color.RGBAModel` for both images. When both images are already
+`*image.RGBA` (the common case for captured frames), a direct `bytes.Equal` on
+the `Pix` slices — falling back to the per-pixel path only to locate the first
+differing coordinate — would be substantially faster than ~W*H bounds-checked,
+interface-dispatched `At` calls plus color conversions. Left as a clear
+per-pixel scan because a visual-regression diff runs offline, not on any hot
+path; revisit if diffing large golden sets becomes slow.
+
 ## Alloc-free event queue heap (sim/sim_eventqueue.go)
 
 `EventQueue` (like `util.PriorityQueue`) is built on `container/heap`, whose
