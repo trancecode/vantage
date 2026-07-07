@@ -79,9 +79,9 @@ func DrawFloatingBar(screen *ebiten.Image, camera *Camera, worldPos geometry.Vec
 // overlayBottomScreen returns the screen-space point where the bottom of a
 // world-anchored overlay sits: horizontally centered on the sprite at worldPos
 // and a constant gapPixels above the sprite's visible top. The visible-top
-// offset is measured in the sprite's own pixels, so it is scaled by the
-// effective zoom to reach screen pixels, while gapPixels is not scaled — this
-// is what keeps the gap constant on screen across zoom levels.
+// offset is measured in drawn pixels (see VisibleTopAboveZero), so it is scaled
+// by the effective zoom to reach screen pixels, while gapPixels is not scaled —
+// this is what keeps the gap constant on screen across zoom levels.
 func overlayBottomScreen(camera *Camera, worldPos geometry.Vector2, visibleTopAboveZero, gapPixels float64) geometry.Vector2 {
 	anchor := camera.WorldToScreen(worldPos)
 	visibleTopY := anchor.Y() - visibleTopAboveZero*camera.EffectiveZoom()
@@ -91,11 +91,5 @@ func overlayBottomScreen(camera *Camera, worldPos geometry.Vector2, visibleTopAb
 // barFillWidth returns the width in screen pixels of the filled portion of a bar
 // of the given full width, for fraction clamped to [0, 1].
 func barFillWidth(width, fraction float64) float64 {
-	if fraction < 0 {
-		fraction = 0
-	}
-	if fraction > 1 {
-		fraction = 1
-	}
-	return width * fraction
+	return width * min(max(fraction, 0), 1)
 }
