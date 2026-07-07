@@ -75,3 +75,59 @@ if the stop does not happen within the timeout, for one-shot stall detection.
 `[screenshot] path`, `delay`, and `frequency` settings (see
 `app.ScreenshotSettings`). Game-time advance is clamped so captures land on
 exact game-time targets, which keeps screenshot sequences deterministic.
+
+## Visual-regression testing
+
+The `visualtest` package and its `visualtest/capture` companion give a
+consuming game deterministic visual-regression testing: capture a frame
+sequence, then diff it pixel-for-pixel against a committed golden set.
+
+### Capturing a deterministic sequence
+
+`capture.StepCapturer` advances a game-supplied simulation by a fixed game-time
+step once per frame and saves a screenshot every N frames. The scheduling and
+PNG-saving loop is generic; the game supplies the simulation advance. Wire its
+`Draw` into the game's `Draw`, after the game has rendered the screen, and let
+the `Advance` hook be the only thing that advances the simulation, so the
+sequence is a pure function of the step count.
+
+```go
+capturer, err := capture.NewStepCapturer(capture.StepCaptureConfig{
+	Advance:     func(step time.Duration) { world.Advance(step) },
+	Step:        16 * time.Millisecond, // fixed game-time step per frame
+	Every:       10,                    // screenshot every 10 frames
+	Count:       12,                    // stop after 12 screenshots
+	PathPattern: "captures/frame_%03d.png",
+})
+// in Draw, after the game has drawn to screen:
+if err := capturer.Draw(screen); err != nil { /* handle */ }
+// quit once capturer.Done() reports true
+```
+
+Captures land on frames 0, `Every`, `2*Every`, and so on; `Done` reports when
+`Count` screenshots have been taken. A `Count` of zero or less captures
+indefinitely. `Save` defaults to `capture.SavePNG` and can be overridden. This
+package depends on Ebitengine and needs a display for its tests (run under the
+`task test:headless` target).
+
+### Diffing against a golden set
+
+`visualtest` is display-free, so the diff runs anywhere, including headless CI.
+`visualtest.CompareImages`, `ComparePNGFiles`, and `CompareSequences` do a
+bounds check then a pixel-for-pixel compare and report the first difference as
+a `*Mismatch`: a size mismatch, or the coordinates and colors of the first
+differing pixel. `PNGSequence` lists a directory's `.png` files sorted by name,
+matching the zero-padded frame names the capturer produces.
+
+The `cmd/visualdiff` command is a thin CLI over the library:
+
+```sh
+# two directories: compare the PNG sequences frame by frame
+visualdiff testdata/golden captures
+
+# two files: compare single images
+visualdiff golden.png candidate.png
+```
+
+It prints the first difference and exits non-zero on any mismatch, so it drops
+straight into a test or CI step.

@@ -34,13 +34,16 @@ the most important invariant to preserve when extending the engine.
 | `ui` | Interactive user-interface components | `asset` |
 | `scene` | `Scene` interface and the `Manager` that drives scenes | `render`, `ui` |
 | `app` | Top-level `App` (implements `ebiten.Game`), window, screenshots | `config`, `render`, `scene`, `util` |
+| `visualtest` | Display-free pixel-exact PNG comparator for visual-regression testing (`cmd/visualdiff` CLI) | — |
+| `visualtest/capture` | Fixed-step frame-capture helper feeding the comparator | — |
 
 ## Dependency layering
 
 The graph is acyclic and splits into two stacks over shared foundations.
 
 * Foundations (no vantage dependencies): `util`, `config`, `asset`,
-  `pathfinding`.
+  `pathfinding`, `visualtest` (the `visualtest/capture` helper adds only an
+  Ebitengine dependency).
 * Simulation stack (the deterministic game substrate): `ecs` + `sim` + `motion`
   + `tilemap` + `pathfinding` + `geometry` + `util`. This is what a game's world
   and logic are built on; it has no dependency on rendering.
