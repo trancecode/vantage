@@ -221,14 +221,17 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 	return result
 }
 
-// VisibleTopAboveZero returns the number of pixels the visible sprite
-// content (non-transparent pixels) extends above ZeroPosition in one frame.
-// Frames across animations share the same size and layout, so the result is
-// computed once from any available frame and cached.
+// VisibleTopAboveZero returns how far the visible sprite content
+// (non-transparent pixels) extends above ZeroPosition in one frame, measured in
+// drawn pixels: the frame is scaled by Scale before the zero-position offset is
+// applied (see buildDrawOp), so the row offset is multiplied by Scale to match
+// what ends up on screen. Frames across animations share the same size and
+// layout, so the result is computed once from any available frame and cached.
 //
 // Use this instead of the raw frame height when placing UI elements (like
-// nameplates) above a sprite, so transparent padding at the top of the frame
-// is not counted as part of the visible sprite.
+// nameplates) above a sprite: transparent padding at the top of the frame is
+// not counted, and the result maps to screen pixels by a single multiply with
+// the camera's effective zoom.
 func (s *Sprite) VisibleTopAboveZero() float64 {
 	if s.cachedVisibleTopAboveZero != nil {
 		return *s.cachedVisibleTopAboveZero
@@ -254,10 +257,11 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 				}
 			}
 			if rowHasPixel {
-				// (y - bounds.Min.Y) is the row index within the frame.
-				// ZeroPosition.Y() - rowIndex is how far above ZeroPosition
-				// the first visible pixel sits.
-				result = s.ZeroPosition.Y() - float64(y-bounds.Min.Y)
+				// (y - bounds.Min.Y) is the row index within the frame. The
+				// frame is drawn scaled by Scale, so the first visible pixel
+				// sits ZeroPosition.Y() - rowIndex*Scale drawn pixels above
+				// ZeroPosition.
+				result = s.ZeroPosition.Y() - float64(y-bounds.Min.Y)*s.Scale
 				break
 			}
 		}
