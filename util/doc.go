@@ -8,4 +8,6 @@
 //   - StartDebugHTTPServer: launches an HTTP server for runtime diagnostics
 //   - ScreenLogger: on-screen log overlay for development
 //   - Profiler: debug-only accumulator of named wall-time timings (hotspots)
+//   - Rng: seedable deterministic random source with marshalable state, for
+//     simulations whose random sequence must survive a savegame reload
 package util

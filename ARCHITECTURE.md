@@ -77,7 +77,7 @@ simulation packages, so headless simulation and testing stay possible.
 * **Debug and profiling (`util`).** `Profiler` accumulates named wall-time
   timings (the `Driver` records its systems and drain into one when attached);
   `ScreenLogger` and the debug HTTP server surface diagnostics. These never
-  affect the simulation.
+  affect the simulation. See `docs/debugging.md` for usage and configuration.
 
 ## Building a game on vantage
 
