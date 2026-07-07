@@ -1,6 +1,7 @@
 package geometry
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 
@@ -96,4 +97,25 @@ func (p Vector2) AsInts() (int, int) {
 // AsFloats returns the vector components as floats.
 func (p Vector2) AsFloats() (float64, float64) {
 	return p.x, p.y
+}
+
+// MarshalBinary encodes the vector as 16 big-endian bytes (x then y, IEEE 754
+// bits). It implements encoding.BinaryMarshaler so vectors, and the engine
+// components holding them, can be persisted in savegames (encoding/gob uses
+// this implementation automatically).
+func (v Vector2) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 16)
+	binary.BigEndian.PutUint64(b[0:8], math.Float64bits(v.x))
+	binary.BigEndian.PutUint64(b[8:16], math.Float64bits(v.y))
+	return b, nil
+}
+
+// UnmarshalBinary decodes 16 bytes produced by MarshalBinary.
+func (v *Vector2) UnmarshalBinary(data []byte) error {
+	if len(data) != 16 {
+		return fmt.Errorf("geometry.Vector2.UnmarshalBinary: expected 16 bytes, got %d", len(data))
+	}
+	v.x = math.Float64frombits(binary.BigEndian.Uint64(data[0:8]))
+	v.y = math.Float64frombits(binary.BigEndian.Uint64(data[8:16]))
+	return nil
 }
