@@ -51,3 +51,12 @@ waypoint on the direct path is reachable) scans an O(maxTileDistance^2) grid of
 tiles around the entity, calling `CanReach` per cell. Both are ported verbatim
 from the game sources (nrg/lockstep) and are only worth optimizing if profiling
 shows them hot.
+
+## SpatialGrid.GetRange result sorting (tilemap/tilemap_grid.go)
+
+`GetRange` sorts its result by EntityId before returning, because cells hold
+entities in sets and leaking map iteration order to callers breaks simulation
+determinism. The sort is O(n log n) per query on top of the collection cost.
+If range queries show up hot in a profile, keep each cell as an EntityId-sorted
+slice instead of a set (insert/remove become O(cell size), queries become an
+ordered merge with no final sort), which also shrinks per-cell memory.
