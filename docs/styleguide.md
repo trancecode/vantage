@@ -53,34 +53,36 @@ Prefer `panic()` to `log.Fatalf()`. Use panic() for unrecoverable errors that sh
 
 ## Enumerations
 
-When defining enumerations using `iota`, always start with a "None" or "Invalid" value as the zero value. This makes it explicit when enum fields are uninitialized or invalid.
+When defining enumerations using `iota`, start with a "None" or "Invalid" value as the zero value, unless the zero value carries a deliberate meaning. This makes it explicit when enum fields are uninitialized or invalid.
 
 **Preferred pattern:**
 ```go
-type AnimationType int
+type EntityState int
 const (
-    AnimationTypeNone AnimationType = iota  // default/uninitialized value
-    AnimationTypeIdle
-    AnimationTypeMove
-    AnimationTypeAttack
+    EntityStateNone EntityState = iota  // default/uninitialized value
+    EntityStateSpawning
+    EntityStateActive
+    EntityStateDespawned
 )
 ```
 
 **Benefits:**
-* **Explicit validation**: Can detect uninitialized enum fields (`if animationType == AnimationTypeNone`)
+* **Explicit validation**: Can detect uninitialized enum fields (`if entityState == EntityStateNone`)
 * **Debugging**: Clear indication when enum values haven't been set properly
 * **Defensive programming**: Prevents subtle bugs from relying on implicit zero values
 * **Code clarity**: Makes intent explicit rather than relying on implicit behavior
 
 **Avoid:**
 ```go
-type AnimationType int
+type EntityState int
 const (
-    AnimationTypeIdle AnimationType = iota  // implicit zero value
-    AnimationTypeMove
-    AnimationTypeAttack
+    EntityStateSpawning EntityState = iota  // implicit zero value
+    EntityStateActive
+    EntityStateDespawned
 )
 ```
+
+**Exception: a meaningful zero value.** The rule exists to catch fields nobody set. It does not apply when the zero value is itself a deliberate, safe default, because then an unset field behaves correctly rather than silently wrong. `render.AnimationDefault` (the sprite's default frame) and `render.AlignLeft` (the natural text alignment) are both zero values on purpose and need no `None`. Add a `None` when the zero value would otherwise be meaningless, as `SpriteTypeUnknown`, `ButtonStateNone`, and `MoveOutcomeNone` do.
 
 This pattern should be applied to all new enumerations in the codebase.
 
