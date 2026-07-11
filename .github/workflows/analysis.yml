@@ -37,6 +37,13 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      # go fix -diff prints a patch and exits non-zero when a modernizer still
+      # applies. It skips build-tag-excluded files, hence the second pass.
+      - name: Check go fix modernizers
+        run: |
+          go fix -diff ./...
+          go fix -diff -tags race ./...
+
       - name: Run staticcheck
         run: staticcheck ./...
 

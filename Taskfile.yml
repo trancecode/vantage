@@ -26,6 +26,21 @@ tasks:
     cmds:
       - go vet ./...
 
+  fix:check:
+    desc: Fail if any go fix modernizer still applies
+    summary: |
+      Runs the Go fix tool in diff mode, which exits non-zero and prints a patch
+      when a modernizer (interface{} to any, three-clause loops to for-range over
+      an integer, strings.Cut, and so on) still applies. Run `go fix ./...` to
+      apply the patch, then review it: the fixers occasionally leave a redundant
+      assignment behind.
+
+      The tool skips files excluded by build tags, so the race-tagged sources are
+      checked in a second pass.
+    cmds:
+      - go fix -diff ./...
+      - go fix -diff -tags race ./...
+
   test:
     desc: Run all tests
     cmds:
@@ -42,6 +57,7 @@ tasks:
     desc: Run linters and helper checks
     cmds:
       - task: vet
+      - task: fix:check
       - |
         if command -v staticcheck >/dev/null 2>&1; then
           staticcheck ./...
