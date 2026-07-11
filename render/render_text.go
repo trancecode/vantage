@@ -55,10 +55,13 @@ type TextWriter struct {
 	Align             TextAlignment // Horizontal alignment
 	segments          []textSegment // Built text segments
 
-	// Cached background image to avoid per-frame GPU allocations
+	// Cached background image to avoid per-frame GPU allocations. The cache key must
+	// cover every property the image is built from, because With methods copy a
+	// populated cache into the derived writer.
 	cachedBgImage *ebiten.Image
 	cachedBgW     int
 	cachedBgH     int
+	cachedBgColor color.RGBA
 }
 
 func NewTextWriter() *TextWriter {
@@ -243,14 +246,18 @@ func (t *TextWriter) Draw(screen *ebiten.Image, camera *Camera, position geometr
 	if t.Background != nil {
 		padding := float64(t.BackgroundPadding)
 
-		// Create or reuse cached background image
+		// Create or reuse cached background image. Normalizing through color.RGBAModel
+		// keeps the comparison from panicking on a color whose dynamic type is not
+		// comparable.
 		bgWidth := int(totalWidth + padding*2)
 		bgHeight := int(textHeight + padding*2)
-		if t.cachedBgImage == nil || t.cachedBgW != bgWidth || t.cachedBgH != bgHeight {
+		bgColor := color.RGBAModel.Convert(*t.Background).(color.RGBA)
+		if t.cachedBgImage == nil || t.cachedBgW != bgWidth || t.cachedBgH != bgHeight || t.cachedBgColor != bgColor {
 			t.cachedBgImage = ebiten.NewImage(bgWidth, bgHeight)
 			t.cachedBgW = bgWidth
 			t.cachedBgH = bgHeight
-			t.cachedBgImage.Fill(*t.Background)
+			t.cachedBgColor = bgColor
+			t.cachedBgImage.Fill(bgColor)
 		}
 		bgImage := t.cachedBgImage
 
