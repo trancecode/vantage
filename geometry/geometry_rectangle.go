@@ -2,7 +2,6 @@ package geometry
 
 import (
 	"fmt"
-	"math/rand/v2"
 
 	"github.com/trancecode/vantage/util"
 )
@@ -46,7 +45,7 @@ func SquareWithCenter(center Vector2, size float64) Rectangle {
 }
 
 // RandomPointInRectangle returns a random point within the given rectangle.
-func RandomPointInRectangle(r Rectangle, rng *rand.Rand) Vector2 {
+func RandomPointInRectangle(r Rectangle, rng util.Float64Source) Vector2 {
 	x := r.Min.X() + (r.Max.X()-r.Min.X())*rng.Float64()
 	y := r.Min.Y() + (r.Max.Y()-r.Min.Y())*rng.Float64()
 	return NewVector2(x, y)
