@@ -141,11 +141,13 @@ func (d *Dialog) Update() bool {
 	}
 
 	// Keyboard: arrow keys for navigation
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-		d.SelectedIndex = (d.SelectedIndex + 1) % len(d.Options)
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-		d.SelectedIndex = (d.SelectedIndex - 1 + len(d.Options)) % len(d.Options)
+	if len(d.Options) > 0 {
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+			d.SelectedIndex = (d.SelectedIndex + 1) % len(d.Options)
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+			d.SelectedIndex = (d.SelectedIndex - 1 + len(d.Options)) % len(d.Options)
+		}
 	}
 
 	// Enter to confirm selection

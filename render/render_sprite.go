@@ -53,7 +53,8 @@ func (s *Sprite) AddImage(animationType AnimationType, img *ebiten.Image) {
 }
 
 // Image returns the first image of the specified animation type.
-// It logs a fatal error if the animation type does not exist.
+// It panics if the animation type does not exist or has no images, unless
+// UsePlaceholderSpriteImages is set, in which case it returns nil.
 func (s *Sprite) Image(animationType AnimationType) *ebiten.Image {
 	if _, ok := s.Animations[animationType]; !ok || len(s.Animations[animationType].Images) == 0 {
 		if !UsePlaceholderSpriteImages {
@@ -324,12 +325,15 @@ func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType]
 			sprite.AddImage(animationType, subImg)
 		}
 
-		// Set the animation duration if it exists
+		// Set the animation duration if it exists. An empty index list means no
+		// animation entry was created above, so there is nothing to set.
 		duration, ok := durations[animationType]
 		if !ok {
 			duration = time.Second
 		}
-		sprite.Animations[animationType].Duration = duration
+		if animation, ok := sprite.Animations[animationType]; ok {
+			animation.Duration = duration
+		}
 	}
 
 	return sprite, nil
