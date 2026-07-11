@@ -24,7 +24,7 @@ type ScreenLogger struct {
 }
 
 // DebugPrintf prints a formatted debug message to the screen.
-func (s *ScreenLogger) Printf(format string, a ...interface{}) {
+func (s *ScreenLogger) Printf(format string, a ...any) {
 	if DebugMode {
 		s.messages = append(s.messages, fmt.Sprintf(format, a...))
 	}

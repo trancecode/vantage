@@ -44,7 +44,7 @@ func TestReusableWatchdogKickDone(t *testing.T) {
 	t.Cleanup(w.Stop)
 
 	// Simulate three cycles of kick/done, each completing before timeout
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		w.Kick()
 		time.Sleep(20 * time.Millisecond)
 		w.Done()

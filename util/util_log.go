@@ -26,7 +26,7 @@ type gameTimeConsoleWriter struct {
 
 func (w *gameTimeConsoleWriter) Write(p []byte) (n int, err error) {
 	// Parse the JSON log entry
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(p, &logEntry); err != nil {
 		// If it's not JSON, just pass through
 		return w.out.Write(p)

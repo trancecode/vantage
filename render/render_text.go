@@ -78,7 +78,7 @@ func NewTextWriter() *TextWriter {
 	}
 }
 
-func (t *TextWriter) Printf(screen *ebiten.Image, x, y int, format string, a ...interface{}) {
+func (t *TextWriter) Printf(screen *ebiten.Image, x, y int, format string, a ...any) {
 	t.Print(screen, x, y, fmt.Sprintf(format, a...))
 }
 

@@ -61,8 +61,8 @@ func TestFindPathStraightLine(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}
@@ -78,7 +78,7 @@ func TestFindPathStraightLine(t *testing.T) {
 	assert.Equal(t, goal, path[len(path)-1])
 
 	// Verify path is straight
-	for i := 0; i < len(path); i++ {
+	for i := range path {
 		assert.Equal(t, 5, path[i].Y)
 		assert.Equal(t, i, path[i].X)
 	}
@@ -89,8 +89,8 @@ func TestFindPathDiagonal(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}
@@ -106,7 +106,7 @@ func TestFindPathDiagonal(t *testing.T) {
 	assert.Equal(t, goal, path[len(path)-1])
 
 	// Verify diagonal movement
-	for i := 0; i < len(path); i++ {
+	for i := range path {
 		assert.Equal(t, i, path[i].X)
 		assert.Equal(t, i, path[i].Y)
 	}
@@ -117,8 +117,8 @@ func TestFindPathObstacles(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}
@@ -150,8 +150,8 @@ func TestFindPathNoPath(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}
@@ -179,8 +179,8 @@ func TestFindPathDiagonalCornerCutting(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}
@@ -214,8 +214,8 @@ func TestFindPathWithOccupancy(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}
@@ -248,8 +248,8 @@ func TestFindPathTerrainSpeed(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 			terrain.setSpeed(x, y, 1.0)
 		}
@@ -289,8 +289,8 @@ func TestFindPathEdgeCases(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}
@@ -317,8 +317,8 @@ func TestFindPathOccupiedGoal(t *testing.T) {
 	terrain := newMockTerrain(10, 10)
 
 	// Make all tiles walkable
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := range 10 {
+		for x := range 10 {
 			terrain.setWalkable(x, y, true)
 		}
 	}

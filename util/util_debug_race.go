@@ -18,7 +18,7 @@ type ScreenLogger struct {
 }
 
 // Printf stub for race builds
-func (s *ScreenLogger) Printf(format string, a ...interface{}) {
+func (s *ScreenLogger) Printf(format string, a ...any) {
 	if DebugMode {
 		s.messages = append(s.messages, fmt.Sprintf(format, a...))
 	}
@@ -31,8 +31,8 @@ func (s *ScreenLogger) Print(m string) {
 	}
 }
 
-// Draw stub for race builds - accepts any interface{} to avoid type conflicts
-func (s *ScreenLogger) Draw(screen interface{}) {
+// Draw stub for race builds - accepts any value to avoid type conflicts
+func (s *ScreenLogger) Draw(screen any) {
 	// Do nothing in race builds
 	s.messages = nil
 }

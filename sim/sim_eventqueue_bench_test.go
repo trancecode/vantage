@@ -34,7 +34,7 @@ func BenchmarkEventQueueSteadyState(b *testing.B) {
 	for _, n := range []int{100, 1000, 10000, 100000} {
 		b.Run(sizeLabel(n), func(b *testing.B) {
 			q := NewEventQueue()
-			for i := 0; i < n; i++ {
+			for i := range n {
 				q.Add(Event{Time: util.Time((i * 2654435761) & 0xffffff), Entity: pool[i&1023], Key: uint64(i)})
 			}
 			b.ReportAllocs()

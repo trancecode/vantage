@@ -59,8 +59,8 @@ func (l *Loader) RegisterTarget(name string, ptr any) {
 	idx := len(l.targets)
 	l.targets = append(l.targets, target{name: name, ptr: ptr})
 	t := reflect.TypeOf(ptr).Elem()
-	for i := 0; i < t.NumField(); i++ {
-		section := sectionName(t.Field(i))
+	for field := range t.Fields() {
+		section := sectionName(field)
 		if section == "" {
 			continue
 		}
@@ -124,11 +124,10 @@ func (l *Loader) decodeAll(doc []byte) error {
 }
 
 func (l *Loader) applyOverride(override string) error {
-	eq := strings.IndexByte(override, '=')
-	if eq < 0 {
+	path, value, ok := strings.Cut(override, "=")
+	if !ok {
 		return fmt.Errorf("config override %q: missing '=' separator (expected section.key=value)", override)
 	}
-	path, value := override[:eq], override[eq+1:]
 	dot := strings.IndexByte(path, '.')
 	if dot <= 0 || dot == len(path)-1 {
 		return fmt.Errorf("config override %q: key must be section.key", override)

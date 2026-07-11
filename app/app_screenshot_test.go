@@ -46,7 +46,7 @@ func TestSequenceLandsOnExactIntervals(t *testing.T) {
 		t.Fatal("expected sequence mode for a path with a percent-d verb")
 	}
 	var captureTimes []time.Duration
-	for i := 0; i < 40; i++ {
+	for range 40 {
 		c.advance(120 * time.Millisecond) // irregular, non-divisor frame size
 		if c.shouldCapture {
 			captureTimes = append(captureTimes, c.gameTime)

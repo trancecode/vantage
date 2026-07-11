@@ -128,7 +128,7 @@ func TestProcessMovement_MultipleStepsToDestination(t *testing.T) {
 
 	// Continue until destination...
 	currentPos = newPos2
-	for i := 0; i < 10; i++ { // Max 10 iterations to prevent infinite loop
+	for range 10 { // Max 10 iterations to prevent infinite loop
 		newPos, completed := ProcessMovement(currentPos, destination, speed, duration)
 		currentPos = newPos
 		if completed {

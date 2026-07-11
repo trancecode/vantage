@@ -50,14 +50,14 @@ func (pq pathNodeQueue) Swap(i, j int) {
 	pq[j].index = j
 }
 
-func (pq *pathNodeQueue) Push(x interface{}) {
+func (pq *pathNodeQueue) Push(x any) {
 	n := len(*pq)
 	node := x.(*pathNode)
 	node.index = n
 	*pq = append(*pq, node)
 }
 
-func (pq *pathNodeQueue) Pop() interface{} {
+func (pq *pathNodeQueue) Pop() any {
 	old := *pq
 	n := len(old)
 	node := old[n-1]

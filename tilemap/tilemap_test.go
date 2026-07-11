@@ -195,8 +195,8 @@ func TestTileOccupancyManagerMultipleEntities(t *testing.T) {
 
 	// Create a grid of tiles and entities
 	entities := make(map[TileCoord]ecs.EntityId)
-	for x := 0; x < 3; x++ {
-		for y := 0; y < 3; y++ {
+	for x := range 3 {
+		for y := range 3 {
 			tile := TileCoord{X: x, Y: y}
 			entityId := w.NewEntity()
 			entities[tile] = entityId
@@ -205,8 +205,8 @@ func TestTileOccupancyManagerMultipleEntities(t *testing.T) {
 	}
 
 	// Verify all tiles are occupied with correct entities
-	for x := 0; x < 3; x++ {
-		for y := 0; y < 3; y++ {
+	for x := range 3 {
+		for y := range 3 {
 			tile := TileCoord{X: x, Y: y}
 			expectedEntity := entities[tile]
 

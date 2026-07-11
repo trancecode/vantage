@@ -17,7 +17,7 @@ func TestDialogEmptyOptionsUpdateDoesNotPanic(t *testing.T) {
 	d := NewDialog("No options", nil, func() {})
 	d.SetScreenSize(800, 600)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		d.Update()
 	}
 }
