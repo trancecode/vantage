@@ -6,10 +6,18 @@ import (
 	"github.com/trancecode/vantage/geometry"
 )
 
-// AnimationType represents different animation states for sprites.
+// AnimationType represents different animation states for sprites. It is an open
+// enumeration: games define their own states (casting, harvesting, mining) as
+// additional AnimationType values and use them as sprite animation keys. Values
+// from AnimationGameBase up are reserved for games, so the engine can add states
+// without colliding with them.
 //
 //go:generate stringer -type=AnimationType -output=render_animation_string.go
 type AnimationType int
+
+// AnimationGameBase is the first AnimationType value reserved for consuming games.
+// The engine never defines a state at or above it.
+const AnimationGameBase AnimationType = 64
 
 const (
 	AnimationDefault     AnimationType = 0
@@ -53,18 +61,29 @@ func MoveAnimation(direction geometry.Vector2) AnimationType {
 	return AnimationMoveDown
 }
 
-var IdleAnimations = map[AnimationType]AnimationType{
+// DirectionalVariant resolves a facing direction to the variant animation registered
+// for it in variants, which is keyed by the four AnimationMove* states. Games use it
+// to derive their own directional action states (casting, harvesting, mining) without
+// the engine needing to know what those actions mean. It returns AnimationDefault when
+// variants has no entry for the resolved direction.
+func DirectionalVariant(direction geometry.Vector2, variants map[AnimationType]AnimationType) AnimationType {
+	return variants[MoveAnimation(direction)]
+}
+
+var idleAnimations = map[AnimationType]AnimationType{
 	AnimationMoveDown:  AnimationIdleDown,
 	AnimationMoveLeft:  AnimationIdleLeft,
 	AnimationMoveRight: AnimationIdleRight,
 	AnimationMoveUp:    AnimationIdleUp,
 }
 
+// IdleAnimation returns the idle animation matching the facing direction
+// (for actors without a movement direction, defaults to down).
 func IdleAnimation(direction geometry.Vector2) AnimationType {
-	return IdleAnimations[MoveAnimation(direction)]
+	return DirectionalVariant(direction, idleAnimations)
 }
 
-var AttackAnimations = map[AnimationType]AnimationType{
+var attackAnimations = map[AnimationType]AnimationType{
 	AnimationMoveDown:  AnimationAttackDown,
 	AnimationMoveLeft:  AnimationAttackLeft,
 	AnimationMoveRight: AnimationAttackRight,
@@ -74,5 +93,5 @@ var AttackAnimations = map[AnimationType]AnimationType{
 // AttackAnimation returns the attack animation matching the facing direction
 // (for actors without a movement direction, defaults to down).
 func AttackAnimation(direction geometry.Vector2) AnimationType {
-	return AttackAnimations[MoveAnimation(direction)]
+	return DirectionalVariant(direction, attackAnimations)
 }

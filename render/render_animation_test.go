@@ -67,3 +67,39 @@ func TestMoveAnimation(t *testing.T) {
 		})
 	}
 }
+
+func TestDirectionalVariantResolvesGameDefinedStates(t *testing.T) {
+	const (
+		castDown AnimationType = AnimationGameBase + iota
+		castRight
+	)
+
+	variants := map[AnimationType]AnimationType{
+		AnimationMoveDown:  castDown,
+		AnimationMoveRight: castRight,
+	}
+
+	if got := DirectionalVariant(geometry.NewVector2(0, 1), variants); got != castDown {
+		t.Errorf("DirectionalVariant(down) = %v, expected castDown", got)
+	}
+	if got := DirectionalVariant(geometry.NewVector2(1, 0), variants); got != castRight {
+		t.Errorf("DirectionalVariant(right) = %v, expected castRight", got)
+	}
+}
+
+func TestDirectionalVariantWithoutEntryReturnsDefault(t *testing.T) {
+	variants := map[AnimationType]AnimationType{AnimationMoveDown: AnimationIdleDown}
+
+	if got := DirectionalVariant(geometry.NewVector2(0, -1), variants); got != AnimationDefault {
+		t.Errorf("DirectionalVariant(up) = %v, expected AnimationDefault", got)
+	}
+}
+
+func TestIdleAndAttackAnimationsUseDirectionalVariant(t *testing.T) {
+	if got := IdleAnimation(geometry.NewVector2(-1, 0)); got != AnimationIdleLeft {
+		t.Errorf("IdleAnimation(left) = %v, expected AnimationIdleLeft", got)
+	}
+	if got := AttackAnimation(geometry.NewVector2(0, -1)); got != AnimationAttackUp {
+		t.Errorf("AttackAnimation(up) = %v, expected AnimationAttackUp", got)
+	}
+}
