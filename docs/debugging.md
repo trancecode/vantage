@@ -55,7 +55,10 @@ total, average, and call count per phase.
 ## Debug HTTP server
 
 `util.StartDebugHTTPServer(port, debugMode)` serves pprof and expvar endpoints
-for live inspection. It returns immediately when `debugMode` is false.
+for live inspection. It returns `nil, nil` immediately when `debugMode` is
+false. Otherwise it binds the listener before returning and hands back the
+`*http.Server`; the caller owns its lifetime and must shut it down (for
+example via `Shutdown` or `Close`) when it is no longer needed.
 
 * Settings: `[debug] http_enabled` and `[debug] http_port`, or the
   `-enable_debug_http_server` and `-debug_http_port` flags.

@@ -3,6 +3,7 @@ package util
 import (
 	"expvar"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/pprof"
 )
@@ -10,9 +11,15 @@ import (
 // StartDebugHTTPServer starts the debug HTTP server on the specified port.
 // This server provides access to pprof and expvar endpoints for debugging.
 // It should only be called when debug mode is enabled.
-func StartDebugHTTPServer(port int, debugMode bool) {
+//
+// The listener is bound before this function returns, so the server is
+// already accepting connections by the time the caller regains control. It
+// returns the underlying *http.Server, which is nil when debugMode is false,
+// and the caller is responsible for shutting it down (for example via
+// Shutdown or Close) once it is no longer needed.
+func StartDebugHTTPServer(port int, debugMode bool) (*http.Server, error) {
 	if !debugMode {
-		return
+		return nil, nil
 	}
 
 	// Create a new ServeMux for this server instance to avoid conflicts
@@ -32,14 +39,26 @@ func StartDebugHTTPServer(port int, debugMode bool) {
 	mux.Handle("/debug/vars", expvar.Handler())
 
 	addr := fmt.Sprintf(":%d", port)
-	Logger.Info().Msgf("Starting debug HTTP server on %s", addr)
 
-	// Start the server in a goroutine so it doesn't block the main game loop
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("starting debug HTTP server on %s: %w", addr, err)
+	}
+
+	srv := &http.Server{Addr: ln.Addr().String(), Handler: mux}
+
+	Logger.Info().Msgf("Starting debug HTTP server on %s", ln.Addr())
+
+	// Serve in a goroutine so it doesn't block the main game loop. The
+	// listener above is already bound, so the server is accepting
+	// connections as soon as this function returns.
 	go func() {
-		if err := http.ListenAndServe(addr, mux); err != nil {
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			Logger.Error().Err(err).Msg("Debug HTTP server error")
 		}
 	}()
+
+	return srv, nil
 }
 
 // debugIndexHandler handles the root "/" path and displays links to available debug endpoints.

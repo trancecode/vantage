@@ -1,11 +1,11 @@
 package util
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestDebugIndexHandler(t *testing.T) {
@@ -72,35 +72,46 @@ func TestDebugIndexHandler404(t *testing.T) {
 
 func TestStartDebugHTTPServerDisabled(t *testing.T) {
 	// Start the server with debug mode disabled (should be a no-op)
-	StartDebugHTTPServer(0, false) // Port 0 will auto-assign if it actually starts
-
-	// Since the function should return early when debugMode is false,
-	// there's not much to test except that it doesn't panic
-	// This test mainly ensures the early return logic works
+	srv, err := StartDebugHTTPServer(0, false) // Port 0 will auto-assign if it actually starts
+	if err != nil {
+		t.Fatalf("StartDebugHTTPServer returned an error: %v", err)
+	}
+	if srv != nil {
+		t.Fatal("StartDebugHTTPServer returned a non-nil server when debugMode is false")
+	}
 }
 
 func TestStartDebugHTTPServerEnabled(t *testing.T) {
 	// Use port 0 to let the system assign an available port
-	StartDebugHTTPServer(0, true)
+	srv, err := StartDebugHTTPServer(0, true)
+	if err != nil {
+		t.Fatalf("StartDebugHTTPServer returned an error: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := srv.Shutdown(context.Background()); err != nil {
+			t.Errorf("failed to shut down debug HTTP server: %v", err)
+		}
+	})
 
-	// Give the server a moment to start
-	time.Sleep(10 * time.Millisecond)
-
-	// We can't easily test the actual server startup without more complex setup,
-	// but we can at least verify the function doesn't panic when debugMode is true.
-	// A more complete test would require capturing the log output or
-	// using a more sophisticated server testing approach.
+	// The listener is bound before StartDebugHTTPServer returns, so the
+	// server is already accepting connections here.
+	resp, err := http.Get("http://" + srv.Addr)
+	if err != nil {
+		t.Fatalf("failed to reach debug HTTP server: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
 }
 
 func TestStartDebugHTTPServerWithNewFlag(t *testing.T) {
 	// Test that the function works when called with explicit true flag
 	// This simulates the behavior when --enable_debug_http_server=true is used
-	StartDebugHTTPServer(0, true)
-
-	// Give the server a moment to start
-	time.Sleep(10 * time.Millisecond)
-
-	// The function should not panic and should start the server
-	// Since we can't easily verify the server is actually running without
-	// complex setup, this mainly tests that the function executes correctly
+	srv, err := StartDebugHTTPServer(0, true)
+	if err != nil {
+		t.Fatalf("StartDebugHTTPServer returned an error: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := srv.Shutdown(context.Background()); err != nil {
+			t.Errorf("failed to shut down debug HTTP server: %v", err)
+		}
+	})
 }
