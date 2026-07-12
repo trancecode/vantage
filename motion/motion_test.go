@@ -159,3 +159,38 @@ func TestProcessMovement_OvershotPrevention(t *testing.T) {
 		t.Error("Expected movement to be completed")
 	}
 }
+
+func TestProcessMovement_ZeroDurationMakesNoProgress(t *testing.T) {
+	// A zero-elapsed tick must not complete an in-flight move: with no time
+	// passed there is no movement, and the distanceAfter >= distanceBefore
+	// overshoot check would otherwise misread "no progress" as "arrived",
+	// teleporting the entity to its destination. Consuming games hit this
+	// when their loop resumes on an instant that still has queued events
+	// (lockstep's pause-at-ready-instant pattern).
+	currentPos := geometry.NewVector2(0.0, 0.0)
+	destination := geometry.NewVector2(3.0, 0.0)
+
+	newPos, completed := ProcessMovement(currentPos, destination, 1.0, 0)
+
+	if completed {
+		t.Error("zero-duration tick must not complete an in-flight move")
+	}
+	if newPos != currentPos {
+		t.Errorf("zero-duration tick must not move the entity: got %v, want %v", newPos, currentPos)
+	}
+}
+
+func TestProcessMovement_ZeroDurationAtDestinationStaysCompleted(t *testing.T) {
+	// Already standing on the destination is complete regardless of the
+	// tick's duration.
+	pos := geometry.NewVector2(2.0, 2.0)
+
+	newPos, completed := ProcessMovement(pos, pos, 1.0, 0)
+
+	if !completed {
+		t.Error("an entity already at its destination is complete on any tick")
+	}
+	if newPos != pos {
+		t.Errorf("position must not change: got %v, want %v", newPos, pos)
+	}
+}

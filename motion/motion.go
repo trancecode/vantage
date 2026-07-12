@@ -47,6 +47,13 @@ func ProcessMovement(currentPosition, destination geometry.Vector2, speed float6
 		return currentPosition, true
 	}
 
+	// A zero-duration tick moves nothing and must not complete the move:
+	// with no progress, distanceAfter equals distanceBefore and the
+	// overshoot check below would misread the stall as an arrival.
+	if duration <= 0 {
+		return currentPosition, false
+	}
+
 	direction := destination.Sub(currentPosition).Unit()
 
 	// Calculate the movement vector based on direction, speed, and elapsed time.
