@@ -103,6 +103,27 @@ func TestMoveEntityTowards_PanicsWithoutMaxMoveActionDistance(t *testing.T) {
 	s.MoveEntityTowards(e.id, tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0}), MoveOptions{Speed: 1.0})
 }
 
+func TestMoveEntityTowards_PanicsWithNonPositiveSpeed(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when opts.Speed is not positive")
+		}
+	}()
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	s.MoveEntityTowards(e.id, tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0}), MoveOptions{Speed: 0})
+}
+
+func TestMoveEntityTowardsArea_PanicsWithNonPositiveSpeed(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when opts.Speed is not positive")
+		}
+	}()
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 0})
+	s.MoveEntityTowardsArea(e.id, center, 2.0, MoveOptions{Speed: 0})
+}
+
 func TestMoveEntityTowardsArea_AlreadyInside(t *testing.T) {
 	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 5, Y: 5})
 	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 6})

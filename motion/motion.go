@@ -25,12 +25,15 @@ type Movement struct {
 
 	// Speed is the movement speed in tiles per second. On an eased move it
 	// is the average speed rather than the instantaneous one: the total
-	// duration is still the distance divided by Speed.
+	// duration is still the distance divided by Speed. Editing Speed
+	// mid-move changes a constant-speed move immediately, but has no effect
+	// on an eased move, whose Total was fixed when the move started;
+	// restart the move through MoveEntity to change an eased move's speed.
 	Speed float64
 
-	// Ease shapes progress along the move. The zero value, easing.
-	// CurveLinear, selects the incremental constant-speed path and ignores
-	// the fields below.
+	// Ease shapes progress along the move. The zero value,
+	// easing.CurveLinear, selects the incremental constant-speed path and
+	// ignores the fields below.
 	Ease easing.Curve
 
 	// Start is the position the move began from. Eased positions are
@@ -53,6 +56,9 @@ type Movement struct {
 // On a constant-speed move Progress is informational: arrival there is decided
 // by the incremental overshoot check, so Progress can read slightly under 1 on
 // the tick the move completes.
+//
+// A game never observes Progress() == 1 through the component: System.Tick
+// removes the Movement on the same tick that completes the move.
 func (m Movement) Progress() float64 {
 	if m.Total <= 0 {
 		return 0
@@ -130,17 +136,39 @@ func ProcessMovement(currentPosition, destination geometry.Vector2, speed float6
 // destination and progress, and therefore independent of how the elapsed game
 // time was sliced into ticks.
 //
-// A zero or negative duration moves nothing and never completes a move, on
-// either path.
+// Both paths give a move the same nominal duration, the distance divided by
+// the speed. They do not always land on the same tick: the eased path
+// completes on the first tick at or after that duration, while the
+// constant-speed path completes on a distance tolerance and an overshoot
+// test, so under a tick that does not divide the duration evenly the two can
+// differ by one tick in either direction.
+//
+// A zero or negative duration moves nothing and never completes an in-flight
+// move, on either path; a constant-speed move already at its destination
+// still reports completed, as ProcessMovement does.
+//
+// An eased move owns the body's position for its duration: the eased
+// position is derived only from Start, Destination and progress, so writing
+// Spatial.Position mid-move (knockback, a collision push-out, a debug
+// teleport) is undone on the next tick, unlike a constant-speed move, which
+// continues from wherever the body was put. Displace a body only after
+// cancelling or restarting its move.
+//
+// An eased Movement authored directly by a game, rather than started through
+// MoveEntity, must carry both Start and Total: an unset Start is
+// indistinguishable from a move that began at the origin and interpolates the
+// body from there.
 func ProcessMove(mc Movement, currentPosition geometry.Vector2, duration time.Duration) (updated Movement, newPosition geometry.Vector2, completed bool) {
-	if duration <= 0 {
-		return mc, currentPosition, false
-	}
-
 	if mc.Ease == easing.CurveLinear {
 		newPosition, completed = ProcessMovement(currentPosition, mc.Destination, mc.Speed, duration)
-		mc.Elapsed += duration
+		if duration > 0 {
+			mc.Elapsed += duration
+		}
 		return mc, newPosition, completed
+	}
+
+	if duration <= 0 {
+		return mc, currentPosition, false
 	}
 
 	// A move with no duration to spread the curve over has nowhere to be

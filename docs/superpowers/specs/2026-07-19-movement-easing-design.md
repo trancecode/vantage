@@ -246,8 +246,15 @@ Order of checks on the eased path, and it matters:
    `Start.Lerp(Destination, Ease.Apply(Elapsed/Total))`.
 
 Because step 3 triggers exactly when accumulated elapsed reaches `Total`, an
-eased move completes at the same tick as the linear move of the same distance
-and speed, whatever the slicing. Mid-move positions are a pure function of
+eased move completes on the first tick at or after its nominal duration
+(distance divided by speed), whatever the slicing. This is *not* always the
+same tick as the linear move of the same distance and speed: `ProcessMovement`
+completes on a distance tolerance and an overshoot test over an accumulated
+float position, not on `Total`, so under a tick that does not divide the
+duration evenly the two paths can differ by one tick in either direction.
+Measured at 60 Hz (16.666666ms ticks) and speed 1: distance 1 completes on
+tick 60 constant-speed but tick 61 eased; distance sqrt(2) completes on tick
+86 constant-speed but tick 85 eased. Mid-move positions are a pure function of
 `(Start, Destination, Elapsed/Total)`, independent of how the elapsed time was
 sliced.
 
@@ -313,9 +320,11 @@ the pinned-position tests, and easy reasoning about savegame round trips.
 
 * Existing tests stay green unmodified apart from the `MoveOptions` call-site
   change, which is the linear path's regression guard.
-* An eased move of distance d at speed s completes on exactly the same tick as
-  the linear equivalent, both under uniform ticks and under ragged slicing, and
-  its final position equals the destination exactly.
+* An eased move of distance d at speed s completes within one tick of the
+  linear equivalent, both under uniform ticks and under ragged slicing (they
+  are not always the same tick: at 60 Hz, speed 1, d=1 gives tick 60 linear vs
+  61 eased, and d=sqrt(2) gives tick 86 linear vs 85 eased), and its final
+  position equals the destination exactly.
 * Mid-move positions match the analytic `Start + f(t) * (Destination - Start)`
   for both eased curves, and are identical under two different tick slicings of
   the same total elapsed time.

@@ -228,6 +228,52 @@ func TestProcessMove_LinearMatchesProcessMovement(t *testing.T) {
 	}
 }
 
+// TestProcessMove_LinearZeroDurationAtDestinationStaysCompleted pins that
+// ProcessMove routes a constant-speed move already at its destination to
+// ProcessMovement's own zero-duration rule: an entity already standing on its
+// destination is complete regardless of the tick's duration. Before FIX 1
+// this was swallowed by a duration <= 0 guard that ran ahead of the
+// constant-speed branch, so a Movement restored (or authored) with
+// Destination already equal to the body's position never completed on a
+// zero-length tick.
+func TestProcessMove_LinearZeroDurationAtDestinationStaysCompleted(t *testing.T) {
+	pos := geometry.NewVector2(2.0, 2.0)
+	mc := Movement{Destination: pos, Speed: 1.0}
+
+	updated, newPos, completed := ProcessMove(mc, pos, 0)
+
+	if !completed {
+		t.Error("a constant-speed move already at its destination must complete on any tick, including a zero-duration one")
+	}
+	if newPos != pos {
+		t.Errorf("position must not change: got %v, want %v", newPos, pos)
+	}
+	if updated.Elapsed != 0 {
+		t.Errorf("a zero-duration tick must not advance Elapsed, got %v", updated.Elapsed)
+	}
+}
+
+// TestProcessMove_LinearZeroDurationInFlightMakesNoProgress mirrors
+// ProcessMovement's own zero-duration rule for an in-flight move: no time
+// passed means no movement and no completion.
+func TestProcessMove_LinearZeroDurationInFlightMakesNoProgress(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(3.0, 0.0)
+	mc := Movement{Destination: dest, Speed: 1.0}
+
+	updated, newPos, completed := ProcessMove(mc, start, 0)
+
+	if completed {
+		t.Error("a zero-duration tick must not complete an in-flight constant-speed move")
+	}
+	if newPos != start {
+		t.Errorf("a zero-duration tick must not move the entity: got %v, want %v", newPos, start)
+	}
+	if updated.Elapsed != 0 {
+		t.Errorf("a zero-duration tick must not advance Elapsed, got %v", updated.Elapsed)
+	}
+}
+
 func TestProcessMove_EasedMidMovePosition(t *testing.T) {
 	start := geometry.NewVector2(0.0, 0.0)
 	dest := geometry.NewVector2(4.0, 0.0)
@@ -241,6 +287,46 @@ func TestProcessMove_EasedMidMovePosition(t *testing.T) {
 	}
 	if math.Abs(pos.X()-0.625) > 1e-12 || pos.Y() != 0 {
 		t.Errorf("expected position (0.625, 0), got %v", pos)
+	}
+	if updated.Elapsed != time.Second {
+		t.Errorf("expected Elapsed 1s, got %v", updated.Elapsed)
+	}
+}
+
+func TestProcessMove_EasedInMidMovePosition(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(4.0, 0.0)
+	mc := easedMovement(start, dest, 1.0, easing.CurveIn) // Total 4s
+
+	// One second in: t = 0.25, CurveIn.Apply(0.25) = 0.25*0.25 = 0.0625, so
+	// x = 4 * 0.0625 = 0.25.
+	updated, pos, done := ProcessMove(mc, start, time.Second)
+
+	if done {
+		t.Error("expected the move to still be in flight")
+	}
+	if math.Abs(pos.X()-0.25) > 1e-12 || pos.Y() != 0 {
+		t.Errorf("expected position (0.25, 0), got %v", pos)
+	}
+	if updated.Elapsed != time.Second {
+		t.Errorf("expected Elapsed 1s, got %v", updated.Elapsed)
+	}
+}
+
+func TestProcessMove_EasedOutMidMovePosition(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(4.0, 0.0)
+	mc := easedMovement(start, dest, 1.0, easing.CurveOut) // Total 4s
+
+	// One second in: t = 0.25, CurveOut.Apply(0.25) = 1-(1-0.25)^2 = 0.4375,
+	// so x = 4 * 0.4375 = 1.75.
+	updated, pos, done := ProcessMove(mc, start, time.Second)
+
+	if done {
+		t.Error("expected the move to still be in flight")
+	}
+	if math.Abs(pos.X()-1.75) > 1e-12 || pos.Y() != 0 {
+		t.Errorf("expected position (1.75, 0), got %v", pos)
 	}
 	if updated.Elapsed != time.Second {
 		t.Errorf("expected Elapsed 1s, got %v", updated.Elapsed)
@@ -292,28 +378,58 @@ func TestProcessMove_EasedCompletesExactlyAtTotal(t *testing.T) {
 	}
 }
 
-func TestProcessMove_EasedCompletesOnSameTickAsLinear(t *testing.T) {
+// TestProcessMove_EasedArrivalTracksLinearWithinOneTick pins the honest
+// version of the arrival-tick claim: the eased and constant-speed paths give
+// a move the same nominal duration (distance divided by speed), but they do
+// not always complete on the same tick. The eased path completes on the
+// first tick at or after that duration; the constant-speed path completes on
+// a distance tolerance and an overshoot test over an accumulated float
+// position. Under a tick size that does not evenly divide the duration, the
+// two can differ by one tick in either direction (never more, and the eased
+// path never completes early).
+func TestProcessMove_EasedArrivalTracksLinearWithinOneTick(t *testing.T) {
 	start := geometry.NewVector2(0.0, 0.0)
-	dest := geometry.NewVector2(3.0, 0.0)
-	const tick = 700 * time.Millisecond // ragged: does not divide the 3s total
-
-	eased := easedMovement(start, dest, 1.0, easing.CurveOut)
-	easedPos := start
-	easedTicks := 0
-	for done := false; !done; {
-		easedTicks++
-		eased, easedPos, done = ProcessMove(eased, easedPos, tick)
+	distances := []float64{1.0, math.Sqrt2, 2.0, 3.0, 5.0, 7.3}
+	ticks := []time.Duration{
+		16666666 * time.Nanosecond, // 60Hz
+		100 * time.Millisecond,
+		700 * time.Millisecond, // ragged: does not divide most totals evenly
+		time.Second,
 	}
 
-	linearPos := start
-	linearTicks := 0
-	for done := false; !done; {
-		linearTicks++
-		linearPos, done = ProcessMovement(linearPos, dest, 1.0, tick)
-	}
+	for _, distance := range distances {
+		dest := geometry.NewVector2(distance, 0.0)
+		for _, tick := range ticks {
+			eased := easedMovement(start, dest, 1.0, easing.CurveOut)
+			easedPos := start
+			easedTicks := 0
+			for done := false; !done; {
+				easedTicks++
+				eased, easedPos, done = ProcessMove(eased, easedPos, tick)
+				if easedTicks > 100000 {
+					t.Fatalf("distance %v, tick %v: eased move did not complete", distance, tick)
+				}
+			}
 
-	if easedTicks != linearTicks {
-		t.Errorf("eased move completed on tick %d, linear on tick %d", easedTicks, linearTicks)
+			linearPos := start
+			linearTicks := 0
+			for done := false; !done; {
+				linearTicks++
+				linearPos, done = ProcessMovement(linearPos, dest, 1.0, tick)
+				if linearTicks > 100000 {
+					t.Fatalf("distance %v, tick %v: linear move did not complete", distance, tick)
+				}
+			}
+
+			if diff := easedTicks - linearTicks; diff < -1 || diff > 1 {
+				t.Errorf("distance %v, tick %v: eased completed on tick %d, linear on tick %d, differ by more than one tick", distance, tick, easedTicks, linearTicks)
+			}
+
+			total := time.Duration(distance / 1.0 * float64(time.Second))
+			if time.Duration(easedTicks-1)*tick >= total {
+				t.Errorf("distance %v, tick %v: eased move completed before its Total (%v) had elapsed: (%d-1)*tick = %v", distance, tick, total, easedTicks, time.Duration(easedTicks-1)*tick)
+			}
+		}
 	}
 }
 

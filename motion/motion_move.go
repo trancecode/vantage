@@ -48,7 +48,9 @@ type MoveStart struct {
 	Distance float64
 
 	// Duration is the game time the started move will take at the requested
-	// speed. Zero unless Outcome is MoveOutcomeStarted.
+	// speed. Zero unless Outcome is MoveOutcomeStarted. It is truncated to
+	// whole nanoseconds, so a started move over a sub-nanosecond distance
+	// reports zero.
 	Duration time.Duration
 }
 
@@ -73,6 +75,13 @@ type MoveOptions struct {
 	// re-anchors its curve, so a body retargeted every tick under a
 	// symmetric curve never leaves the slow opening of the curve. Use
 	// easing.CurveLinear for continuous steering and pursuit.
+	//
+	// An eased move owns the body's position for its duration: the eased
+	// position is derived only from Start, Destination and progress, so
+	// writing Spatial.Position mid-move (knockback, a collision push-out, a
+	// debug teleport) is undone on the next tick, unlike a constant-speed
+	// move, which continues from wherever the body was put. Displace a body
+	// only after cancelling or restarting its move.
 	Ease easing.Curve
 }
 
