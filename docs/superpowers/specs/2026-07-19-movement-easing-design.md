@@ -230,12 +230,23 @@ by consumers:
 func ProcessMove(mc Movement, currentPosition geometry.Vector2, duration time.Duration) (updated Movement, newPosition geometry.Vector2, completed bool)
 ```
 
+On the linear path, `ProcessMove` delegates unconditionally to
+`ProcessMovement`, which has always special-cased a zero-duration tick
+(commit `8012b6b`, v0.1.13) by checking whether the current position already
+equals the destination before it looks at `duration` at all. `ProcessMove`
+layers on top of that only by gating whether `Elapsed` accumulates on
+`duration > 0`. So a constant-speed move already at its destination still
+reports completed on a zero-duration tick, exactly as `ProcessMovement`
+alone would; an in-flight constant-speed move makes no progress on a
+zero-duration tick and so does not complete.
+
 Order of checks on the eased path, and it matters:
 
 1. `duration <= 0` returns the current position, not completed, and does not
-   advance `Elapsed`. The zero-duration-tick rule (commit `8012b6b`,
-   v0.1.13) therefore holds on both paths, and it is checked before anything
-   else so that even a degenerate `Total <= 0` move cannot complete on a
+   advance `Elapsed`. An in-flight eased move therefore never completes on a
+   zero-duration tick, matching the in-flight case on the linear path.
+   Unlike the linear path, this check fires before the `Total <= 0` check
+   below, so even a degenerate `Total <= 0` move cannot complete on a
    zero-duration tick.
 2. `Total <= 0` snaps to the destination and completes. `MoveEntity` cannot
    produce such a move, but a game writing the component directly can.
@@ -328,8 +339,10 @@ the pinned-position tests, and easy reasoning about savegame round trips.
 * Mid-move positions match the analytic `Start + f(t) * (Destination - Start)`
   for both eased curves, and are identical under two different tick slicings of
   the same total elapsed time.
-* A zero-duration tick moves nothing, completes nothing and leaves `Elapsed`
-  unchanged, on both paths.
+* A zero-duration tick moves nothing and leaves `Elapsed` unchanged on both
+  paths. An in-flight move does not complete on either path, but a
+  constant-speed move already at its destination still reports completed,
+  matching `ProcessMovement`.
 * A mid-flight redirect re-anchors: the body arrives exactly
   `remaining/speed` after the redirect, with no positional jump on the
   redirecting tick.

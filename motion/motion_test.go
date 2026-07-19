@@ -385,8 +385,10 @@ func TestProcessMove_EasedCompletesExactlyAtTotal(t *testing.T) {
 // first tick at or after that duration; the constant-speed path completes on
 // a distance tolerance and an overshoot test over an accumulated float
 // position. Under a tick size that does not evenly divide the duration, the
-// two can differ by one tick in either direction (never more, and the eased
-// path never completes early).
+// two can differ by one tick in either direction (never more). The test
+// checks both halves of the eased path's own rule directly: the completion
+// tick itself must have reached Total (never early), and the tick before it
+// must not have (never late, i.e. it is the first qualifying tick).
 func TestProcessMove_EasedArrivalTracksLinearWithinOneTick(t *testing.T) {
 	start := geometry.NewVector2(0.0, 0.0)
 	distances := []float64{1.0, math.Sqrt2, 2.0, 3.0, 5.0, 7.3}
@@ -426,8 +428,11 @@ func TestProcessMove_EasedArrivalTracksLinearWithinOneTick(t *testing.T) {
 			}
 
 			total := time.Duration(distance / 1.0 * float64(time.Second))
-			if time.Duration(easedTicks-1)*tick >= total {
-				t.Errorf("distance %v, tick %v: eased move completed before its Total (%v) had elapsed: (%d-1)*tick = %v", distance, tick, total, easedTicks, time.Duration(easedTicks-1)*tick)
+			if got := time.Duration(easedTicks) * tick; got < total {
+				t.Errorf("distance %v, tick %v: eased move completed at %v, before its Total (%v) had elapsed", distance, tick, got, total)
+			}
+			if late := time.Duration(easedTicks-1) * tick; late >= total {
+				t.Errorf("distance %v, tick %v: eased move completed on tick %d, later than the first tick at or after Total (%v)", distance, tick, easedTicks, total)
 			}
 		}
 	}

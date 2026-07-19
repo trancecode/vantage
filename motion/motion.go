@@ -157,7 +157,8 @@ func ProcessMovement(currentPosition, destination geometry.Vector2, speed float6
 // An eased Movement authored directly by a game, rather than started through
 // MoveEntity, must carry both Start and Total: an unset Start is
 // indistinguishable from a move that began at the origin and interpolates the
-// body from there.
+// body from there, and an unset Total makes the move snap to its destination
+// and complete on its first positive-duration tick.
 func ProcessMove(mc Movement, currentPosition geometry.Vector2, duration time.Duration) (updated Movement, newPosition geometry.Vector2, completed bool) {
 	if mc.Ease == easing.CurveLinear {
 		newPosition, completed = ProcessMovement(currentPosition, mc.Destination, mc.Speed, duration)

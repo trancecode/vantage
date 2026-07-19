@@ -49,7 +49,7 @@ type MoveStart struct {
 
 	// Duration is the game time the started move will take at the requested
 	// speed. Zero unless Outcome is MoveOutcomeStarted. It is truncated to
-	// whole nanoseconds, so a started move over a sub-nanosecond distance
+	// whole nanoseconds, so a move whose duration is under a nanosecond
 	// reports zero.
 	Duration time.Duration
 }

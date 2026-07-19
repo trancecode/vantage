@@ -101,9 +101,10 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 // The returned MoveStart reports MoveOutcomeAtDestination when the entity is
 // already inside the area and MoveOutcomeNoPath when no tile in the area is
 // reachable (normal flow when every tile around the target is occupied). The
-// entity must have a Spatial and opts.Speed must be positive;
-// MoveEntityTowardsArea panics otherwise. The step moves under opts (average
-// speed in tiles per second, and the easing curve shaping it).
+// entity must have a Spatial, MaxMoveActionDistance must be configured (> 0)
+// and opts.Speed must be positive; MoveEntityTowardsArea panics otherwise.
+// The step moves under opts (average speed in tiles per second, and the
+// easing curve shaping it).
 func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Vector2, radius float64, opts MoveOptions) MoveStart {
 	if s.RecordPhase != nil {
 		defer func(start time.Time) { s.RecordPhase("move_towards_area", time.Since(start)) }(time.Now())
