@@ -54,3 +54,39 @@ func TestVector2GobRoundTrip(t *testing.T) {
 		t.Fatalf("gob round trip = %v, want %v", got, v)
 	}
 }
+
+func TestVector2Lerp_Endpoints(t *testing.T) {
+	a := NewVector2(1.0, 2.0)
+	b := NewVector2(5.0, 10.0)
+
+	if got := a.Lerp(b, 0); got != a {
+		t.Errorf("Lerp(t=0) = %v, want %v", got, a)
+	}
+	if got := a.Lerp(b, 1); got != b {
+		t.Errorf("Lerp(t=1) = %v, want %v", got, b)
+	}
+}
+
+func TestVector2Lerp_Midpoint(t *testing.T) {
+	a := NewVector2(0.0, 0.0)
+	b := NewVector2(4.0, -2.0)
+
+	want := NewVector2(2.0, -1.0)
+	if got := a.Lerp(b, 0.5); got != want {
+		t.Errorf("Lerp(t=0.5) = %v, want %v", got, want)
+	}
+}
+
+// Lerp is a plain blend: it extrapolates rather than clamping, so callers that
+// must stay on the segment clamp their own weight.
+func TestVector2Lerp_Extrapolates(t *testing.T) {
+	a := NewVector2(0.0, 0.0)
+	b := NewVector2(2.0, 0.0)
+
+	if got := a.Lerp(b, 2); got != NewVector2(4.0, 0.0) {
+		t.Errorf("Lerp(t=2) = %v, want (4,0)", got)
+	}
+	if got := a.Lerp(b, -1); got != NewVector2(-2.0, 0.0) {
+		t.Errorf("Lerp(t=-1) = %v, want (-2,0)", got)
+	}
+}

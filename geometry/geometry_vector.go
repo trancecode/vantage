@@ -54,6 +54,14 @@ func (p Vector2) Scale(scalar float64) Vector2 {
 	return NewVector2(p.x*scalar, p.y*scalar)
 }
 
+// Lerp linearly interpolates between the current Vector2 and the given
+// Vector2: it returns the current vector when t is 0 and the given vector when
+// t is 1. It does not clamp t, so values outside [0,1] extrapolate along the
+// line through both points.
+func (p Vector2) Lerp(other Vector2, t float64) Vector2 {
+	return NewVector2(p.x+(other.x-p.x)*t, p.y+(other.y-p.y)*t)
+}
+
 // DistanceTo calculates the Euclidean distance between two Vector2s.
 func (p Vector2) DistanceTo(other Vector2) float64 {
 	return other.Sub(p).Magnitude()
