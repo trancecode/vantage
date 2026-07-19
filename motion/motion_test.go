@@ -1,9 +1,11 @@
 package motion
 
 import (
+	"math"
 	"testing"
 	"time"
 
+	"github.com/trancecode/vantage/easing"
 	"github.com/trancecode/vantage/geometry"
 )
 
@@ -192,5 +194,175 @@ func TestProcessMovement_ZeroDurationAtDestinationStaysCompleted(t *testing.T) {
 	}
 	if newPos != pos {
 		t.Errorf("position must not change: got %v, want %v", newPos, pos)
+	}
+}
+
+// easedMovement builds an eased Movement from start to dest at speed, with
+// Total derived the way MoveEntity derives it.
+func easedMovement(start, dest geometry.Vector2, speed float64, curve easing.Curve) Movement {
+	distance := start.DistanceTo(dest)
+	return Movement{
+		Destination: dest,
+		Speed:       speed,
+		Ease:        curve,
+		Start:       start,
+		Total:       time.Duration(distance / speed * float64(time.Second)),
+	}
+}
+
+func TestProcessMove_LinearMatchesProcessMovement(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(10.0, 0.0)
+	mc := Movement{Destination: dest, Speed: 2.0, Start: start, Total: 5 * time.Second}
+
+	wantPos, wantDone := ProcessMovement(start, dest, 2.0, 500*time.Millisecond)
+	updated, gotPos, gotDone := ProcessMove(mc, start, 500*time.Millisecond)
+
+	if gotPos != wantPos || gotDone != wantDone {
+		t.Errorf("ProcessMove = (%v, %v), want (%v, %v)", gotPos, gotDone, wantPos, wantDone)
+	}
+	if updated.Elapsed != 500*time.Millisecond {
+		t.Errorf("expected Elapsed 500ms on the linear path, got %v", updated.Elapsed)
+	}
+}
+
+func TestProcessMove_EasedMidMovePosition(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(4.0, 0.0)
+	mc := easedMovement(start, dest, 1.0, easing.CurveInOut) // Total 4s
+
+	// One second in: t = 0.25, smoothstep(0.25) = 0.15625, so x = 0.625.
+	updated, pos, done := ProcessMove(mc, start, time.Second)
+
+	if done {
+		t.Error("expected the move to still be in flight")
+	}
+	if math.Abs(pos.X()-0.625) > 1e-12 || pos.Y() != 0 {
+		t.Errorf("expected position (0.625, 0), got %v", pos)
+	}
+	if updated.Elapsed != time.Second {
+		t.Errorf("expected Elapsed 1s, got %v", updated.Elapsed)
+	}
+}
+
+func TestProcessMove_EasedIsIndependentOfTickSlicing(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(4.0, 0.0)
+
+	coarse := easedMovement(start, dest, 1.0, easing.CurveOut)
+	_, coarsePos, _ := ProcessMove(coarse, start, 2*time.Second)
+
+	fine := easedMovement(start, dest, 1.0, easing.CurveOut)
+	finePos := start
+	for range 20 {
+		fine, finePos, _ = ProcessMove(fine, finePos, 100*time.Millisecond)
+	}
+
+	if coarsePos.DistanceTo(finePos) > 1e-12 {
+		t.Errorf("eased position depends on slicing: %v (one tick) vs %v (20 ticks)", coarsePos, finePos)
+	}
+}
+
+func TestProcessMove_EasedCompletesExactlyAtTotal(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(3.0, 4.0) // distance 5, speed 2 => Total 2.5s
+	mc := easedMovement(start, dest, 2.0, easing.CurveInOut)
+
+	pos := start
+	ticks := 0
+	done := false
+	for !done {
+		ticks++
+		if ticks > 100 {
+			t.Fatal("eased move did not complete within 100 ticks")
+		}
+		mc, pos, done = ProcessMove(mc, pos, 250*time.Millisecond)
+	}
+
+	if ticks != 10 {
+		t.Errorf("expected completion on tick 10 (2.5s at 250ms), got tick %d", ticks)
+	}
+	if pos != dest {
+		t.Errorf("expected exact arrival at %v, got %v", dest, pos)
+	}
+	if mc.Elapsed != mc.Total {
+		t.Errorf("expected Elapsed to equal Total on completion, got %v of %v", mc.Elapsed, mc.Total)
+	}
+}
+
+func TestProcessMove_EasedCompletesOnSameTickAsLinear(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(3.0, 0.0)
+	const tick = 700 * time.Millisecond // ragged: does not divide the 3s total
+
+	eased := easedMovement(start, dest, 1.0, easing.CurveOut)
+	easedPos := start
+	easedTicks := 0
+	for done := false; !done; {
+		easedTicks++
+		eased, easedPos, done = ProcessMove(eased, easedPos, tick)
+	}
+
+	linearPos := start
+	linearTicks := 0
+	for done := false; !done; {
+		linearTicks++
+		linearPos, done = ProcessMovement(linearPos, dest, 1.0, tick)
+	}
+
+	if easedTicks != linearTicks {
+		t.Errorf("eased move completed on tick %d, linear on tick %d", easedTicks, linearTicks)
+	}
+}
+
+func TestProcessMove_EasedZeroDurationMakesNoProgress(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(2.0, 0.0)
+	mc := easedMovement(start, dest, 1.0, easing.CurveInOut)
+
+	updated, pos, done := ProcessMove(mc, start, 0)
+
+	if done {
+		t.Error("a zero-duration tick must not complete a move")
+	}
+	if pos != start {
+		t.Errorf("a zero-duration tick must not move: got %v, want %v", pos, start)
+	}
+	if updated.Elapsed != 0 {
+		t.Errorf("a zero-duration tick must not advance Elapsed, got %v", updated.Elapsed)
+	}
+}
+
+// A degenerate eased move (no recorded Total) must still respect the
+// zero-duration rule before it snaps to its destination.
+func TestProcessMove_EasedZeroTotalNeedsAPositiveTick(t *testing.T) {
+	start := geometry.NewVector2(0.0, 0.0)
+	dest := geometry.NewVector2(2.0, 0.0)
+	mc := Movement{Destination: dest, Speed: 1.0, Ease: easing.CurveInOut, Start: start}
+
+	if _, pos, done := ProcessMove(mc, start, 0); done || pos != start {
+		t.Errorf("zero-duration tick on a zero-Total move: got (%v, %v), want (%v, false)", pos, done, start)
+	}
+	if _, pos, done := ProcessMove(mc, start, time.Millisecond); !done || pos != dest {
+		t.Errorf("positive tick on a zero-Total move: got (%v, %v), want (%v, true)", pos, done, dest)
+	}
+}
+
+func TestMovementProgress(t *testing.T) {
+	mc := Movement{Total: 4 * time.Second, Elapsed: time.Second}
+	if got := mc.Progress(); got != 0.25 {
+		t.Errorf("Progress() = %v, want 0.25", got)
+	}
+
+	mc.Elapsed = 8 * time.Second
+	if got := mc.Progress(); got != 1 {
+		t.Errorf("Progress() past Total = %v, want 1", got)
+	}
+
+	// A Movement decoded from a save written before easing existed has no
+	// recorded Total.
+	legacy := Movement{Destination: geometry.NewVector2(1.0, 0.0), Speed: 1.0}
+	if got := legacy.Progress(); got != 0 {
+		t.Errorf("Progress() without Total = %v, want 0", got)
 	}
 }
