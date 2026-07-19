@@ -24,8 +24,9 @@ import (
 // entity is boxed in), which also covers the case where the entity is
 // already exactly at destination. The entity must have a Spatial;
 // MoveEntityTowards panics otherwise. MaxMoveActionDistance must be
-// configured (> 0); MoveEntityTowards panics otherwise.
-func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.Vector2, speed float64) MoveStart {
+// configured (> 0); MoveEntityTowards panics otherwise. The step moves under
+// opts (average speed in tiles per second, and the easing curve shaping it).
+func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.Vector2, opts MoveOptions) MoveStart {
 	if s.MaxMoveActionDistance <= 0 {
 		panic(fmt.Sprintf("moving entity %v towards destination: MaxMoveActionDistance not configured", entityId))
 	}
@@ -49,7 +50,7 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 			break
 		}
 		if s.CanReach(entityId, waypoint) {
-			return s.MoveEntity(entityId, waypoint, speed)
+			return s.MoveEntity(entityId, waypoint, opts)
 		}
 	}
 
@@ -81,7 +82,7 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 				bestTile = tile
 			}
 		}
-		return s.MoveEntity(entityId, tilemap.TileToWorldPosition(bestTile), speed)
+		return s.MoveEntity(entityId, tilemap.TileToWorldPosition(bestTile), opts)
 	}
 
 	return MoveStart{Outcome: MoveOutcomeNoPath, Destination: destination}
@@ -95,8 +96,10 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 // The returned MoveStart reports MoveOutcomeAtDestination when the entity is
 // already inside the area and MoveOutcomeNoPath when no tile in the area is
 // reachable (normal flow when every tile around the target is occupied). The
-// entity must have a Spatial; MoveEntityTowardsArea panics otherwise.
-func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Vector2, radius, speed float64) MoveStart {
+// entity must have a Spatial; MoveEntityTowardsArea panics otherwise. The step
+// moves under opts (average speed in tiles per second, and the easing curve
+// shaping it).
+func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Vector2, radius float64, opts MoveOptions) MoveStart {
 	if s.RecordPhase != nil {
 		defer func(start time.Time) { s.RecordPhase("move_towards_area", time.Since(start)) }(time.Now())
 	}
@@ -158,7 +161,7 @@ func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Ve
 	}
 
 	if targetPos != nil {
-		return s.MoveEntityTowards(entityId, *targetPos, speed)
+		return s.MoveEntityTowards(entityId, *targetPos, opts)
 	}
 	return MoveStart{Outcome: MoveOutcomeNoPath, Destination: center}
 }

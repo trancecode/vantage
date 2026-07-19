@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/trancecode/ecs/ecs"
+	"github.com/trancecode/vantage/easing"
 	"github.com/trancecode/vantage/tilemap"
 )
 
@@ -34,7 +35,7 @@ func TestMoveEntityTowards_TakesOneStepAlongPath(t *testing.T) {
 	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
 	target := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 0})
 
-	start := s.MoveEntityTowards(e.id, target, 1.0)
+	start := s.MoveEntityTowards(e.id, target, MoveOptions{Speed: 1.0})
 
 	if !start.Started() {
 		t.Fatalf("expected move to start, got %+v", start)
@@ -60,7 +61,7 @@ func TestMoveEntityTowards_RoutesAroundBlockedWaypoint(t *testing.T) {
 	}
 	target := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0})
 
-	start := s.MoveEntityTowards(e.id, target, 1.0)
+	start := s.MoveEntityTowards(e.id, target, MoveOptions{Speed: 1.0})
 
 	if !start.Started() {
 		t.Fatalf("expected move to start around the blocked tile, got %+v", start)
@@ -81,7 +82,7 @@ func TestMoveEntityTowards_NoPath(t *testing.T) {
 	}
 	target := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 5})
 
-	start := s.MoveEntityTowards(e.id, target, 1.0)
+	start := s.MoveEntityTowards(e.id, target, MoveOptions{Speed: 1.0})
 
 	if start.Started() {
 		t.Fatalf("expected no move when boxed in, got %+v", start)
@@ -99,14 +100,14 @@ func TestMoveEntityTowards_PanicsWithoutMaxMoveActionDistance(t *testing.T) {
 	}()
 	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
 	s.MaxMoveActionDistance = 0
-	s.MoveEntityTowards(e.id, tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0}), 1.0)
+	s.MoveEntityTowards(e.id, tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0}), MoveOptions{Speed: 1.0})
 }
 
 func TestMoveEntityTowardsArea_AlreadyInside(t *testing.T) {
 	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 5, Y: 5})
 	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 6})
 
-	start := s.MoveEntityTowardsArea(e.id, center, 2.0, 1.0)
+	start := s.MoveEntityTowardsArea(e.id, center, 2.0, MoveOptions{Speed: 1.0})
 
 	if start.Outcome != MoveOutcomeAtDestination {
 		t.Fatalf("expected MoveOutcomeAtDestination inside the area, got %+v", start)
@@ -117,12 +118,30 @@ func TestMoveEntityTowardsArea_StepsTowardArea(t *testing.T) {
 	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
 	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 6, Y: 0})
 
-	start := s.MoveEntityTowardsArea(e.id, center, 1.0, 1.0)
+	start := s.MoveEntityTowardsArea(e.id, center, 1.0, MoveOptions{Speed: 1.0})
 
 	if !start.Started() {
 		t.Fatalf("expected a step toward the area, got %+v", start)
 	}
 	if start.Distance > s.MaxMoveActionDistance {
 		t.Errorf("expected single bounded step, got distance %v", start.Distance)
+	}
+}
+
+func TestMoveEntityTowards_CarriesOptionsThrough(t *testing.T) {
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	target := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0})
+
+	start := s.MoveEntityTowards(e.id, target, MoveOptions{Speed: 1.0, Ease: easing.CurveInOut})
+
+	if !start.Started() {
+		t.Fatalf("expected a step to start, got %+v", start)
+	}
+	mc, ok := s.Movements.Get(e.id)
+	if !ok {
+		t.Fatal("expected a Movement component")
+	}
+	if mc.Ease != easing.CurveInOut {
+		t.Errorf("expected the curve to reach the Movement, got %v", mc.Ease)
 	}
 }
