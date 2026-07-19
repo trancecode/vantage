@@ -67,6 +67,21 @@ func TestVector2Lerp_Endpoints(t *testing.T) {
 	}
 }
 
+func TestVector2Lerp_EndpointsAreExactForAwkwardValues(t *testing.T) {
+	// The endpoint-exact form p*(1-t) + other*t is used to guarantee exact
+	// endpoints in floating point arithmetic. These values exhibit precision
+	// issues with the naive p + (other-p)*t formula, so we verify exactness here.
+	a := NewVector2(-50000.3, 0.7)
+	b := NewVector2(50000.9, -1234.5678)
+
+	if got := a.Lerp(b, 1); got != b {
+		t.Errorf("Lerp(t=1) = %v, want exactly %v", got, b)
+	}
+	if got := a.Lerp(b, 0); got != a {
+		t.Errorf("Lerp(t=0) = %v, want exactly %v", got, a)
+	}
+}
+
 func TestVector2Lerp_Midpoint(t *testing.T) {
 	a := NewVector2(0.0, 0.0)
 	b := NewVector2(4.0, -2.0)
