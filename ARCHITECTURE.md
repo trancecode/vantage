@@ -24,12 +24,13 @@ the most important invariant to preserve when extending the engine.
 |---|---|---|
 | `util` | Shared infrastructure: `Time`, `Profiler`, `ScreenLogger`, `PriorityQueue`, logging, debug HTTP | — |
 | `geometry` | 2D geometric types and operations (`Vector2`, shapes) | `util` |
+| `easing` | Easing curves (`Curve`, `Apply`) for shaping interpolated progress | — |
 | `config` | Layered configuration loader (`Loader`, `Duration`) | — |
 | `asset` | Engine-bundled assets (default fonts), embedded | — |
 | `pathfinding` | A* search with terrain awareness | — |
 | `tilemap` | Tile coordinates, `SpatialGrid` (range queries), `TileOccupancyManager` | `geometry`, `ecs` |
 | `sim` | Deterministic event scheduling: `Driver`, `EventQueue`, `Event`, `TickSystem`, `EventHandler` | `util`, `ecs` |
-| `motion` | Movement components (`Spatial`, `Movement`) and `System` (a tick system) | `geometry`, `pathfinding`, `tilemap`, `ecs` |
+| `motion` | Movement components (`Spatial`, `Movement`) and `System` (a tick system) | `geometry`, `easing`, `pathfinding`, `tilemap`, `ecs` |
 | `render` | Graphics layer: camera, sprites, text | `asset`, `geometry` |
 | `ui` | Interactive user-interface components | `asset` |
 | `scene` | `Scene` interface and the `Manager` that drives scenes | `render`, `ui` |
@@ -41,12 +42,12 @@ the most important invariant to preserve when extending the engine.
 
 The graph is acyclic and splits into two stacks over shared foundations.
 
-* Foundations (no vantage dependencies): `util`, `config`, `asset`,
+* Foundations (no vantage dependencies): `util`, `easing`, `config`, `asset`,
   `pathfinding`, `visualtest` (the `visualtest/capture` helper adds only an
   Ebitengine dependency).
 * Simulation stack (the deterministic game substrate): `ecs` + `sim` + `motion`
-  + `tilemap` + `pathfinding` + `geometry` + `util`. This is what a game's world
-  and logic are built on; it has no dependency on rendering.
+  + `tilemap` + `pathfinding` + `geometry` + `easing` + `util`. This is what a
+  game's world and logic are built on; it has no dependency on rendering.
 * Presentation stack (Ebitengine graphics and the app loop): `render` + `ui` +
   `scene` + `app` + `asset`. It draws whatever the game hands it.
 

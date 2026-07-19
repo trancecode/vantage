@@ -36,7 +36,7 @@ Design spec: `docs/superpowers/specs/2026-07-19-movement-easing-design.md`.
 - Consumes: nothing.
 - Produces: `easing.Curve` (an `int` enum) with constants `easing.CurveLinear`, `easing.CurveIn`, `easing.CurveOut`, `easing.CurveInOut`, and method `func (c Curve) Apply(t float64) float64`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `easing/easing_test.go`:
 
@@ -141,7 +141,7 @@ func TestCurveApply_UnknownCurveIsLinear(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./easing/
@@ -149,7 +149,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./easing/
 
 Expected: FAIL, build error along the lines of `undefined: Curve` (or "no Go files" if only the test file exists).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `easing/easing.go`:
 
@@ -233,7 +233,7 @@ Create `easing/doc.go`:
 package easing
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./easing/ && go vet ./easing/
@@ -241,7 +241,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./easing/ && go vet ./easing/
 
 Expected: `ok  github.com/trancecode/vantage/easing`, and `go vet` silent.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add easing/
@@ -260,7 +260,7 @@ git commit -m "Add the easing package with the standard curves"
 - Consumes: nothing.
 - Produces: `func (p Vector2) Lerp(other Vector2, t float64) Vector2`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `geometry/geometry_vector_test.go`, matching the assertion style already used in that file:
 
@@ -302,7 +302,7 @@ func TestVector2Lerp_Extrapolates(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./geometry/ -run Lerp
@@ -310,7 +310,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./geometry/ -run Lerp
 
 Expected: FAIL with `a.Lerp undefined (type Vector2 has no field or method Lerp)`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Add to `geometry/geometry_vector.go`, directly after the `Scale` method:
 
@@ -328,7 +328,7 @@ func (p Vector2) Lerp(other Vector2, t float64) Vector2 {
 
 Note the formula: `p*(1-t) + other*t`, not `p + (other-p)*t`. Only this form returns both endpoints exactly. Measured over 200,000 random coordinate pairs in the +/-100 tile range, `p + (other-p)*t` fails to return `other` exactly at t = 1 for about 31% of pairs (`p = -50000.3, other = 50000.9` gives 50000.90000000001), because the subtraction rounds before the addition can restore it. `1-t` is exactly 0 at t = 1, so the form above cannot drift. Also add a test pinning exactness at both endpoints for such awkward values, since small integer test vectors mask the defect.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./geometry/ && go vet ./geometry/
@@ -336,7 +336,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./geometry/ && go vet ./geometry/
 
 Expected: `ok  github.com/trancecode/vantage/geometry`, `go vet` silent.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add geometry/
@@ -358,7 +358,7 @@ git commit -m "Add Vector2.Lerp for interpolating between positions"
   - `func (m Movement) Progress() float64`.
   - `func ProcessMove(mc Movement, currentPosition geometry.Vector2, duration time.Duration) (updated Movement, newPosition geometry.Vector2, completed bool)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `motion/motion_test.go`:
 
@@ -536,7 +536,7 @@ func TestMovementProgress(t *testing.T) {
 
 Add `"math"` and `"github.com/trancecode/vantage/easing"` to the imports of `motion/motion_test.go`.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run "ProcessMove|MovementProgress"
@@ -544,7 +544,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run "ProcessMove|Movem
 
 Expected: FAIL, build errors such as `undefined: ProcessMove` and `unknown field Ease in struct literal`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `motion/motion.go`, replace the `Movement` struct with:
 
@@ -643,7 +643,7 @@ func ProcessMove(mc Movement, currentPosition geometry.Vector2, duration time.Du
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run "ProcessMove|ProcessMovement|MovementProgress" -v
@@ -651,7 +651,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run "ProcessMove|Proce
 
 Expected: PASS for the new tests and for every pre-existing `TestProcessMovement_*` test, unmodified.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add motion/motion.go motion/motion_test.go
@@ -670,7 +670,7 @@ git commit -m "Add eased movement state and the ProcessMove router"
 - Consumes: `ProcessMove` and the `Movement` easing fields from Task 3.
 - Produces: no new exported API. `System.Tick` now advances both paths and writes `Elapsed` back to the component.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `motion/motion_system_test.go`:
 
@@ -797,7 +797,7 @@ func TestSystemTick_CancelledEasedMoveLeavesPosition(t *testing.T) {
 
 Add `"github.com/trancecode/vantage/easing"` to the imports of `motion/motion_system_test.go`.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run "TestSystemTick" -v
@@ -805,7 +805,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run "TestSystemTick" -
 
 Expected: FAIL. `TestSystemTick_AdvancesEasedPosition` reports a position near 1.0 instead of 0.625 (the tick still runs the linear formula) and an `Elapsed` of 0.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `motion/motion_system.go`, replace the body of the loop in `Tick` (the `original`/`ProcessMovement`/`sc.Position` block at lines 74-76) with:
 
@@ -828,7 +828,7 @@ Update the `Tick` doc comment to:
 // skipped.
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ && go vet ./motion/
@@ -836,7 +836,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ && go vet ./motion/
 
 Expected: `ok  github.com/trancecode/vantage/motion` with every pre-existing test still passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add motion/motion_system.go motion/motion_system_test.go
@@ -860,7 +860,7 @@ git commit -m "Advance eased moves in the motion tick"
   - `func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.Vector2, opts MoveOptions) MoveStart`
   - `func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Vector2, radius float64, opts MoveOptions) MoveStart`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 First update every existing call site in the two test files so the package compiles: replace the trailing speed argument with `MoveOptions{Speed: ...}`. For example, in `motion/motion_move_test.go`:
 
@@ -1007,7 +1007,7 @@ func TestMoveEntityTowards_CarriesOptionsThrough(t *testing.T) {
 
 `newPathTestSystem(t, tile)` is the existing helper in that file: it returns a `*System` on a 10x10 open map plus an `ecsEntity` whose `id` field is the placed entity. Add the `easing` import to both test files.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/
@@ -1015,7 +1015,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/
 
 Expected: FAIL with build errors such as `undefined: MoveOptions` and `not enough arguments in call to s.MoveEntity`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `motion/motion_move.go`, add above `MoveEntity`:
 
@@ -1114,7 +1114,7 @@ func (s *System) MoveEntity(id ecs.EntityId, destination geometry.Vector2, opts 
 
 In `motion/motion_towards.go`, change both signatures to take `opts MoveOptions` in place of `speed float64` (`MoveEntityTowardsArea` keeps `radius float64` and gains `opts MoveOptions` as its last parameter), pass `opts` through at the three internal call sites (lines 52, 84 and 161), and update both doc comments to say "under opts" rather than "at speed".
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -v && go vet ./motion/
@@ -1122,7 +1122,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -v && go vet ./motion/
 
 Expected: PASS across the package.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add motion/
@@ -1143,7 +1143,7 @@ git commit -m "Take movement options, including the easing curve, when starting 
 - Consumes: everything from Tasks 1 to 5.
 - Produces: no new API.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `motion/motion_test.go`:
 
@@ -1214,7 +1214,7 @@ func TestMovement_GobDecodesLegacyMovementAsLinear(t *testing.T) {
 
 Add `"bytes"` and `"encoding/gob"` to the imports of `motion/motion_test.go`. Gob matches struct fields by name, so `legacyMovement` decodes into `Movement`, leaving the fields it never carried at their zero values. If gob turns out to reject the differing type names, encode a `Movement` carrying only `Destination` and `Speed` instead: gob omits zero-valued fields, so that stream is byte-identical to one written before the easing fields existed. Keep the assertions either way.
 
-- [ ] **Step 2: Run the tests to verify they fail (or pass for the right reason)**
+- [x] **Step 2: Run the tests to verify they fail (or pass for the right reason)**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run Gob -v
@@ -1222,7 +1222,7 @@ export GOMODCACHE=/tmp/go-mod-cache && go test ./motion/ -run Gob -v
 
 Expected: these tests should pass once they compile, since the design's whole claim is that the component is serialization-safe by construction. If either fails, that is a real defect in the field types: fix `Movement`, do not weaken the test.
 
-- [ ] **Step 3: Update the documentation**
+- [x] **Step 3: Update the documentation**
 
 Rewrite `motion/doc.go` so the package summary covers easing:
 
@@ -1263,7 +1263,7 @@ In `ARCHITECTURE.md`, add a row to the package map table immediately after the `
 
 and update the `motion` row's dependency list to include `easing`. Read the surrounding prose (the dependency narrative below the table) and add `easing` wherever `motion`'s dependencies are described, keeping the existing wording style.
 
-- [ ] **Step 4: Run the full gate**
+- [x] **Step 4: Run the full gate**
 
 ```bash
 export GOMODCACHE=/tmp/go-mod-cache && task lint && task test:headless && go vet ./...
@@ -1271,7 +1271,7 @@ export GOMODCACHE=/tmp/go-mod-cache && task lint && task test:headless && go vet
 
 Expected: all three succeed with no warnings. If `task lint` reports formatting or modernizer findings, fix them and re-run.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add motion/ ARCHITECTURE.md docs/superpowers/plans/2026-07-19-movement-easing.md

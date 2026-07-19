@@ -1,6 +1,8 @@
 package motion
 
 import (
+	"bytes"
+	"encoding/gob"
 	"math"
 	"testing"
 	"time"
@@ -364,5 +366,68 @@ func TestMovementProgress(t *testing.T) {
 	legacy := Movement{Destination: geometry.NewVector2(1.0, 0.0), Speed: 1.0}
 	if got := legacy.Progress(); got != 0 {
 		t.Errorf("Progress() without Total = %v, want 0", got)
+	}
+}
+
+func TestMovement_GobRoundTripMidEasedMove(t *testing.T) {
+	start := geometry.NewVector2(1.0, 2.0)
+	dest := geometry.NewVector2(5.0, 2.0)
+	mc := easedMovement(start, dest, 1.0, easing.CurveInOut) // Total 4s
+
+	advanced, pos, _ := ProcessMove(mc, start, time.Second)
+
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(advanced); err != nil {
+		t.Fatalf("encoding a Movement: %v", err)
+	}
+	var decoded Movement
+	if err := gob.NewDecoder(&buf).Decode(&decoded); err != nil {
+		t.Fatalf("decoding a Movement: %v", err)
+	}
+
+	if decoded != advanced {
+		t.Errorf("round trip changed the movement: %+v, want %+v", decoded, advanced)
+	}
+
+	// The restored move continues to the same arrival, at the same tick.
+	restoredPos := pos
+	ticks := 0
+	for done := false; !done; {
+		ticks++
+		decoded, restoredPos, done = ProcessMove(decoded, restoredPos, time.Second)
+	}
+	if ticks != 3 || restoredPos != dest {
+		t.Errorf("restored move finished in %d ticks at %v, want 3 ticks at %v", ticks, restoredPos, dest)
+	}
+}
+
+// A Movement encoded before the easing fields existed decodes to a working
+// constant-speed move: gob leaves unknown-to-the-encoder fields at their zero
+// values.
+type legacyMovement struct {
+	Destination geometry.Vector2
+	Speed       float64
+}
+
+func TestMovement_GobDecodesLegacyMovementAsLinear(t *testing.T) {
+	legacy := legacyMovement{Destination: geometry.NewVector2(2.0, 0.0), Speed: 1.0}
+
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(legacy); err != nil {
+		t.Fatalf("encoding the legacy movement: %v", err)
+	}
+	var decoded Movement
+	if err := gob.NewDecoder(&buf).Decode(&decoded); err != nil {
+		t.Fatalf("decoding into Movement: %v", err)
+	}
+
+	if decoded.Ease != easing.CurveLinear || decoded.Total != 0 || decoded.Elapsed != 0 {
+		t.Errorf("expected a constant-speed move with no recorded timing, got %+v", decoded)
+	}
+
+	pos := geometry.NewVector2(0.0, 0.0)
+	_, pos, done := ProcessMove(decoded, pos, time.Second)
+	if done || pos.DistanceTo(geometry.NewVector2(1.0, 0.0)) > 1e-9 {
+		t.Errorf("expected the legacy move to advance one tile, got %v (done=%v)", pos, done)
 	}
 }
