@@ -57,9 +57,11 @@ type System struct {
 	OnArrival func(MovementResult)
 }
 
-// Tick moves every entity that has a Movement by elapsed game time. Entities
-// that reach their destination have their Movement removed and are reported
-// through OnArrival. Entities with a Movement but no Spatial are skipped.
+// Tick moves every entity that has a Movement by elapsed game time, advancing
+// constant-speed and eased moves alike and recording the time spent on each
+// move. Entities that reach their destination have their Movement removed and
+// are reported through OnArrival. Entities with a Movement but no Spatial are
+// skipped.
 func (s *System) Tick(elapsed time.Duration) {
 	// Collect completed movements and remove them after the loop so removal
 	// order does not depend on iteration order.
@@ -72,7 +74,8 @@ func (s *System) Tick(elapsed time.Duration) {
 		}
 
 		original := sc.Position
-		newPosition, done := ProcessMovement(sc.Position, mc.Destination, mc.Speed, elapsed)
+		updated, newPosition, done := ProcessMove(*mc, sc.Position, elapsed)
+		*mc = updated
 		sc.Position = newPosition
 
 		if s.Grid != nil {
