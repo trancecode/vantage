@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"fmt"
 
+	"github.com/hajimehoshi/ebiten/v2"
+
 	flag "github.com/spf13/pflag"
 
 	"github.com/trancecode/vantage/config"
@@ -75,7 +77,47 @@ type LogSettings struct {
 
 // RenderSettings holds render toggles.
 type RenderSettings struct {
-	UsePlaceholderSpriteImages bool `toml:"use_placeholder_sprite_images"`
+	UsePlaceholderSpriteImages bool          `toml:"use_placeholder_sprite_images"`
+	Filter                     FilterSetting `toml:"filter"`
+}
+
+// FilterSetting is the texture filter used when sprites are drawn at anything
+// other than their native size, expressed in TOML as "nearest" or "linear". It
+// decodes from text so an unknown name fails when settings load, with the same
+// diagnostic a bad duration gets.
+type FilterSetting struct {
+	ebiten.Filter
+}
+
+// UnmarshalText parses a filter name.
+func (f *FilterSetting) UnmarshalText(text []byte) error {
+	filter, err := render.ParseFilter(string(text))
+	if err != nil {
+		return err
+	}
+	f.Filter = filter
+	return nil
+}
+
+// MarshalText renders the filter as its settings name.
+func (f FilterSetting) MarshalText() ([]byte, error) {
+	return []byte(render.FilterName(f.Filter)), nil
+}
+
+// String implements pflag.Value, which shows the current name as the flag's
+// default.
+func (f *FilterSetting) String() string {
+	return render.FilterName(f.Filter)
+}
+
+// Set implements pflag.Value.
+func (f *FilterSetting) Set(value string) error {
+	return f.UnmarshalText([]byte(value))
+}
+
+// Type implements pflag.Value, naming the value shown in flag usage.
+func (f *FilterSetting) Type() string {
+	return "filter"
 }
 
 // LoadSettings loads engine settings from the embedded defaults, an optional
@@ -108,10 +150,12 @@ func (s *Settings) RegisterFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&s.Screenshot.Frequency.Duration, "screenshot_frequency", s.Screenshot.Frequency.Duration, "Interval between screenshots")
 	fs.DurationVar(&s.Run.For.Duration, "run_for", s.Run.For.Duration, "Exit after this duration (0 = run until closed)")
 	fs.StringVar(&s.Log.Level, "log_level", s.Log.Level, "Minimum log level: trace, debug, info, warn, error")
+	fs.Var(&s.Render.Filter, "render_filter", "Texture filter for scaled sprites: nearest or linear")
 }
 
 // Apply applies the settings that control engine-global toggles.
 func (s *Settings) Apply() {
 	util.DebugMode = s.Debug.Enabled
 	render.UsePlaceholderSpriteImages = s.Render.UsePlaceholderSpriteImages
+	render.SpriteFilter = s.Render.Filter.Filter
 }

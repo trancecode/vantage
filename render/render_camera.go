@@ -153,6 +153,7 @@ func (c *Camera) applyTransform(op *ebiten.DrawImageOptions, pixelX, pixelY floa
 // transform. Unlike Adjust, p is in pixels (not tile units) and a fresh options value is returned.
 func (c *Camera) DrawImageOptions(p geometry.Vector2) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
+	op.Filter = SpriteFilter
 	c.applyTransform(op, p.X(), p.Y())
 	return op
 }

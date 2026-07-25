@@ -13,5 +13,7 @@
 // ascending Y) for back-to-front 2D drawing.
 //
 // SpriteLibrary maps display names to sprites, with the package-level Sprites
-// as the default library a game registers into at init time.
+// as the default library a game registers into at init time. SpriteFilter
+// selects how sprites are resampled when drawn at anything other than their
+// native size, defaulting to nearest so pixel art stays crisp.
 package render

@@ -1,9 +1,12 @@
 package app
 
 import (
+	"io"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	flag "github.com/spf13/pflag"
 
 	"github.com/trancecode/vantage/render"
@@ -161,5 +164,77 @@ func TestSceneShowArrayOverrideMatchesCommaSeparatedFlag(t *testing.T) {
 		if viaOverride.Scene.Show[i] != viaFlag.Scene.Show[i] {
 			t.Fatalf("override gave %v, flag gave %v", viaOverride.Scene.Show, viaFlag.Scene.Show)
 		}
+	}
+}
+
+func TestLoadSettingsFilterDefaultsToNearest(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Render.Filter.Filter != ebiten.FilterNearest {
+		t.Fatalf("render.filter default = %v, want FilterNearest", s.Render.Filter.Filter)
+	}
+}
+
+func TestLoadSettingsFilterOverride(t *testing.T) {
+	s, err := LoadSettings("", []string{"render.filter=linear"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Render.Filter.Filter != ebiten.FilterLinear {
+		t.Fatalf("render.filter = %v, want FilterLinear", s.Render.Filter.Filter)
+	}
+}
+
+func TestLoadSettingsUnknownFilterIsAnError(t *testing.T) {
+	_, err := LoadSettings("", []string{"render.filter=bilinear"})
+	if err == nil {
+		t.Fatal("expected an error for an unknown filter name")
+	}
+	if !strings.Contains(err.Error(), "bilinear") {
+		t.Fatalf("error does not name the bad filter: %v", err)
+	}
+}
+
+func TestRenderFilterFlagOverridesLoadedValue(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	s.RegisterFlags(fs)
+	if err := fs.Parse([]string{"--render_filter=linear"}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Render.Filter.Filter != ebiten.FilterLinear {
+		t.Fatalf("flag did not override render.filter: %v", s.Render.Filter.Filter)
+	}
+}
+
+func TestRenderFilterFlagRejectsUnknownName(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	s.RegisterFlags(fs)
+	if err := fs.Parse([]string{"--render_filter=bilinear"}); err == nil {
+		t.Fatal("flag accepted an unknown filter name")
+	}
+}
+
+func TestApplySetsSpriteFilter(t *testing.T) {
+	original := render.SpriteFilter
+	t.Cleanup(func() { render.SpriteFilter = original })
+
+	s, err := LoadSettings("", []string{"render.filter=linear"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Apply()
+	if render.SpriteFilter != ebiten.FilterLinear {
+		t.Fatalf("Apply did not set render.SpriteFilter: %v", render.SpriteFilter)
 	}
 }

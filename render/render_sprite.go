@@ -134,6 +134,7 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 // displayScale of 1 reproduces the unscaled transform exactly.
 func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
+	op.Filter = SpriteFilter
 	op.GeoM.Scale(s.Scale*displayScale, s.Scale*displayScale)
 	op.GeoM.Translate(-s.ZeroPosition.X()*displayScale, -s.ZeroPosition.Y()*displayScale)
 	if requiresFlip {

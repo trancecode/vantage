@@ -108,6 +108,42 @@ Camera controls, from `render.CameraController`:
 * The mouse wheel also zooms, alongside `Q` / `E`.
 * Dragging with the middle mouse button pans.
 
+The labels keep a fixed pixel size and stay visible however far you zoom in.
+Text drawn through `render.TextWriter` is otherwise hidden above
+`render.DefaultMaxZoomForText`, which suits nameplates in a game world but not a
+gallery, where zooming in to inspect detailed art is when the labels matter
+most.
+
+### Filtering for scaled sprites
+
+The showcase scales oversized art down, and the camera scales everything when
+you zoom, so how sprites are resampled is visible here. `[render] filter`
+chooses that, and it applies to all sprite drawing in the engine rather than
+only to this scene:
+
+```toml
+[render]
+filter = "nearest"
+```
+
+* `nearest`, the default, keeps pixel art crisp and blocky.
+* `linear` smooths it, which suits high-resolution or hand-painted art but
+  blurs pixel art.
+
+The `--render_filter` flag sets the same thing, so the two can be compared
+without editing a settings file:
+
+```bash
+xvfb-run -a go run ./cmd/showcasedemo \
+    --width 800 --height 600 \
+    --render_filter linear \
+    --screenshot_path shot.png \
+    --screenshot_delay 500ms \
+    --run_for 1000ms
+```
+
+Any other name is rejected when settings load, naming the accepted values.
+
 ### Running the showcase without a game
 
 `cmd/showcasedemo` runs the showcase against procedurally generated placeholder
