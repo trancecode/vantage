@@ -125,10 +125,7 @@ type SpriteShowcaseScene struct {
     library *render.SpriteLibrary
 
     durationSinceInit time.Duration
-    camera            *render.Camera
     cameraController  *render.CameraController
-    screenWidth       int
-    screenHeight      int
 }
 
 func NewSpriteShowcaseScene() *SpriteShowcaseScene
@@ -143,7 +140,10 @@ Scene lifecycle, all of which carries over from `nrg` unchanged in substance:
 
 * `Init` resets the elapsed-time accumulator, builds a `render.Camera` sized to
   the screen, wraps it in a `render.CameraController`, and calls
-  `SetZeroAsTopLeft` so the grid starts at the top-left corner.
+  `SetZeroAsTopLeft` so the grid starts at the top-left corner. The camera goes
+  in the `Camera` field `BaseScene` already provides
+  (`scene/scene_base.go:16`), rather than a second field on the showcase, which
+  is where the `nrg` original kept its own.
 * `Update` accumulates elapsed duration, which drives the animation phase, and
   forwards input to the camera controller when the scene has focus. The
   controller provides W/A/S/D panning and Q/E zoom.
@@ -206,11 +206,15 @@ type SceneSettings struct {
 
 giving `[scene] show = ["sprite_showcase"]` in TOML. The matching flag is
 `--scene`, repeatable, so `--scene rts --scene dialog` works the way it does in
-`nrg` today. Go's `flag` package has no list type, so this needs a small
-`flag.Value` implementation in `app` whose `Set` appends and whose `String`
-joins with commas. The embedded defaults in `app/settings.toml` gain a `[scene]`
-section with an empty `show`, so the section is discoverable rather than
-implicit.
+`nrg` today.
+
+No custom flag type is needed. The engine's flags are `github.com/spf13/pflag`,
+aliased to `flag` at `app/settings.go:7`, not the standard library's package,
+and pflag provides `StringSliceVar` natively. It accepts both repetition and
+comma-separated values, so `--scene a,b` works as well as `--scene a --scene b`.
+
+The embedded defaults in `app/settings.toml` gain a `[scene]` section with an
+empty `show`, so the section is discoverable rather than implicit.
 
 When `Show` is non-empty, `App` shows exactly those scenes and gives focus to
 the first: `ShowOnly` with all the requested names, then `SetExclusiveFocus`
