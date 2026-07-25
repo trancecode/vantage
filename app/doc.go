@@ -3,4 +3,7 @@
 // frame timing, the debug watchdog, screenshot capture, and exit handling, and
 // embeds a scene.Manager. Games register scenes and, optionally, set OnUpdate
 // for global per-frame logic.
+//
+// The [scene] show setting and the --scene flag force which registered scenes
+// are shown at startup, and register the engine's sprite showcase on demand.
 package app

@@ -31,10 +31,10 @@ the most important invariant to preserve when extending the engine.
 | `tilemap` | Tile coordinates, `SpatialGrid` (range queries), `TileOccupancyManager` | `geometry`, `ecs` |
 | `sim` | Deterministic event scheduling: `Driver`, `EventQueue`, `Event`, `TickSystem`, `EventHandler` | `util`, `ecs` |
 | `motion` | Movement components (`Spatial`, `Movement`) and `System` (a tick system) | `geometry`, `easing`, `pathfinding`, `tilemap`, `ecs` |
-| `render` | Graphics layer: camera, sprites, text | `asset`, `geometry` |
+| `render` | Graphics layer: camera, sprites, sprite library, text | `asset`, `geometry` |
 | `ui` | Interactive user-interface components | `asset` |
-| `scene` | `Scene` interface and the `Manager` that drives scenes | `render`, `ui` |
-| `app` | Top-level `App` (implements `ebiten.Game`), window, screenshots | `config`, `render`, `scene`, `util` |
+| `scene` | `Scene` interface, the `Manager` that drives scenes, and the sprite showcase | `render`, `ui` |
+| `app` | Top-level `App` (implements `ebiten.Game`), window, scene selection, screenshots | `config`, `render`, `scene`, `util` |
 | `visualtest` | Display-free pixel-exact PNG comparator for visual-regression testing (`cmd/visualdiff` CLI) | — |
 | `visualtest/capture` | Fixed-step frame-capture helper feeding the comparator | — |
 

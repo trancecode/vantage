@@ -9,4 +9,7 @@
 // dimension used across the rendering pipeline. DrawList collects drawable
 // payloads and iterates them in painter's order (ascending layer, then
 // ascending Y) for back-to-front 2D drawing.
+//
+// SpriteLibrary maps display names to sprites, with the package-level Sprites
+// as the default library a game registers into at init time.
 package render

@@ -16,6 +16,80 @@ diagnostics only and never affects the simulation.
 * When enabled, `app.App.Update` also runs under a one-second
   `util.Watchdog` that logs a warning if an update stalls.
 
+## Forcing scenes
+
+`[scene] show` in the game's TOML settings, or the `--scene` command-line flag,
+overrides which registered scenes are visible at startup. The named scenes are
+shown, every other scene is hidden, and the first name listed gets exclusive
+focus.
+
+```bash
+# Show one scene
+./game --scene rts
+
+# Show two, focusing the first. Repetition and commas both work.
+./game --scene rts --scene dialog
+./game --scene rts,dialog
+```
+
+The equivalent settings entry:
+
+```toml
+[scene]
+show = ["rts", "dialog"]
+```
+
+The same setting can also be forced with a `section.key=value` config override
+(see the `config` package): `scene.show=rts,dialog` splits on commas the same
+way the flag does, so all four forms, the TOML array, the override, the
+repeated flag, and the comma-separated flag, agree.
+
+An empty `show`, which is the default, leaves scene visibility entirely to the
+game. A name that is not registered is a startup error listing the scenes that
+are, since a silently ignored typo would otherwise render a black window.
+
+The flag selects among scenes the game has already registered; it does not
+construct them. The one exception is the engine's own sprite showcase below,
+which `app` registers on demand.
+
+## Sprite showcase
+
+`--scene sprite_showcase` displays every sprite in the engine's sprite library,
+animating, labelled with the sprite name and the name of each animation. Use it
+to inspect art without building a level around it.
+
+Sprites with more than one animation get a row each, with one column per
+animation. Sprites with a single animation pack into a grid below them, ten to
+a row.
+
+```bash
+./game --scene sprite_showcase
+```
+
+The scene needs no wiring: `app` registers it when the flag names it. What it
+shows is whatever the game registered into `render.Sprites`:
+
+```go
+render.Sprites.Add("Character", render.MustLoadSprite(
+    data.ImagePlayer, 6, 10,
+    map[render.AnimationType][]int{
+        render.AnimationIdleDown:  {0, 1, 2, 3, 4, 5},
+        render.AnimationIdleRight: {6, 7, 8, 9, 10, 11},
+    },
+    nil,
+)).SetZeroPosition(geometry.NewVector2(24, 40)).SetType(render.SpriteTypeActor)
+```
+
+`Add` returns the sprite, so registration chains onto the sprite setters. It
+panics on an empty name, a nil sprite, or a duplicate name, since all three are
+load-time mistakes. If the library is empty when the showcase is shown, the
+engine logs a warning rather than leaving a blank screen unexplained.
+
+Camera controls, from `render.CameraController`:
+
+* `W` / `A` / `S` / `D` pan.
+* `Q` / `E` zoom out and in.
+
 ## Screen logger (on-screen overlay)
 
 `util.ScreenLogger` buffers debug lines each frame and draws them as an
