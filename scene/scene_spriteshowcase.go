@@ -141,14 +141,6 @@ type SpriteShowcaseScene struct {
 
 	// cameraController maps W/A/S/D and Q/E onto the scene camera.
 	cameraController *render.CameraController
-
-	// cellsDrawn counts the cells the most recent Draw call rendered. It
-	// exists for tests: an ebiten.Image cannot have its pixels read back
-	// outside a running ebiten.RunGame loop ("ui: ReadPixels cannot be called
-	// before the game starts"), which this package's tests do not run, so this
-	// count is how a test observes whether Draw's visibility guard actually
-	// skipped drawing.
-	cellsDrawn int
 }
 
 // NewSpriteShowcaseScene returns a showcase for the package-level
@@ -188,12 +180,11 @@ func (s *SpriteShowcaseScene) Update(duration time.Duration) error {
 	return nil
 }
 
-// Draw renders the sprite grid.
+// Draw renders every cell cellsToDraw returns.
 func (s *SpriteShowcaseScene) Draw(screen *ebiten.Image) {
-	if !s.IsVisible() {
-		return
+	for _, cell := range s.cellsToDraw() {
+		s.drawCell(screen, cell.Sprite, cell.Name, cell.Animation, cell.X, cell.Y)
 	}
-	s.drawAllSprites(screen)
 }
 
 // LayerIndex returns the bottom layer. The showcase is a full-screen scene, not
@@ -202,14 +193,16 @@ func (s *SpriteShowcaseScene) LayerIndex() int {
 	return 0
 }
 
-// drawAllSprites draws every cell computed by showcaseLayout for the scene's
-// library, and updates cellsDrawn.
-func (s *SpriteShowcaseScene) drawAllSprites(screen *ebiten.Image) {
-	s.cellsDrawn = 0
-	for _, cell := range showcaseLayout(s.library) {
-		s.drawCell(screen, cell.Sprite, cell.Name, cell.Animation, cell.X, cell.Y)
-		s.cellsDrawn++
+// cellsToDraw returns the cells Draw renders: the laid-out library when the
+// scene is visible, and nothing when it is hidden. Tests call it directly to
+// check the visibility guard, since an ebiten.Image cannot have its pixels
+// read back outside a running ebiten.RunGame loop ("ui: ReadPixels cannot be
+// called before the game starts"), which this package's tests do not run.
+func (s *SpriteShowcaseScene) cellsToDraw() []showcaseCell {
+	if !s.IsVisible() {
+		return nil
 	}
+	return showcaseLayout(s.library)
 }
 
 // drawCell draws one animation at the given tile position, with the sprite name

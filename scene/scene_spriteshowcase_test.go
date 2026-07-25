@@ -181,14 +181,14 @@ func TestSpriteShowcaseSceneDrawIsNoOpWhenHidden(t *testing.T) {
 	s.Init(640, 480)
 
 	s.SetVisible(false)
-	s.Draw(ebiten.NewImage(640, 480))
-	if s.cellsDrawn != 0 {
-		t.Fatalf("cellsDrawn = %d after a hidden Draw, want 0", s.cellsDrawn)
+	s.Draw(ebiten.NewImage(640, 480)) // keeps the draw path smoke-covered
+	if got := s.cellsToDraw(); len(got) != 0 {
+		t.Fatalf("cellsToDraw() = %d cells while hidden, want 0", len(got))
 	}
 
 	s.SetVisible(true)
 	s.Draw(ebiten.NewImage(640, 480))
-	if s.cellsDrawn == 0 {
-		t.Fatal("cellsDrawn = 0 after a visible Draw, want > 0")
+	if got := s.cellsToDraw(); len(got) == 0 {
+		t.Fatal("cellsToDraw() = 0 cells while visible, want > 0")
 	}
 }
