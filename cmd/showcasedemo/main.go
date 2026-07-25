@@ -10,11 +10,11 @@
 //
 //	showcasedemo [flags]
 //
-// It defaults to showing the sprite showcase, so no flags are needed. Every
-// engine flag applies, so it also serves as a way to exercise scene selection
-// and screenshot capture:
+// It defaults to showing the sprite showcase in a window, so no flags are
+// needed. Every engine flag applies, so it also serves as a way to exercise
+// scene selection and screenshot capture:
 //
-//	showcasedemo --width 1400 --height 950
+//	showcasedemo --width 1920 --height 1080
 //	showcasedemo --screenshot_path shot.png --screenshot_delay 600ms --run_for 1500ms
 package main
 
@@ -39,6 +39,14 @@ const frameInset = 8
 // framesPerAnimation is how many frames each generated animation cycles
 // through, enough for the animation to be visibly moving.
 const framesPerAnimation = 4
+
+// Default window size. The engine treats a zero width or height as "fullscreen
+// at monitor size", which is a poor fit for a demo you want beside an editor, so
+// this command picks a window unless --width or --height says otherwise.
+const (
+	defaultWindowWidth  = 1400
+	defaultWindowHeight = 950
+)
 
 // frame returns a square of the given size: a white border around a solid fill,
 // so a sprite's real extent stays visible after the showcase scales it down.
@@ -119,6 +127,15 @@ func main() {
 	// while still letting --scene pick something else.
 	if len(settings.Scene.Show) == 0 {
 		settings.Scene.Show = []string{string(scene.SpriteShowcaseSceneName)}
+	}
+
+	// Each dimension is filled in separately, since the engine only stays
+	// windowed when both are non-zero.
+	if settings.Window.Width == 0 {
+		settings.Window.Width = defaultWindowWidth
+	}
+	if settings.Window.Height == 0 {
+		settings.Window.Height = defaultWindowHeight
 	}
 
 	registerSprites()

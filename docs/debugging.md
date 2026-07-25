@@ -112,11 +112,15 @@ Camera controls, from `render.CameraController`:
 
 `cmd/showcasedemo` runs the showcase against procedurally generated placeholder
 art, so the scene can be exercised from this repository with no game and no
-asset files. It defaults to showing the showcase, so it needs no flags:
+asset files. It defaults to showing the showcase in a 1400 by 950 window, so it
+needs no flags:
 
 ```bash
 go run ./cmd/showcasedemo
 ```
+
+Pass `--width` and `--height` for a different size. Unlike the engine default,
+this command does not go fullscreen when they are unset.
 
 The generated sprites deliberately differ in size, from 8 to 64 pixels, and one
 uses `Sprite.Scale` rather than large frames. That is what makes the fixed slots
@@ -128,7 +132,6 @@ and screenshot capture. To capture a frame without a display:
 
 ```bash
 xvfb-run -a go run ./cmd/showcasedemo \
-    --width 1400 --height 950 \
     --screenshot_path shot.png \
     --screenshot_delay 600ms \
     --run_for 1500ms
