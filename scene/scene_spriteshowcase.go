@@ -43,6 +43,89 @@ const (
 // readable over sprite art.
 var showcaseLabelBackground = color.RGBA{R: 0, G: 0, B: 0, A: 180}
 
+// showcaseCell is one sprite animation to draw at a tile position, as computed
+// by showcaseLayout.
+type showcaseCell struct {
+	// Sprite is the sprite to draw.
+	Sprite *render.Sprite
+	// Name is the sprite's display name in the library, used for its label.
+	Name string
+	// Animation is the animation to draw and label.
+	Animation render.AnimationType
+	// X is the cell's horizontal tile position.
+	X float64
+	// Y is the cell's vertical tile position.
+	Y float64
+}
+
+// showcaseLayout computes the ordered cells to draw for a library. It touches
+// no camera and no screen, so tests can assert exact positions without a
+// display: sprites with more than one animation come first, one row each with
+// one column per animation sorted by String(); then single-animation sprites
+// pack left to right, wrapping into a new row every showcaseColumnsPerRow
+// cells. A name whose Get misses, or a sprite with zero animations, is
+// skipped defensively.
+func showcaseLayout(library *render.SpriteLibrary) []showcaseCell {
+	var multiAnimation, singleAnimation []string
+	for _, name := range library.Names() {
+		sprite, ok := library.Get(name)
+		if !ok {
+			continue
+		}
+		if len(sprite.AllAnimations()) > 1 {
+			multiAnimation = append(multiAnimation, name)
+		} else {
+			singleAnimation = append(singleAnimation, name)
+		}
+	}
+
+	var cells []showcaseCell
+	y := showcaseOriginY
+
+	for _, name := range multiAnimation {
+		sprite, ok := library.Get(name)
+		if !ok {
+			continue
+		}
+		animations := sprite.AllAnimations()
+		sort.Slice(animations, func(i, j int) bool {
+			return animations[i].String() < animations[j].String()
+		})
+
+		x := showcaseOriginX
+		for _, animation := range animations {
+			cells = append(cells, showcaseCell{Sprite: sprite, Name: name, Animation: animation, X: x, Y: y})
+			x += showcaseColumnPitch
+		}
+		y += showcaseRowPitch
+	}
+
+	x := showcaseOriginX
+	column := 0
+	for _, name := range singleAnimation {
+		sprite, ok := library.Get(name)
+		if !ok {
+			continue
+		}
+		animations := sprite.AllAnimations()
+		if len(animations) == 0 {
+			continue
+		}
+
+		cells = append(cells, showcaseCell{Sprite: sprite, Name: name, Animation: animations[0], X: x, Y: y})
+
+		x += showcaseColumnPitch
+		column++
+		if column >= showcaseColumnsPerRow {
+			x = showcaseOriginX
+			y += showcaseRowPitch
+			column = 0
+		}
+	}
+
+	return cells
+}
+
 // SpriteShowcaseScene draws every sprite in a render.SpriteLibrary, animating,
 // labelled with the sprite name and the name of each animation. It is a
 // read-only inspection surface for checking art without building a level around
@@ -58,6 +141,14 @@ type SpriteShowcaseScene struct {
 
 	// cameraController maps W/A/S/D and Q/E onto the scene camera.
 	cameraController *render.CameraController
+
+	// cellsDrawn counts the cells the most recent Draw call rendered. It
+	// exists for tests: an ebiten.Image cannot have its pixels read back
+	// outside a running ebiten.RunGame loop ("ui: ReadPixels cannot be called
+	// before the game starts"), which this package's tests do not run, so this
+	// count is how a test observes whether Draw's visibility guard actually
+	// skipped drawing.
+	cellsDrawn int
 }
 
 // NewSpriteShowcaseScene returns a showcase for the package-level
@@ -111,64 +202,13 @@ func (s *SpriteShowcaseScene) LayerIndex() int {
 	return 0
 }
 
-// drawAllSprites lays out the library: sprites with several animations get a
-// row each with one column per animation, then single-animation sprites pack
-// into a grid wrapping at showcaseColumnsPerRow.
+// drawAllSprites draws every cell computed by showcaseLayout for the scene's
+// library, and updates cellsDrawn.
 func (s *SpriteShowcaseScene) drawAllSprites(screen *ebiten.Image) {
-	var multiAnimation, singleAnimation []string
-	for _, name := range s.library.Names() {
-		sprite, ok := s.library.Get(name)
-		if !ok {
-			continue
-		}
-		if len(sprite.AllAnimations()) > 1 {
-			multiAnimation = append(multiAnimation, name)
-		} else {
-			singleAnimation = append(singleAnimation, name)
-		}
-	}
-
-	y := showcaseOriginY
-
-	for _, name := range multiAnimation {
-		sprite, ok := s.library.Get(name)
-		if !ok {
-			continue
-		}
-		animations := sprite.AllAnimations()
-		sort.Slice(animations, func(i, j int) bool {
-			return animations[i].String() < animations[j].String()
-		})
-
-		x := showcaseOriginX
-		for _, animation := range animations {
-			s.drawCell(screen, sprite, name, animation, x, y)
-			x += showcaseColumnPitch
-		}
-		y += showcaseRowPitch
-	}
-
-	x := showcaseOriginX
-	column := 0
-	for _, name := range singleAnimation {
-		sprite, ok := s.library.Get(name)
-		if !ok {
-			continue
-		}
-		animations := sprite.AllAnimations()
-		if len(animations) == 0 {
-			continue
-		}
-
-		s.drawCell(screen, sprite, name, animations[0], x, y)
-
-		x += showcaseColumnPitch
-		column++
-		if column >= showcaseColumnsPerRow {
-			x = showcaseOriginX
-			y += showcaseRowPitch
-			column = 0
-		}
+	s.cellsDrawn = 0
+	for _, cell := range showcaseLayout(s.library) {
+		s.drawCell(screen, cell.Sprite, cell.Name, cell.Animation, cell.X, cell.Y)
+		s.cellsDrawn++
 	}
 }
 
