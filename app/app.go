@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -140,12 +141,18 @@ func (a *App) applySceneSelection() error {
 	a.manager.ShowOnly(names...)
 	a.manager.SetExclusiveFocus(names[0])
 
-	if _, ok := a.manager.Scene(scene.SpriteShowcaseSceneName); ok && render.Sprites.Len() == 0 {
-		util.Logger.Warn().Msg(
+	if showcaseRequested(names) && render.Sprites.Len() == 0 {
+		logger.Warn().Msg(
 			"Sprite showcase requested but no sprites are registered; register them with render.Sprites.Add")
 	}
 
 	return nil
+}
+
+// showcaseRequested reports whether names include the engine's sprite
+// showcase scene, i.e. whether it ends up shown by this selection.
+func showcaseRequested(names []scene.SceneName) bool {
+	return slices.Contains(names, scene.SpriteShowcaseSceneName)
 }
 
 // registeredSceneNames returns every registered scene name, sorted, for error

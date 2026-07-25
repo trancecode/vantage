@@ -133,3 +133,33 @@ func TestSceneFlagOverridesLoadedValue(t *testing.T) {
 		t.Fatalf("flag did not override scene.show: %v", s.Scene.Show)
 	}
 }
+
+// TestSceneShowCommaSeparatedMatchesAcrossFlagAndOverride pins down that a
+// comma-separated scene.show means the same thing whether it arrives through
+// the [scene] show override or through the repeatable --scene flag: both must
+// CSV-split the value the same way, since pflag's StringSliceVar does.
+func TestSceneShowCommaSeparatedMatchesAcrossFlagAndOverride(t *testing.T) {
+	viaOverride, err := LoadSettings("", []string{"scene.show=rts,dialog"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	viaFlag, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	viaFlag.RegisterFlags(fs)
+	if err := fs.Parse([]string{"--scene=rts,dialog"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(viaOverride.Scene.Show) != len(viaFlag.Scene.Show) {
+		t.Fatalf("override gave %v, flag gave %v", viaOverride.Scene.Show, viaFlag.Scene.Show)
+	}
+	for i := range viaOverride.Scene.Show {
+		if viaOverride.Scene.Show[i] != viaFlag.Scene.Show[i] {
+			t.Fatalf("override gave %v, flag gave %v", viaOverride.Scene.Show, viaFlag.Scene.Show)
+		}
+	}
+}

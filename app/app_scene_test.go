@@ -133,3 +133,15 @@ func TestApplySceneSelectionKeepsGameRegisteredShowcase(t *testing.T) {
 		t.Fatal("engine replaced the game's own scene registered under the showcase name")
 	}
 }
+
+func TestShowcaseRequestedTrueOnlyWhenNamed(t *testing.T) {
+	if showcaseRequested([]scene.SceneName{"rts"}) {
+		t.Fatal("showcaseRequested is true without the showcase name among the requested names")
+	}
+	if showcaseRequested(nil) {
+		t.Fatal("showcaseRequested is true for an empty selection")
+	}
+	if !showcaseRequested([]scene.SceneName{"rts", scene.SpriteShowcaseSceneName}) {
+		t.Fatal("showcaseRequested is false despite the showcase name being requested")
+	}
+}
