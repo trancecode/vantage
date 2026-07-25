@@ -39,10 +39,15 @@ The equivalent settings entry:
 show = ["rts", "dialog"]
 ```
 
-The same setting can also be forced with a `section.key=value` config override
-(see the `config` package): `scene.show=rts,dialog` splits on commas the same
-way the flag does, so all four forms, the TOML array, the override, the
-repeated flag, and the comma-separated flag, agree.
+The three forms differ in how several scenes are written:
+
+* `--scene` accepts repetition and comma-separated values, both split by the
+  flag itself.
+* `[scene] show` in a settings file is a TOML array.
+* The `section.key=value` config override (see the `config` package) takes a
+  TOML array too, quoting included: `scene.show=["rts","dialog"]`. The bare
+  `scene.show=rts` form is not accepted, because letting overrides guess at
+  malformed values would weaken every `[]string` setting a game registers.
 
 An empty `show`, which is the default, leaves scene visibility entirely to the
 game. A name that is not registered is a startup error listing the scenes that
@@ -61,6 +66,12 @@ to inspect art without building a level around it.
 Sprites with more than one animation get a row each, with one column per
 animation. Sprites with a single animation pack into a grid below them, ten to
 a row.
+
+Cell spacing adapts to the art: the grid measures the largest frame in the
+library, scaled by its sprite's `Scale`, and spreads the columns, rows and
+labels in proportion. Art that fits in one tile lays out at the engine's
+minimum spacing, and larger art gets proportionally more room instead of
+overlapping its neighbours. The number of columns per row is unaffected.
 
 ```bash
 ./game --scene sprite_showcase

@@ -83,8 +83,14 @@ ordered merge with no final sort), which also shrinks per-cell memory.
 
 ## Sprite showcase per-frame redraw cost
 
-`scene.SpriteShowcaseScene.drawAllSprites` walks the whole sprite library each
-frame and draws every cell, with no culling against the camera viewport and no
-caching of the layout. On a large library most cells are off screen. This is
+`scene.SpriteShowcaseScene.Draw` walks the whole sprite library three times per
+frame: once in `showcaseMetricsFor` for the label offsets, then again through
+`cellsToDraw` and `showcaseLayout`, which measures the library a second time
+before laying it out. Every resulting cell is drawn, with no culling against the
+camera viewport and no caching of either the metrics or the layout, so on a
+large library most of that work lands off screen. Both the metrics and the cell
+list depend only on the library, which does not change after load, so caching
+them and invalidating on registration would remove the per-frame walks. This is
 acceptable for a debug scene reached by an explicit flag, and it is deliberately
-not optimized, but a library of thousands of sprites would need viewport culling.
+not optimized, but a library of thousands of sprites would need viewport culling
+on top of the caching.

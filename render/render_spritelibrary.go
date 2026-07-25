@@ -2,7 +2,7 @@ package render
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 )
 
 // SpriteLibrary maps display names to sprites. Games register their sprites
@@ -39,7 +39,7 @@ func (l *SpriteLibrary) Add(name string, s *Sprite) *Sprite {
 		panic(fmt.Sprintf("sprite %q must not be nil", name))
 	}
 	if _, ok := l.sprites[name]; ok {
-		panic(fmt.Sprintf("duplicate sprite name: %s", name))
+		panic(fmt.Sprintf("duplicate sprite name: %q", name))
 	}
 	l.sprites[name] = s
 	return s
@@ -60,7 +60,7 @@ func (l *SpriteLibrary) Names() []string {
 	for name := range l.sprites {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 

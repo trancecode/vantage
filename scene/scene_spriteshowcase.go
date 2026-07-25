@@ -230,10 +230,11 @@ func (s *SpriteShowcaseScene) Init(screenWidth, screenHeight int) {
 }
 
 // Update advances the animation clock and, when the scene has focus, applies
-// camera panning and zoom.
+// camera panning and zoom. The camera controller is only built by Init, so
+// updates arriving before it are clock-only.
 func (s *SpriteShowcaseScene) Update(duration time.Duration) error {
 	s.durationSinceInit += duration
-	if s.HasFocus() {
+	if s.HasFocus() && s.cameraController != nil {
 		s.cameraController.HandleInput()
 	}
 	return nil
