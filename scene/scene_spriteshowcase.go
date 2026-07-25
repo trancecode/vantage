@@ -10,7 +10,6 @@ import (
 
 	"github.com/trancecode/vantage/geometry"
 	"github.com/trancecode/vantage/render"
-	"github.com/trancecode/vantage/util"
 )
 
 // SpriteShowcaseSceneName is the SceneName used by the engine's
@@ -167,7 +166,6 @@ func (s *SpriteShowcaseScene) Init(screenWidth, screenHeight int) {
 	s.Camera = render.NewCamera(screenWidth, screenHeight)
 	s.Camera.SetZeroAsTopLeft()
 	s.cameraController = render.NewCameraController(s.Camera)
-	util.Logger.Debug().Msg(s.Camera.CameraDebugInfo())
 }
 
 // Update advances the animation clock and, when the scene has focus, applies
