@@ -108,6 +108,32 @@ Camera controls, from `render.CameraController`:
 * The mouse wheel also zooms, alongside `Q` / `E`.
 * Dragging with the middle mouse button pans.
 
+### Running the showcase without a game
+
+`cmd/showcasedemo` runs the showcase against procedurally generated placeholder
+art, so the scene can be exercised from this repository with no game and no
+asset files. It defaults to showing the showcase, so it needs no flags:
+
+```bash
+go run ./cmd/showcasedemo
+```
+
+The generated sprites deliberately differ in size, from 8 to 64 pixels, and one
+uses `Sprite.Scale` rather than large frames. That is what makes the fixed slots
+and the scale-down-to-fit behavior visible: the 24, 32, 48 and 64 pixel tiles
+all render at the size of the 16 pixel ones, while the 8 pixel tile stays small.
+
+Every engine flag applies, so the same command also exercises scene selection
+and screenshot capture. To capture a frame without a display:
+
+```bash
+xvfb-run -a go run ./cmd/showcasedemo \
+    --width 1400 --height 950 \
+    --screenshot_path shot.png \
+    --screenshot_delay 600ms \
+    --run_for 1500ms
+```
+
 ## Screen logger (on-screen overlay)
 
 `util.ScreenLogger` buffers debug lines each frame and draws them as an
