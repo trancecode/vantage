@@ -14,10 +14,14 @@ import (
 type stubScene struct {
 	scene.BaseScene
 	name scene.SceneName
+
+	// initCalls records every (width, height) Init was called with, so tests
+	// can assert scenes are initialized against the real render size.
+	initCalls [][2]int
 }
 
 func (s *stubScene) SceneName() scene.SceneName   { return s.name }
-func (s *stubScene) Init(w, h int)                {}
+func (s *stubScene) Init(w, h int)                { s.initCalls = append(s.initCalls, [2]int{w, h}) }
 func (s *stubScene) LayerIndex() int              { return 0 }
 func (s *stubScene) Update(d time.Duration) error { return nil }
 func (s *stubScene) Draw(screen *ebiten.Image)    {}
@@ -146,5 +150,76 @@ func TestShowcaseRequestedTrueOnlyWhenNamed(t *testing.T) {
 	}
 	if !showcaseRequested([]scene.SceneName{"rts", scene.SpriteShowcaseSceneName}) {
 		t.Fatal("showcaseRequested is false despite the showcase name being requested")
+	}
+}
+
+// TestInitScenesUsesTheRenderSizeNotTheMonitor pins the fix for cameras that
+// sized themselves to the monitor while rendering into a smaller window, which
+// scaled their zoom by the wrong factor.
+func TestInitScenesUsesTheRenderSize(t *testing.T) {
+	a := newTestApp(t)
+	first := &stubScene{name: "first"}
+	a.Manager().AddScene(first)
+
+	a.initScenes(800, 600)
+
+	if len(first.initCalls) != 1 {
+		t.Fatalf("Init called %d times, want 1", len(first.initCalls))
+	}
+	if first.initCalls[0] != [2]int{800, 600} {
+		t.Fatalf("Init called with %v, want [800 600]", first.initCalls[0])
+	}
+}
+
+func TestInitScenesSkipsAnUnchangedSize(t *testing.T) {
+	a := newTestApp(t)
+	first := &stubScene{name: "first"}
+	a.Manager().AddScene(first)
+
+	a.initScenes(800, 600)
+	a.initScenes(800, 600)
+	a.initScenes(800, 600)
+
+	if len(first.initCalls) != 1 {
+		t.Fatalf("Init called %d times for an unchanged size, want 1", len(first.initCalls))
+	}
+}
+
+// TestInitScenesReinitializesOnResize covers the contract scene.Scene
+// documents: Init runs again every time the screen resolution changes.
+func TestInitScenesReinitializesOnResize(t *testing.T) {
+	a := newTestApp(t)
+	first := &stubScene{name: "first"}
+	a.Manager().AddScene(first)
+
+	a.initScenes(800, 600)
+	a.initScenes(1024, 768)
+
+	want := [][2]int{{800, 600}, {1024, 768}}
+	if len(first.initCalls) != len(want) {
+		t.Fatalf("Init calls = %v, want %v", first.initCalls, want)
+	}
+	for i := range want {
+		if first.initCalls[i] != want[i] {
+			t.Fatalf("Init call %d = %v, want %v", i, first.initCalls[i], want[i])
+		}
+	}
+}
+
+// TestLayoutInitializesScenesWithWhatItReturns ties the two together: whatever
+// Layout reports as the render size is what scenes are initialized against.
+func TestLayoutInitializesScenesWithWhatItReturns(t *testing.T) {
+	a := newTestApp(t)
+	first := &stubScene{name: "first"}
+	a.Manager().AddScene(first)
+
+	width, height := a.Layout(800, 600)
+
+	if len(first.initCalls) != 1 {
+		t.Fatalf("Init called %d times, want 1", len(first.initCalls))
+	}
+	if first.initCalls[0] != [2]int{width, height} {
+		t.Fatalf("Init called with %v, but Layout returned [%d %d]",
+			first.initCalls[0], width, height)
 	}
 }

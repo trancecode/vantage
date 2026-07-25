@@ -77,8 +77,8 @@ func (a *App) Run() error {
 		return err
 	}
 
-	a.screenWidth, a.screenHeight = ebiten.Monitor().Size()
-	a.manager.Init(a.screenWidth, a.screenHeight)
+	// Scenes are initialized from Layout, which is the only place the real
+	// render size is known. Ebiten calls it before the first Update and Draw.
 
 	if a.settings.Run.For.Duration > 0 {
 		a.exitAt = time.Now().Add(a.settings.Run.For.Duration)
@@ -226,5 +226,24 @@ func (a *App) Draw(screen *ebiten.Image) {
 // Layout implements ebiten.Game.
 func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
 	scale := ebiten.Monitor().DeviceScaleFactor()
-	return int(float64(outsideWidth) * scale), int(float64(outsideHeight) * scale)
+	width := int(float64(outsideWidth) * scale)
+	height := int(float64(outsideHeight) * scale)
+	a.initScenes(width, height)
+	return width, height
+}
+
+// initScenes initializes every scene for a render size, and does so again
+// whenever that size changes, which is the contract scene.Scene documents.
+//
+// The size has to come from Layout. It is the size of the screen image handed
+// to Draw, and therefore what a scene's camera must be built against. The
+// monitor size is not a substitute: a windowed game renders into something
+// smaller, and a camera sized to the monitor scales its zoom by the wrong
+// factor.
+func (a *App) initScenes(width, height int) {
+	if width == a.screenWidth && height == a.screenHeight {
+		return
+	}
+	a.screenWidth, a.screenHeight = width, height
+	a.manager.Init(width, height)
 }
