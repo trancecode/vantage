@@ -143,7 +143,12 @@ func (l *Loader) applyOverride(override string) error {
 		// Retry treating the value as a string so bare values like 10s work.
 		quoted := fmt.Sprintf("[%s]\n%s = %q\n", section, key, value)
 		if _, err2 := toml.Decode(quoted, ptr); err2 != nil {
-			return fmt.Errorf("config override %q: %w", override, errors.Join(err, err2))
+			// Retry as a single-element array of strings, so a single value can
+			// override a []string field (e.g. scene.show=rts).
+			array := fmt.Sprintf("[%s]\n%s = [%q]\n", section, key, value)
+			if _, err3 := toml.Decode(array, ptr); err3 != nil {
+				return fmt.Errorf("config override %q: %w", override, errors.Join(err, err2, err3))
+			}
 		}
 	}
 	return nil

@@ -147,6 +147,23 @@ func TestDuplicateSectionPanics(t *testing.T) {
 	l.RegisterTarget("b", &b{})
 }
 
+func TestOverrideSingleValueIntoStringSlice(t *testing.T) {
+	type cfg struct {
+		Scene struct {
+			Show []string `toml:"show"`
+		} `toml:"scene"`
+	}
+	c := &cfg{}
+	l := New()
+	l.RegisterTarget("cfg", c)
+	if err := l.Load("", []string{"scene.show=rts"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Scene.Show) != 1 || c.Scene.Show[0] != "rts" {
+		t.Fatalf("scene.show = %v, want [rts]", c.Scene.Show)
+	}
+}
+
 func TestDurationOverride(t *testing.T) {
 	type cfg struct {
 		Timing struct {

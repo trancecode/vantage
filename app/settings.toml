@@ -8,6 +8,9 @@ fullscreen = true
 move_speed = 5.0
 zoom_speed = 0.1
 
+[scene]
+show = []
+
 [debug]
 enabled = true
 http_enabled = false

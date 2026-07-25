@@ -89,3 +89,47 @@ func TestApplySetsGlobals(t *testing.T) {
 		t.Fatal("Apply did not set render.UsePlaceholderSpriteImages")
 	}
 }
+
+func TestLoadSettingsSceneShowDefaultsEmpty(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Scene.Show) != 0 {
+		t.Fatalf("scene.show default = %v, want empty", s.Scene.Show)
+	}
+}
+
+func TestSceneFlagRepeats(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	s.RegisterFlags(fs)
+	if err := fs.Parse([]string{"--scene=rts", "--scene=dialog"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Scene.Show) != 2 || s.Scene.Show[0] != "rts" || s.Scene.Show[1] != "dialog" {
+		t.Fatalf("scene.show = %v, want [rts dialog]", s.Scene.Show)
+	}
+}
+
+func TestSceneFlagOverridesLoadedValue(t *testing.T) {
+	s, err := LoadSettings("", []string{"scene.show=rts"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Scene.Show) != 1 || s.Scene.Show[0] != "rts" {
+		t.Fatalf("scene.show from override = %v, want [rts]", s.Scene.Show)
+	}
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	s.RegisterFlags(fs)
+	if err := fs.Parse([]string{"--scene=sprite_showcase"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Scene.Show) != 1 || s.Scene.Show[0] != "sprite_showcase" {
+		t.Fatalf("flag did not override scene.show: %v", s.Scene.Show)
+	}
+}

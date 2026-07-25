@@ -2,6 +2,7 @@ package scene
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -34,6 +35,16 @@ func (m *Manager) AddScene(s Scene) {
 func (m *Manager) Scene(name SceneName) (Scene, bool) {
 	s, ok := m.scenes[name]
 	return s, ok
+}
+
+// SceneNames returns every registered scene name, sorted lexicographically.
+func (m *Manager) SceneNames() []SceneName {
+	names := make([]SceneName, 0, len(m.scenes))
+	for name := range m.scenes {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
 }
 
 // Init initializes every registered scene with the screen dimensions.

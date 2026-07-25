@@ -3,11 +3,13 @@ package app
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	ebiten "github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
+	"github.com/trancecode/vantage/render"
 	"github.com/trancecode/vantage/scene"
 	"github.com/trancecode/vantage/util"
 )
@@ -70,6 +72,10 @@ func (a *App) Run() error {
 	}
 	ebiten.SetWindowTitle(a.settings.Window.Title)
 
+	if err := a.applySceneSelection(); err != nil {
+		return err
+	}
+
 	a.screenWidth, a.screenHeight = ebiten.Monitor().Size()
 	a.manager.Init(a.screenWidth, a.screenHeight)
 
@@ -94,6 +100,63 @@ func (a *App) Run() error {
 		return err
 	}
 	return nil
+}
+
+// applySceneSelection honours the [scene] show setting and the --scene flag: it
+// shows exactly the named scenes and focuses the first. An empty selection
+// leaves visibility to the game.
+//
+// It registers the engine's own SpriteShowcaseScene on demand, since no game
+// registers it, and validates the requested names, because Manager.ShowOnly and
+// Manager.SetExclusiveFocus silently ignore names that match nothing: a typo
+// would otherwise blank the window with no diagnostic.
+func (a *App) applySceneSelection() error {
+	show := a.settings.Scene.Show
+	if len(show) == 0 {
+		return nil
+	}
+
+	names := make([]scene.SceneName, 0, len(show))
+	for _, name := range show {
+		names = append(names, scene.SceneName(name))
+	}
+
+	for _, name := range names {
+		if name != scene.SpriteShowcaseSceneName {
+			continue
+		}
+		if _, ok := a.manager.Scene(name); !ok {
+			a.manager.AddScene(scene.NewSpriteShowcaseScene())
+		}
+	}
+
+	for _, name := range names {
+		if _, ok := a.manager.Scene(name); !ok {
+			return fmt.Errorf("unknown scene %q, registered scenes: %s",
+				name, strings.Join(a.registeredSceneNames(), ", "))
+		}
+	}
+
+	a.manager.ShowOnly(names...)
+	a.manager.SetExclusiveFocus(names[0])
+
+	if _, ok := a.manager.Scene(scene.SpriteShowcaseSceneName); ok && render.Sprites.Len() == 0 {
+		util.Logger.Warn().Msg(
+			"Sprite showcase requested but no sprites are registered; register them with render.Sprites.Add")
+	}
+
+	return nil
+}
+
+// registeredSceneNames returns every registered scene name, sorted, for error
+// messages.
+func (a *App) registeredSceneNames() []string {
+	names := a.manager.SceneNames()
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		out = append(out, string(n))
+	}
+	return out
 }
 
 // Update implements ebiten.Game.

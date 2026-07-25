@@ -18,6 +18,7 @@ var defaultSettingsTOML []byte
 type Settings struct {
 	Window     WindowSettings     `toml:"window"`
 	Camera     CameraSettings     `toml:"camera"`
+	Scene      SceneSettings      `toml:"scene"`
 	Debug      DebugSettings      `toml:"debug"`
 	Screenshot ScreenshotSettings `toml:"screenshot"`
 	Run        RunSettings        `toml:"run"`
@@ -40,6 +41,12 @@ type WindowSettings struct {
 type CameraSettings struct {
 	MoveSpeed float64 `toml:"move_speed"`
 	ZoomSpeed float64 `toml:"zoom_speed"`
+}
+
+// SceneSettings forces which registered scenes are shown at startup. An empty
+// Show leaves scene visibility entirely to the game.
+type SceneSettings struct {
+	Show []string `toml:"show"`
 }
 
 // DebugSettings configures debug mode and the debug HTTP server.
@@ -91,6 +98,8 @@ func (s *Settings) RegisterFlags(fs *flag.FlagSet) {
 	fs.StringVar(&s.Window.Title, "window_title", s.Window.Title, "Window title")
 	fs.IntVar(&s.Window.Width, "width", s.Window.Width, "Window width in pixels (0 = fullscreen at monitor size)")
 	fs.IntVar(&s.Window.Height, "height", s.Window.Height, "Window height in pixels (0 = fullscreen at monitor size)")
+	fs.StringSliceVar(&s.Scene.Show, "scene", s.Scene.Show,
+		"Show only the named scenes and focus the first (repeatable)")
 	fs.BoolVar(&s.Debug.Enabled, "debug", s.Debug.Enabled, "Enable debug mode")
 	fs.BoolVar(&s.Debug.HTTPEnabled, "enable_debug_http_server", s.Debug.HTTPEnabled, "Enable the debug HTTP server")
 	fs.IntVar(&s.Debug.HTTPPort, "debug_http_port", s.Debug.HTTPPort, "Port for the debug HTTP server")
