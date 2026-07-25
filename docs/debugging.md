@@ -112,7 +112,7 @@ Camera controls, from `render.CameraController`:
 
 `cmd/showcasedemo` runs the showcase against procedurally generated placeholder
 art, so the scene can be exercised from this repository with no game and no
-asset files. It defaults to showing the showcase in a 1400 by 950 window, so it
+asset files. It defaults to showing the showcase in an 800 by 600 window, so it
 needs no flags:
 
 ```bash

@@ -44,8 +44,8 @@ const framesPerAnimation = 4
 // at monitor size", which is a poor fit for a demo you want beside an editor, so
 // this command picks a window unless --width or --height says otherwise.
 const (
-	defaultWindowWidth  = 1400
-	defaultWindowHeight = 950
+	defaultWindowWidth  = 800
+	defaultWindowHeight = 600
 )
 
 // frame returns a square of the given size: a white border around a solid fill,
