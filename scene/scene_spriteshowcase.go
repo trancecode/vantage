@@ -16,27 +16,85 @@ import (
 // SpriteShowcaseScene.
 const SpriteShowcaseSceneName SceneName = "sprite_showcase"
 
-// Grid geometry for the showcase, in tiles.
+// Grid geometry for the showcase, in tiles. The pitches and label offsets are
+// the values for art that fits inside one tile; showcaseMetricsFor scales them
+// up for larger art, so they act as floors rather than fixed values.
 const (
-	// showcaseColumnPitch is the horizontal distance between two cells.
-	showcaseColumnPitch = 2.0
-	// showcaseRowPitch is the vertical distance between two rows, leaving room
-	// for the sprite and both labels.
-	showcaseRowPitch = 4.0
+	// showcaseMinColumnPitch is the horizontal distance between two cells
+	// holding one-tile-wide art.
+	showcaseMinColumnPitch = 2.0
+	// showcaseMinRowPitch is the vertical distance between two rows of
+	// one-tile-tall art, leaving room for the sprite and both labels.
+	showcaseMinRowPitch = 4.0
 	// showcaseOriginX is the left edge of the grid.
 	showcaseOriginX = 1.0
 	// showcaseOriginY is the top edge of the grid.
 	showcaseOriginY = 1.0
-	// showcaseLabelCenterX offsets a label to the horizontal center of its cell.
-	showcaseLabelCenterX = 0.5
-	// showcaseSpriteLabelY offsets the sprite name below the sprite.
-	showcaseSpriteLabelY = 1.2
-	// showcaseAnimationLabelY offsets the animation name below the sprite name.
-	showcaseAnimationLabelY = 1.8
+	// showcaseMinLabelCenterX offsets a label to the horizontal center of
+	// one-tile-wide art.
+	showcaseMinLabelCenterX = 0.5
+	// showcaseMinSpriteLabelY offsets the sprite name below one-tile-tall art.
+	showcaseMinSpriteLabelY = 1.2
+	// showcaseMinAnimationLabelY offsets the animation name below the sprite
+	// name, for one-tile-tall art.
+	showcaseMinAnimationLabelY = 1.8
 	// showcaseColumnsPerRow caps how many single-animation sprites share a row,
 	// so their labels do not overlap.
 	showcaseColumnsPerRow = 10
 )
+
+// showcaseMetrics is the grid geometry for one library, in tiles. Every field
+// is derived from the largest frame in that library, so art bigger than a tile
+// gets proportionally more room instead of overlapping its neighbours.
+type showcaseMetrics struct {
+	// ColumnPitch is the horizontal distance between two cells.
+	ColumnPitch float64
+	// RowPitch is the vertical distance between two rows.
+	RowPitch float64
+	// LabelCenterX offsets a label to the horizontal center of its cell.
+	LabelCenterX float64
+	// SpriteLabelY offsets the sprite name below the sprite.
+	SpriteLabelY float64
+	// AnimationLabelY offsets the animation name below the sprite name.
+	AnimationLabelY float64
+}
+
+// showcaseMetricsFor measures the largest frame in a library and scales the
+// grid geometry to it. A frame's footprint is its bounds multiplied by its
+// sprite's Scale, converted to tiles with render.TileSize; the largest width
+// scales the horizontal geometry and the largest height the vertical geometry,
+// each floored at one tile so a library of tile-sized art (or an empty one)
+// lays out exactly as the showcaseMin constants describe.
+//
+// It reads only image bounds, which is metadata available without a running
+// game loop, so it stays testable headlessly. Sprite.VisibleBounds would be a
+// tighter measurement but scans pixels, which is not.
+func showcaseMetricsFor(library *render.SpriteLibrary) showcaseMetrics {
+	widthTiles, heightTiles := 1.0, 1.0
+	for _, name := range library.Names() {
+		sprite, ok := library.Get(name)
+		if !ok {
+			continue
+		}
+		for _, animation := range sprite.Animations {
+			for _, image := range animation.Images {
+				if image == nil {
+					continue
+				}
+				bounds := image.Bounds()
+				widthTiles = max(widthTiles, float64(bounds.Dx())*sprite.Scale/render.TileSize)
+				heightTiles = max(heightTiles, float64(bounds.Dy())*sprite.Scale/render.TileSize)
+			}
+		}
+	}
+	return showcaseMetrics{
+		ColumnPitch:     showcaseMinColumnPitch * widthTiles,
+		RowPitch:        showcaseMinRowPitch * heightTiles,
+		LabelCenterX:    showcaseMinLabelCenterX * widthTiles,
+		SpriteLabelY:    showcaseMinSpriteLabelY * heightTiles,
+		AnimationLabelY: showcaseMinAnimationLabelY * heightTiles,
+	}
+}
 
 // showcaseLabelBackground is the semi-transparent backdrop that keeps labels
 // readable over sprite art.
@@ -63,8 +121,11 @@ type showcaseCell struct {
 // one column per animation sorted by String(); then single-animation sprites
 // pack left to right, wrapping into a new row every showcaseColumnsPerRow
 // cells. A name whose Get misses, or a sprite with zero animations, is
-// skipped defensively.
+// skipped defensively. Cell spacing comes from showcaseMetricsFor, so a
+// library of large art spreads out instead of overlapping.
 func showcaseLayout(library *render.SpriteLibrary) []showcaseCell {
+	metrics := showcaseMetricsFor(library)
+
 	var multiAnimation, singleAnimation []string
 	for _, name := range library.Names() {
 		sprite, ok := library.Get(name)
@@ -94,9 +155,9 @@ func showcaseLayout(library *render.SpriteLibrary) []showcaseCell {
 		x := showcaseOriginX
 		for _, animation := range animations {
 			cells = append(cells, showcaseCell{Sprite: sprite, Name: name, Animation: animation, X: x, Y: y})
-			x += showcaseColumnPitch
+			x += metrics.ColumnPitch
 		}
-		y += showcaseRowPitch
+		y += metrics.RowPitch
 	}
 
 	x := showcaseOriginX
@@ -113,11 +174,11 @@ func showcaseLayout(library *render.SpriteLibrary) []showcaseCell {
 
 		cells = append(cells, showcaseCell{Sprite: sprite, Name: name, Animation: animations[0], X: x, Y: y})
 
-		x += showcaseColumnPitch
+		x += metrics.ColumnPitch
 		column++
 		if column >= showcaseColumnsPerRow {
 			x = showcaseOriginX
-			y += showcaseRowPitch
+			y += metrics.RowPitch
 			column = 0
 		}
 	}
@@ -178,10 +239,12 @@ func (s *SpriteShowcaseScene) Update(duration time.Duration) error {
 	return nil
 }
 
-// Draw renders every cell cellsToDraw returns.
+// Draw renders every cell cellsToDraw returns, labelled at the offsets the
+// library's own art size calls for.
 func (s *SpriteShowcaseScene) Draw(screen *ebiten.Image) {
+	metrics := showcaseMetricsFor(s.library)
 	for _, cell := range s.cellsToDraw() {
-		s.drawCell(screen, cell.Sprite, cell.Name, cell.Animation, cell.X, cell.Y)
+		s.drawCell(screen, metrics, cell)
 	}
 }
 
@@ -203,22 +266,17 @@ func (s *SpriteShowcaseScene) cellsToDraw() []showcaseCell {
 	return showcaseLayout(s.library)
 }
 
-// drawCell draws one animation at the given tile position, with the sprite name
-// and the animation name centered beneath it.
-func (s *SpriteShowcaseScene) drawCell(
-	screen *ebiten.Image,
-	sprite *render.Sprite,
-	name string,
-	animation render.AnimationType,
-	x, y float64,
-) {
-	sprite.DrawAnimation(screen, s.Camera, geometry.NewVector2(x, y), animation, s.durationSinceInit)
+// drawCell draws one cell's animation at its tile position, with the sprite
+// name and the animation name centered beneath it.
+func (s *SpriteShowcaseScene) drawCell(screen *ebiten.Image, metrics showcaseMetrics, cell showcaseCell) {
+	position := geometry.NewVector2(cell.X, cell.Y)
+	cell.Sprite.DrawAnimation(screen, s.Camera, position, cell.Animation, s.durationSinceInit)
 
-	labelX := x + showcaseLabelCenterX
-	s.drawLabel(screen, name, labelX, y+showcaseSpriteLabelY)
+	labelX := cell.X + metrics.LabelCenterX
+	s.drawLabel(screen, cell.Name, labelX, cell.Y+metrics.SpriteLabelY)
 
-	animationName, _ := strings.CutPrefix(animation.String(), "Animation")
-	s.drawLabel(screen, animationName, labelX, y+showcaseAnimationLabelY)
+	animationName, _ := strings.CutPrefix(cell.Animation.String(), "Animation")
+	s.drawLabel(screen, animationName, labelX, cell.Y+metrics.AnimationLabelY)
 }
 
 // drawLabel draws centered text on a dark backdrop at a tile position.
