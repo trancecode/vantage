@@ -7,7 +7,8 @@ import (
 )
 
 // SceneName identifies a scene within a Manager. Each game defines its own
-// SceneName constants; the engine reserves only DialogSceneName.
+// SceneName constants; the engine reserves DialogSceneName and
+// SpriteShowcaseSceneName.
 type SceneName string
 
 // DialogSceneName is the SceneName used by the engine's DialogScene.
