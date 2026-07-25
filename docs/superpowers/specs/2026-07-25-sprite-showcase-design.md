@@ -33,8 +33,8 @@ Three pieces, in three packages that already exist:
 * `render` gains `SpriteLibrary` and a package-level default, `render.Sprites`.
   This is where sprite naming and lookup now live.
 * `scene` gains `SpriteShowcaseScene`, which reads a library and draws it.
-* `app` gains a `--sprite_showcase` flag and self-registers the scene when it
-  is set.
+* `app` gains a general `--scene` flag that forces which registered scenes are
+  shown, and registers the showcase on demand when it is the scene requested.
 
 `render` does not import `scene`, so `scene` importing `render` introduces no
 cycle. `scene` already imports `ui`.
@@ -183,29 +183,87 @@ The doc comment on `SceneName` at `scene/scene.go:11` currently states that the
 engine reserves only `DialogSceneName`. It is updated to name both reserved
 scene names.
 
-### The `--sprite_showcase` flag
+### Scene selection with `--scene`
 
-`app.DebugSettings` gains a `SpriteShowcase bool`, registered in
-`Settings.RegisterFlags` (`app/settings.go:90`) alongside the existing `--debug`
-and `--enable_debug_http_server` flags, and settable from `settings.toml` like
-its neighbours.
+The showcase is not given its own flag. Instead `app` gains a general way to
+force which scenes are shown, which the showcase then rides on as
+`--scene sprite_showcase`.
 
-When the flag is set, `App` registers the scene itself and shows it exclusively:
-it calls `AddScene` with a `SpriteShowcaseScene`, then `ShowOnly` and
-`SetExclusiveFocus` with `SpriteShowcaseSceneName`. A game therefore needs no
-code change at all to get the showcase, only sprites registered into
-`render.Sprites`.
+This generalizes past the showcase, collapses the hand-rolled `--scene` switch
+`nrg` carries in its `main.go`, and avoids growing a bespoke flag for every
+engine debug scene added later. The engine already has the primitives:
+`Manager.ShowOnly` and `Manager.SetExclusiveFocus`.
 
-Placement is constrained on both sides. It has to run after the game has
+`app.Settings` gains a section:
+
+```go
+// SceneSettings forces which registered scenes are shown. An empty Show leaves
+// scene visibility to the game.
+type SceneSettings struct {
+    Show []string `toml:"show"`
+}
+```
+
+giving `[scene] show = ["sprite_showcase"]` in TOML. The matching flag is
+`--scene`, repeatable, so `--scene rts --scene dialog` works the way it does in
+`nrg` today. Go's `flag` package has no list type, so this needs a small
+`flag.Value` implementation in `app` whose `Set` appends and whose `String`
+joins with commas. The embedded defaults in `app/settings.toml` gain a `[scene]`
+section with an empty `show`, so the section is discoverable rather than
+implicit.
+
+When `Show` is non-empty, `App` shows exactly those scenes and gives focus to
+the first: `ShowOnly` with all the requested names, then `SetExclusiveFocus`
+with `Show[0]`. When it is empty, `App` does nothing and scene visibility stays
+entirely the game's business, as it is today.
+
+#### Validating requested names
+
+Requested names must be validated against `Manager.Scene()` before use, and an
+unknown name must be a hard error naming the registered scenes.
+
+This is not defensive boilerplate. `ShowOnly` (`scene/scene_manager.go:80`) and
+`SetExclusiveFocus` (`scene/scene_manager.go:92`) both iterate the registered
+scenes and test each against the requested set, so a name that matches nothing
+is silently ignored. A typo such as `--scene sprite-showcase` would therefore
+hide every scene and render a black window with no diagnostic. Note that
+`SetVisible` (`scene/scene_manager.go:71`) does panic on an unknown name, so
+the manager is already inconsistent on this point; this design validates in
+`app` and leaves the manager alone.
+
+Because this is a startup configuration error rather than a runtime condition,
+`App.Run` returns an error rather than panicking, so the game's `main` reports
+it like any other startup failure.
+
+#### Registering the showcase on demand
+
+The showcase scene is engine-owned, so no game registers it. Before validating,
+`App` checks whether `SpriteShowcaseSceneName` appears in `Show` and no scene
+by that name is registered; if so, it registers one with
+`NewSpriteShowcaseScene()`.
+
+A game therefore needs no code change at all to get the showcase, only sprites
+registered into `render.Sprites`. Normal runs stay free of an always-present
+debug scene, and the "if not already registered" condition leaves a game free
+to register the name itself, in which case its scene wins and `AddScene` does
+not panic on the duplicate.
+
+#### Placement in `App.Run`
+
+All of the above is constrained on both sides. It has to run after the game has
 registered its own scenes, so not in `app.New`, and before
 `a.manager.Init(a.screenWidth, a.screenHeight)` at `app/app.go:74`, since that
 call is what initializes every registered scene. It therefore goes in
-`App.Run`, between the window sizing and the manager `Init`.
+`App.Run`, between the window sizing and the manager `Init`, in the order:
+register the showcase on demand, validate, `ShowOnly`, `SetExclusiveFocus`.
 
-If the flag is set and `render.Sprites` is empty, `App` logs a warning through
-`util.Logger`, the pattern already used for the screenshot notice at
-`app/app.go:86`, naming `render.Sprites.Add` so that a blank screen is
-explained rather than looking like a rendering failure.
+It lives in an unexported `applySceneSelection() error` method that `Run` calls,
+rather than inline, so tests can exercise it without entering the Ebiten loop.
+
+If the showcase ends up shown and `render.Sprites` is empty, `App` logs a
+warning through `util.Logger`, the pattern already used for the screenshot
+notice at `app/app.go:86`, naming `render.Sprites.Add` so that a blank screen
+is explained rather than looking like a rendering failure.
 
 ## Non-goals and documented traps
 
@@ -218,6 +276,12 @@ explained rather than looking like a rendering failure.
   sprites at runtime is not a use case today.
 * No interactivity beyond the camera. No filtering, no per-sprite selection, no
   pausing animation. The scene is a read-only inspection surface.
+* `--scene` selects among *registered* scenes; it does not construct game
+  scenes. A game's scenes still have to be registered by the game before the
+  flag can name them. The showcase is the sole exception, because the engine
+  owns it and can construct it itself.
+* `--scene` sets visibility once at startup. It is not a scene-switching
+  mechanism, and nothing stops a game changing visibility afterwards.
 * Migrating `nrg` off its own `sprites.Sprites` map and deleting
   `rts/rts_showcase.go` is follow-up work in that repository, not part of this
   change. Both can coexist: `nrg` can register into `render.Sprites` while
@@ -249,22 +313,38 @@ and `Draw` against an offscreen `ebiten.Image`, and asserts it does not panic:
 * `Draw` while not visible is a no-op.
 * `SceneName` returns `SpriteShowcaseSceneName` and `LayerIndex` returns 0.
 
-`app` tests cover the wiring without a display where possible: that the flag
-registers under `RegisterFlags` and parses, and that `DebugSettings` round-trips
-it from settings. Whether the scene ends up registered and exclusively visible
-is asserted through `App.Manager()`.
+`app` tests cover the scene-selection wiring, mostly without a display since
+`Settings` parsing needs none:
+
+* A repeated `--scene a --scene b` accumulates both names in `Scene.Show`, and
+  the `flag.Value` `String` round-trips.
+* `[scene] show = [...]` loads from TOML, and an explicit flag overrides it,
+  matching the documented precedence of `RegisterFlags`.
+* An empty `Show` leaves every registered scene's visibility untouched.
+* A populated `Show` makes exactly those scenes visible and focuses the first.
+* An unknown scene name is an error, and the message names the registered
+  scenes.
+* `sprite_showcase` in `Show` with nothing registered causes `App` to register
+  a `SpriteShowcaseScene`, observable through `App.Manager().Scene()`.
+* `sprite_showcase` in `Show` when the game already registered a scene by that
+  name leaves the game's scene in place and does not panic.
+
+The last four assert through `App.Manager()`. Where a test needs the selection
+step to have run, it exercises that step rather than `App.Run`, which blocks on
+the Ebiten loop.
 
 ## Documentation and release
 
-* `docs/debugging.md` gains a "Sprite showcase" section, required by
-  `CLAUDE.md` for any new debugging or development tool. It covers the
-  `--sprite_showcase` flag and its settings-file equivalent, the W/A/S/D and
-  Q/E camera keys, how a game registers sprites with `render.Sprites.Add`, and
-  the empty-library warning.
-* `render/doc.go` and `scene/doc.go` gain a sentence each for the new library
-  and scene.
-* `ARCHITECTURE.md` is updated where it describes the `render` and `scene`
-  packages.
+* `docs/debugging.md` gains two sections, required by `CLAUDE.md` for any new
+  debugging or development tool. A "Forcing scenes" section covers the
+  repeatable `--scene` flag, its `[scene] show` equivalent, which scene takes
+  focus, and the error on an unknown name. A "Sprite showcase" section covers
+  `--scene sprite_showcase`, the W/A/S/D and Q/E camera keys, how a game
+  registers sprites with `render.Sprites.Add`, and the empty-library warning.
+* `render/doc.go`, `scene/doc.go` and `app/doc.go` gain a sentence each for the
+  new library, the new scene and scene selection.
+* `ARCHITECTURE.md` is updated where it describes the `render`, `scene` and
+  `app` packages.
 * `docs/performance_optimization.md` is reviewed per `CLAUDE.md`. The showcase
   redraws every sprite every frame with no culling, which is acceptable for a
   debug tool but worth recording if the entry does not already exist.
