@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -420,5 +421,22 @@ func TestSpriteShowcaseSceneDrawIsNoOpWhenHidden(t *testing.T) {
 	s.Draw(ebiten.NewImage(640, 480))
 	if got := s.cellsToDraw(); len(got) == 0 {
 		t.Fatal("cellsToDraw() = 0 cells while visible, want > 0")
+	}
+}
+
+// TestShowcaseLabelsAreNeverHiddenByZoom guards the reason the labels set an
+// infinite MaxZoom: TextWriter hides fixed-size text above
+// render.DefaultMaxZoomForText, and zooming in to inspect detailed art is
+// exactly when these labels are wanted.
+func TestShowcaseLabelsAreNeverHiddenByZoom(t *testing.T) {
+	w := showcaseLabelWriter()
+	if w.Scaling {
+		t.Fatal("labels should keep a fixed pixel size, not scale with zoom")
+	}
+	if !math.IsInf(w.MaxZoom, 1) {
+		t.Fatalf("label MaxZoom = %v, want +Inf so the zoom threshold never hides them", w.MaxZoom)
+	}
+	if w.MaxZoom <= render.DefaultMaxZoomForText {
+		t.Fatalf("label MaxZoom = %v, want above the default %v", w.MaxZoom, render.DefaultMaxZoomForText)
 	}
 }

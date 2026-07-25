@@ -2,6 +2,7 @@ package scene
 
 import (
 	"image/color"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -270,10 +271,22 @@ func (s *SpriteShowcaseScene) drawCell(screen *ebiten.Image, cell showcaseCell) 
 }
 
 // drawLabel draws centered text on a dark backdrop at a tile position.
+//
+// The labels keep a fixed pixel size and are never hidden. TextWriter otherwise
+// hides fixed-size text once the effective zoom passes DefaultMaxZoomForText,
+// which is a sensible default for nameplates in a game world but wrong here:
+// zooming in to inspect detailed art is exactly when the labels are wanted.
+// Scaling them with the zoom instead would keep them visible, but a label would
+// then grow with the grid until neighbouring labels overlapped.
 func (s *SpriteShowcaseScene) drawLabel(screen *ebiten.Image, msg string, x, y float64) {
-	render.TextDefault.
+	showcaseLabelWriter().Text(msg).Draw(screen, s.Camera, geometry.NewVector2(x, y))
+}
+
+// showcaseLabelWriter returns the writer the labels are drawn with, split out so
+// a test can assert the zoom threshold is disabled without drawing anything.
+func showcaseLabelWriter() *render.TextWriter {
+	return render.TextDefault.
+		WithMaxZoom(math.Inf(1)).
 		WithAlignment(render.AlignCenter).
-		WithBackground(showcaseLabelBackground).
-		Text(msg).
-		Draw(screen, s.Camera, geometry.NewVector2(x, y))
+		WithBackground(showcaseLabelBackground)
 }
