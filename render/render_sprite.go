@@ -118,17 +118,24 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 		return
 	}
 
-	op := s.buildDrawOp(p, requiresFlip, c)
+	op := s.buildDrawOp(p, requiresFlip, c, 1.0)
 	screen.DrawImage(img, op)
 }
 
 // buildDrawOp builds the draw options for the sprite at world-tile position p:
-// sprite scale, zero-position offset, optional horizontal flip, then the camera
-// transform.
-func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera) *ebiten.DrawImageOptions {
+// sprite scale combined with displayScale, zero-position offset, optional
+// horizontal flip, then the camera transform.
+//
+// displayScale multiplies s.Scale instead of replacing it, and the
+// zero-position offset is multiplied by it as well. Because that offset is
+// applied in post-scale space, scaling both by the same factor makes
+// displayScale a uniform shrink about the zero position: the pixel anchored at
+// the world position p stays at p, and only the drawn extent changes. A
+// displayScale of 1 reproduces the unscaled transform exactly.
+func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(s.Scale, s.Scale)
-	op.GeoM.Translate(-s.ZeroPosition.X(), -s.ZeroPosition.Y())
+	op.GeoM.Scale(s.Scale*displayScale, s.Scale*displayScale)
+	op.GeoM.Translate(-s.ZeroPosition.X()*displayScale, -s.ZeroPosition.Y()*displayScale)
 	if requiresFlip {
 		op.GeoM.Scale(-1, 1)
 	}
@@ -138,6 +145,19 @@ func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera) *
 
 // DrawAnimation draws the sprite at the given position with the specified animation type.
 func (s *Sprite) DrawAnimation(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType, duration time.Duration) {
+	s.DrawAnimationScaled(screen, c, p, a, duration, 1.0)
+}
+
+// DrawAnimationScaled is DrawAnimation with an extra per-draw display scale,
+// for views that need a sprite drawn smaller or larger than the game draws it
+// without mutating the sprite. displayScale multiplies Sprite.Scale for this
+// call only; SetScale would change the sprite everywhere it is drawn, since a
+// sprite library hands out the same pointer to every caller.
+//
+// The scale is uniform about the sprite's zero position, so the anchor point
+// stays on p at any display scale and only the drawn extent changes. A
+// displayScale of 1 is identical to DrawAnimation.
+func (s *Sprite) DrawAnimationScaled(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType, duration time.Duration, displayScale float64) {
 	var requiresFlip bool
 	animation, animationExists := s.Animations[a]
 
@@ -167,7 +187,7 @@ func (s *Sprite) DrawAnimation(screen *ebiten.Image, c *Camera, p geometry.Vecto
 		return
 	}
 
-	op := s.buildDrawOp(p, requiresFlip, c)
+	op := s.buildDrawOp(p, requiresFlip, c, displayScale)
 	screen.DrawImage(img, op)
 }
 
@@ -233,6 +253,11 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 // nameplates) above a sprite: transparent padding at the top of the frame is
 // not counted, and the result maps to screen pixels by a single multiply with
 // the camera's effective zoom.
+//
+// The result describes a draw at a display scale of 1, which is what
+// DrawAnimation uses. DrawAnimationScaled scales uniformly about the zero
+// position, so a caller placing UI above a sprite drawn at a display scale
+// multiplies this result by that same scale.
 func (s *Sprite) VisibleTopAboveZero() float64 {
 	if s.cachedVisibleTopAboveZero != nil {
 		return *s.cachedVisibleTopAboveZero
