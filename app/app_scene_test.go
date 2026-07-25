@@ -109,6 +109,9 @@ func TestApplySceneSelectionRegistersShowcaseOnDemand(t *testing.T) {
 	if !ok {
 		t.Fatal("showcase was not registered on demand")
 	}
+	if _, isShowcase := registered.(*scene.SpriteShowcaseScene); !isShowcase {
+		t.Fatalf("scene registered under the showcase name is a %T, want *scene.SpriteShowcaseScene", registered)
+	}
 	if !registered.IsVisible() {
 		t.Fatal("on-demand showcase is not visible")
 	}

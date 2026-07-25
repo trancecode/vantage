@@ -331,6 +331,20 @@ func TestSpriteShowcaseRegisteredSpriteReachesTheDrawnCells(t *testing.T) {
 	}
 }
 
+// TestSpriteShowcaseSceneUpdateBeforeInitIsClockOnly checks the guard on the
+// camera controller, which Init is what builds: an update arriving first must
+// still advance the animation clock rather than panic.
+func TestSpriteShowcaseSceneUpdateBeforeInitIsClockOnly(t *testing.T) {
+	s := NewSpriteShowcaseSceneFor(render.NewSpriteLibrary())
+	s.SetFocus(true)
+	if err := s.Update(100 * time.Millisecond); err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+	if s.durationSinceInit != 100*time.Millisecond {
+		t.Fatalf("durationSinceInit = %v, want 100ms", s.durationSinceInit)
+	}
+}
+
 func TestSpriteShowcaseSceneDrawIsNoOpWhenHidden(t *testing.T) {
 	l := render.NewSpriteLibrary()
 	l.Add("Grass", showcaseTestSprite(render.AnimationDefault))
