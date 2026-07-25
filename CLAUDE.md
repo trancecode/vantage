@@ -129,6 +129,33 @@ Failure to document new dependencies delays PR reviews.
 * Whenever there's a potential optimization opportunity for the code change you're making, document it in [docs/performance_optimization.md](docs/performance_optimization.md).
 * When making code changes, review the list of potential performance optimizations and clean up the ones made irrelevant by the current changes.
 
+### Running the Engine Headlessly
+
+**IMPORTANT**: Never open a window on the user's desktop. Any command that runs
+the engine, such as `cmd/showcasedemo`, opens a real window by default. Claude
+must always run these under a virtual display and capture a screenshot instead.
+
+* Wrap every run in `xvfb-run -a`, without exception. This applies to one-off
+  probes and loops just as much as to the documented commands. Running
+  `go run ./cmd/...` directly puts a window on the user's screen.
+* Capture output with the engine's own flags rather than watching the window:
+  `--screenshot_path`, `--screenshot_delay` and `--run_for`. Always pass
+  `--run_for`, so the process exits on its own instead of needing to be killed.
+* Pass `--width` and `--height` explicitly. A zero width or height means
+  fullscreen at monitor size.
+* Read the resulting PNG to verify the change, and send it to the user when it
+  is what they asked about.
+
+```bash
+xvfb-run -a go run ./cmd/showcasedemo \
+    --width 800 --height 600 \
+    --screenshot_path /tmp/shot.png \
+    --screenshot_delay 500ms \
+    --run_for 1000ms
+```
+
+The same rule covers tests: use `task test:headless`, never bare `go test`.
+
 ### Debugging and Development Tools Documentation
 
 * When implementing a new debugging or development tool, update [docs/debugging.md](docs/debugging.md) to document its purpose, usage, configuration options and defaults, code examples, and any keyboard shortcuts, UI controls, or command-line flags.
