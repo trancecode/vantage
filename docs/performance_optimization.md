@@ -81,7 +81,7 @@ If range queries show up hot in a profile, keep each cell as an EntityId-sorted
 slice instead of a set (insert/remove become O(cell size), queries become an
 ordered merge with no final sort), which also shrinks per-cell memory.
 
-## Sprite showcase draws every sprite every frame
+## Sprite showcase per-frame redraw cost
 
 `scene.SpriteShowcaseScene.drawAllSprites` walks the whole sprite library each
 frame and draws every cell, with no culling against the camera viewport and no

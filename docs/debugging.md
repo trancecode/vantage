@@ -89,6 +89,8 @@ Camera controls, from `render.CameraController`:
 
 * `W` / `A` / `S` / `D` pan.
 * `Q` / `E` zoom out and in.
+* The mouse wheel also zooms, alongside `Q` / `E`.
+* Dragging with the middle mouse button pans.
 
 ## Screen logger (on-screen overlay)
 
