@@ -148,31 +148,21 @@ func TestDuplicateSectionPanics(t *testing.T) {
 	l.RegisterTarget("b", &b{})
 }
 
-// sliceCfg is a minimal target with a []string field, used to exercise the
-// slice-destination override fallback.
+// sliceCfg is a minimal target with a []string field, used to exercise
+// overriding a slice-typed destination.
 type sliceCfg struct {
 	Scene struct {
 		Show []string `toml:"show"`
 	} `toml:"scene"`
 }
 
-func TestOverrideSingleValueIntoStringSlice(t *testing.T) {
+// TestOverrideArrayIntoStringSlice pins the form callers must use to override a
+// []string field: a well-formed TOML array, which the first decode accepts.
+func TestOverrideArrayIntoStringSlice(t *testing.T) {
 	c := &sliceCfg{}
 	l := New()
 	l.RegisterTarget("cfg", c)
-	if err := l.Load("", []string{"scene.show=rts"}); err != nil {
-		t.Fatal(err)
-	}
-	if len(c.Scene.Show) != 1 || c.Scene.Show[0] != "rts" {
-		t.Fatalf("scene.show = %v, want [rts]", c.Scene.Show)
-	}
-}
-
-func TestOverrideCommaSeparatedValueIntoStringSlice(t *testing.T) {
-	c := &sliceCfg{}
-	l := New()
-	l.RegisterTarget("cfg", c)
-	if err := l.Load("", []string{"scene.show=rts,dialog"}); err != nil {
+	if err := l.Load("", []string{`scene.show=["rts","dialog"]`}); err != nil {
 		t.Fatal(err)
 	}
 	if len(c.Scene.Show) != 2 || c.Scene.Show[0] != "rts" || c.Scene.Show[1] != "dialog" {
@@ -180,44 +170,30 @@ func TestOverrideCommaSeparatedValueIntoStringSlice(t *testing.T) {
 	}
 }
 
-// TestOverrideNonSliceDestinationStillErrorsOnMalformedValue guards against
-// the slice fallback being applied to non-slice fields: a malformed value for
-// a scalar destination must still fail, exactly as it did before the slice
-// fallback existed.
-func TestOverrideNonSliceDestinationStillErrorsOnMalformedValue(t *testing.T) {
+// TestOverrideMalformedValueForScalarDestinationErrors checks that a value the
+// destination type cannot hold fails rather than being silently absorbed.
+func TestOverrideMalformedValueForScalarDestinationErrors(t *testing.T) {
 	r := &root{}
 	if err := newRootLoader(r).Load("", []string{"net.port=abc"}); err == nil {
 		t.Fatal("expected error for a non-numeric value overriding an int field")
 	}
 }
 
-// TestOverrideMalformedArrayForNonSliceDestinationIsNotSwallowed guards
-// against a malformed array-looking value silently succeeding against a
-// scalar destination.
-func TestOverrideMalformedArrayForNonSliceDestinationIsNotSwallowed(t *testing.T) {
+// TestOverrideMalformedArrayIsNotSwallowed guards against a malformed
+// array-looking value silently succeeding.
+func TestOverrideMalformedArrayIsNotSwallowed(t *testing.T) {
 	r := &root{}
 	if err := newRootLoader(r).Load("", []string{"net.port=[9090"}); err == nil {
 		t.Fatal("expected error for a malformed array value overriding a scalar field")
 	}
-}
-
-// TestOverrideAllThreeDecodesFailReturnsDiagnostic covers a slice destination
-// whose element type is not string: none of the three decode attempts can
-// succeed, and the joined diagnostic error from all three must still surface.
-func TestOverrideAllThreeDecodesFailReturnsDiagnostic(t *testing.T) {
-	type cfg struct {
-		Scene struct {
-			Levels []int `toml:"levels"`
-		} `toml:"scene"`
-	}
-	c := &cfg{}
+	c := &sliceCfg{}
 	l := New()
 	l.RegisterTarget("cfg", c)
-	err := l.Load("", []string{"scene.levels=one,two"})
+	err := l.Load("", []string{`scene.show=["rts"`})
 	if err == nil {
-		t.Fatal("expected an error when no decode attempt can succeed")
+		t.Fatal("expected error for a malformed array value overriding a slice field")
 	}
-	if !strings.Contains(err.Error(), `scene.levels=one,two`) {
+	if !strings.Contains(err.Error(), "scene.show=") {
 		t.Fatalf("error does not name the override: %v", err)
 	}
 }

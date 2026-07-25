@@ -116,7 +116,7 @@ func TestSceneFlagRepeats(t *testing.T) {
 }
 
 func TestSceneFlagOverridesLoadedValue(t *testing.T) {
-	s, err := LoadSettings("", []string{"scene.show=rts"})
+	s, err := LoadSettings("", []string{`scene.show=["rts"]`})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,12 +134,12 @@ func TestSceneFlagOverridesLoadedValue(t *testing.T) {
 	}
 }
 
-// TestSceneShowCommaSeparatedMatchesAcrossFlagAndOverride pins down that a
-// comma-separated scene.show means the same thing whether it arrives through
-// the [scene] show override or through the repeatable --scene flag: both must
-// CSV-split the value the same way, since pflag's StringSliceVar does.
-func TestSceneShowCommaSeparatedMatchesAcrossFlagAndOverride(t *testing.T) {
-	viaOverride, err := LoadSettings("", []string{"scene.show=rts,dialog"})
+// TestSceneShowArrayOverrideMatchesCommaSeparatedFlag pins down that the two
+// ways of naming several scenes end up equivalent: a TOML array in the
+// scene.show config override, and a comma-separated --scene flag, which pflag's
+// StringSliceVar splits itself.
+func TestSceneShowArrayOverrideMatchesCommaSeparatedFlag(t *testing.T) {
+	viaOverride, err := LoadSettings("", []string{`scene.show=["rts","dialog"]`})
 	if err != nil {
 		t.Fatal(err)
 	}

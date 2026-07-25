@@ -143,51 +143,10 @@ func (l *Loader) applyOverride(override string) error {
 		// Retry treating the value as a string so bare values like 10s work.
 		quoted := fmt.Sprintf("[%s]\n%s = %q\n", section, key, value)
 		if _, err2 := toml.Decode(quoted, ptr); err2 != nil {
-			if !destinationIsSlice(ptr, section, key) {
-				return fmt.Errorf("config override %q: %w", override, errors.Join(err, err2))
-			}
-			// The destination is a []string field: split on commas, matching
-			// pflag's StringSliceVar, so scene.show=rts,dialog means the same
-			// thing as the repeated/comma-separated --scene flag.
-			parts := strings.Split(value, ",")
-			quotedParts := make([]string, len(parts))
-			for i, p := range parts {
-				quotedParts[i] = fmt.Sprintf("%q", p)
-			}
-			array := fmt.Sprintf("[%s]\n%s = [%s]\n", section, key, strings.Join(quotedParts, ", "))
-			if _, err3 := toml.Decode(array, ptr); err3 != nil {
-				return fmt.Errorf("config override %q: %w", override, errors.Join(err, err2, err3))
-			}
+			return fmt.Errorf("config override %q: %w", override, errors.Join(err, err2))
 		}
 	}
 	return nil
-}
-
-// destinationIsSlice reports whether the override key, within the target
-// struct registered for section, names a slice-typed field.
-func destinationIsSlice(ptr any, section, key string) bool {
-	t := reflect.TypeOf(ptr)
-	if t == nil || t.Kind() != reflect.Pointer {
-		return false
-	}
-	t = t.Elem()
-	if t.Kind() != reflect.Struct {
-		return false
-	}
-	for top := range t.Fields() {
-		if sectionName(top) != section {
-			continue
-		}
-		if top.Type.Kind() != reflect.Struct {
-			return false
-		}
-		for f := range top.Type.Fields() {
-			if sectionName(f) == key {
-				return f.Type.Kind() == reflect.Slice
-			}
-		}
-	}
-	return false
 }
 
 // sectionName returns the toml section name for a struct field (its toml tag
