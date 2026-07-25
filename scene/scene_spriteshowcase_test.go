@@ -128,8 +128,8 @@ func TestShowcaseLayoutWrapsSingleAnimationRows(t *testing.T) {
 	if eleventh.X != showcaseOriginX {
 		t.Errorf("11th cell: X = %v, want %v (origin)", eleventh.X, showcaseOriginX)
 	}
-	if eleventh.Y != tenth.Y+showcaseMinRowPitch {
-		t.Errorf("11th cell: Y = %v, want %v (10th Y + row pitch)", eleventh.Y, tenth.Y+showcaseMinRowPitch)
+	if eleventh.Y != tenth.Y+showcaseRowPitch {
+		t.Errorf("11th cell: Y = %v, want %v (10th Y + row pitch)", eleventh.Y, tenth.Y+showcaseRowPitch)
 	}
 }
 
@@ -157,8 +157,8 @@ func TestShowcaseLayoutMultiAnimationSpriteSharesOneRow(t *testing.T) {
 	if cells[0].X != showcaseOriginX {
 		t.Errorf("cells[0].X = %v, want %v", cells[0].X, showcaseOriginX)
 	}
-	if cells[1].X != showcaseOriginX+showcaseMinColumnPitch {
-		t.Errorf("cells[1].X = %v, want %v", cells[1].X, showcaseOriginX+showcaseMinColumnPitch)
+	if cells[1].X != showcaseOriginX+showcaseColumnPitch {
+		t.Errorf("cells[1].X = %v, want %v", cells[1].X, showcaseOriginX+showcaseColumnPitch)
 	}
 }
 
@@ -179,108 +179,167 @@ func TestShowcaseLayoutMultiAnimationSpritesComeBeforeSingle(t *testing.T) {
 		t.Errorf("cells[2] = %q, want %q", cells[2].Name, "Grass")
 	}
 	// The single-animation sprite's row starts below the multi-animation row.
-	if cells[2].Y != cells[0].Y+showcaseMinRowPitch {
-		t.Errorf("cells[2].Y = %v, want %v (multi-animation row Y + row pitch)", cells[2].Y, cells[0].Y+showcaseMinRowPitch)
+	if cells[2].Y != cells[0].Y+showcaseRowPitch {
+		t.Errorf("cells[2].Y = %v, want %v (multi-animation row Y + row pitch)", cells[2].Y, cells[0].Y+showcaseRowPitch)
 	}
 }
 
-// TestShowcaseMetricsForTileSizedArtMatchesTheMinimums pins the layout for art
-// that fits in one tile, which is what the showcaseMin constants describe: it
-// must be unchanged by the measuring pass, so existing art keeps its layout.
-func TestShowcaseMetricsForTileSizedArtMatchesTheMinimums(t *testing.T) {
+// TestShowcaseGridGeometryIsFixed pins the grid constants as literals. They are
+// deliberately independent of any library's art, so a game whose sprites are
+// tile sized keeps exactly the layout it has always had.
+func TestShowcaseGridGeometryIsFixed(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		got  float64
+		want float64
+	}{
+		{"column pitch", showcaseColumnPitch, 2.0},
+		{"row pitch", showcaseRowPitch, 4.0},
+		{"origin X", showcaseOriginX, 1.0},
+		{"origin Y", showcaseOriginY, 1.0},
+		{"label center X", showcaseLabelCenterX, 0.5},
+		{"sprite label Y", showcaseSpriteLabelY, 1.2},
+		{"animation label Y", showcaseAnimationLabelY, 1.8},
+		{"slot pixels", showcaseSlotPixels, 16.0},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("%s = %v, want %v", tc.name, tc.got, tc.want)
+		}
+	}
+	if showcaseColumnsPerRow != 10 {
+		t.Errorf("columns per row = %d, want 10", showcaseColumnsPerRow)
+	}
+}
+
+// TestShowcaseLayoutTileSizedArtUsesTheFixedPitches pins the cell positions and
+// fit scales for a library of 16x16 art: exactly the fixed pitches, and no
+// scaling at all, since one tile of art is exactly one slot.
+func TestShowcaseLayoutTileSizedArtUsesTheFixedPitches(t *testing.T) {
 	l := render.NewSpriteLibrary()
-	l.Add("Grass", showcaseTestSprite(render.AnimationDefault))
 	l.Add("Character", showcaseTestSprite(render.AnimationIdleDown, render.AnimationMoveDown))
+	l.Add("Grass", showcaseTestSprite(render.AnimationDefault))
 
+	want := []showcaseCell{
+		{Name: "Character", Animation: render.AnimationIdleDown, X: 1.0, Y: 1.0, FitScale: 1.0},
+		{Name: "Character", Animation: render.AnimationMoveDown, X: 3.0, Y: 1.0, FitScale: 1.0},
+		{Name: "Grass", Animation: render.AnimationDefault, X: 1.0, Y: 5.0, FitScale: 1.0},
+	}
+	cells := showcaseLayout(l)
+	if len(cells) != len(want) {
+		t.Fatalf("len(cells) = %d, want %d", len(cells), len(want))
+	}
+	for i, w := range want {
+		got := cells[i]
+		if got.Name != w.Name || got.Animation != w.Animation ||
+			got.X != w.X || got.Y != w.Y || got.FitScale != w.FitScale {
+			t.Errorf("cell %d = {%q %v X:%v Y:%v FitScale:%v}, want {%q %v X:%v Y:%v FitScale:%v}",
+				i, got.Name, got.Animation, got.X, got.Y, got.FitScale,
+				w.Name, w.Animation, w.X, w.Y, w.FitScale)
+		}
+	}
+}
+
+// TestShowcaseFitScaleShrinksOversizedArtOnly is the core of the contact-sheet
+// layout: art bigger than a slot is scaled down into it, and art at or below a
+// slot is left at its natural size rather than magnified. A sprite's own Scale
+// counts towards its size, since that is the size the game draws it at.
+func TestShowcaseFitScaleShrinksOversizedArtOnly(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		library *render.SpriteLibrary
+		name   string
+		sprite *render.Sprite
+		want   float64
 	}{
-		{"16x16 sprites", l},
-		{"empty library", render.NewSpriteLibrary()},
+		{"16x16 art fills a slot exactly", showcaseTestSpriteSized(16, 1.0, render.AnimationDefault), 1.0},
+		{"64x64 art shrinks to a quarter", showcaseTestSpriteSized(64, 1.0, render.AnimationDefault), 0.25},
+		{"8x8 art is not blown up", showcaseTestSpriteSized(8, 1.0, render.AnimationDefault), 1.0},
+		{"16x16 art at scale 4 fits like 64x64", showcaseTestSpriteSized(16, 4.0, render.AnimationDefault), 0.25},
+		{"16x16 art at scale 0.5 is not blown up", showcaseTestSpriteSized(16, 0.5, render.AnimationDefault), 1.0},
+		{"a sprite with no animations", render.NewSprite(), 1.0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := showcaseMetricsFor(tc.library)
-			want := showcaseMetrics{
-				ColumnPitch:     2.0,
-				RowPitch:        4.0,
-				LabelCenterX:    0.5,
-				SpriteLabelY:    1.2,
-				AnimationLabelY: 1.8,
-			}
-			if got != want {
-				t.Fatalf("showcaseMetricsFor = %+v, want %+v", got, want)
+			if got := showcaseFitScale(tc.sprite); got != tc.want {
+				t.Fatalf("showcaseFitScale = %v, want %v", got, tc.want)
 			}
 		})
 	}
 }
 
-// TestShowcaseMetricsForScalesToTheLargestFrame checks that art larger than a
-// tile widens the grid proportionally, whether it is large in pixels or drawn
-// at a scale that makes it large, and that both labels still land below the
-// sprite rather than on top of it.
-func TestShowcaseMetricsForScalesToTheLargestFrame(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		large *render.Sprite
-	}{
-		{"64x64 frames", showcaseTestSpriteSized(64, 1.0, render.AnimationDefault)},
-		{"16x16 frames drawn at scale 4", showcaseTestSpriteSized(16, 4.0, render.AnimationDefault)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			l := render.NewSpriteLibrary()
-			l.Add("Grass", showcaseTestSprite(render.AnimationDefault)) // small art must not win
-			l.Add("Boss", tc.large)
+// TestShowcaseFitScaleMeasuresTheLargestFrameOfTheSprite checks that the
+// measurement covers every frame of every animation rather than the first one
+// it finds, so a sprite whose frames differ in size still fits its slot.
+func TestShowcaseFitScaleMeasuresTheLargestFrameOfTheSprite(t *testing.T) {
+	s := render.NewSprite()
+	s.AddImage(render.AnimationIdleDown, ebiten.NewImage(16, 16))
+	s.AddImage(render.AnimationIdleDown, ebiten.NewImage(64, 64))
+	s.AddImage(render.AnimationMoveDown, ebiten.NewImage(16, 16))
 
-			// The largest frame covers four tiles per side, so every metric is
-			// four times its one-tile value.
-			got := showcaseMetricsFor(l)
-			want := showcaseMetrics{
-				ColumnPitch:     4 * showcaseMinColumnPitch,
-				RowPitch:        4 * showcaseMinRowPitch,
-				LabelCenterX:    4 * showcaseMinLabelCenterX,
-				SpriteLabelY:    4 * showcaseMinSpriteLabelY,
-				AnimationLabelY: 4 * showcaseMinAnimationLabelY,
-			}
-			if got != want {
-				t.Fatalf("showcaseMetricsFor = %+v, want %+v", got, want)
-			}
-
-			// The sprite occupies four tiles below its cell position, so both
-			// labels must sit lower than that, and inside the row.
-			const spriteHeightTiles = 4.0
-			if got.SpriteLabelY <= spriteHeightTiles || got.AnimationLabelY <= got.SpriteLabelY {
-				t.Fatalf("labels are not stacked below the sprite: %+v", got)
-			}
-			if got.AnimationLabelY >= got.RowPitch {
-				t.Fatalf("animation label at %v spills into the next row (pitch %v)", got.AnimationLabelY, got.RowPitch)
-			}
-		})
+	if got := showcaseFitScale(s); got != 0.25 {
+		t.Fatalf("showcaseFitScale = %v, want 0.25 (the 64x64 frame must win)", got)
 	}
 }
 
-// TestShowcaseLayoutSpacesLargeArtProportionally checks that the measured
-// metrics reach the cell positions, not just the metrics function.
-func TestShowcaseLayoutSpacesLargeArtProportionally(t *testing.T) {
+// TestShowcaseLayoutLargeArtKeepsTheSameCellPositions is the point of the fixed
+// slots: a 64x64 sprite occupies the cell a 16x16 sprite would, shrunk to fit
+// it, instead of pushing the grid apart.
+func TestShowcaseLayoutLargeArtKeepsTheSameCellPositions(t *testing.T) {
+	small := render.NewSpriteLibrary()
+	small.Add("Boss", showcaseTestSpriteSized(16, 1.0, render.AnimationIdleDown, render.AnimationMoveDown))
+	small.Add("Minion", showcaseTestSpriteSized(16, 1.0, render.AnimationDefault))
+
+	large := render.NewSpriteLibrary()
+	large.Add("Boss", showcaseTestSpriteSized(64, 1.0, render.AnimationIdleDown, render.AnimationMoveDown))
+	large.Add("Minion", showcaseTestSpriteSized(64, 1.0, render.AnimationDefault))
+
+	smallCells, largeCells := showcaseLayout(small), showcaseLayout(large)
+	if len(smallCells) != 3 || len(largeCells) != 3 {
+		t.Fatalf("len(cells) = %d and %d, want 3 each", len(smallCells), len(largeCells))
+	}
+	for i := range smallCells {
+		if largeCells[i].X != smallCells[i].X || largeCells[i].Y != smallCells[i].Y {
+			t.Errorf("cell %d moved for large art: (%v, %v), want (%v, %v)",
+				i, largeCells[i].X, largeCells[i].Y, smallCells[i].X, smallCells[i].Y)
+		}
+		if smallCells[i].FitScale != 1.0 {
+			t.Errorf("cell %d: 16x16 fit scale = %v, want 1", i, smallCells[i].FitScale)
+		}
+		if largeCells[i].FitScale != 0.25 {
+			t.Errorf("cell %d: 64x64 fit scale = %v, want 0.25", i, largeCells[i].FitScale)
+		}
+	}
+}
+
+// TestShowcaseLayoutFitScaleIsPerCell checks that each cell's fit scale comes
+// from its own sprite: in a mixed library one huge sprite shrinks only itself
+// and moves nothing, which is what the derived spacing it replaced got wrong.
+func TestShowcaseLayoutFitScaleIsPerCell(t *testing.T) {
 	l := render.NewSpriteLibrary()
-	l.Add("Boss", showcaseTestSpriteSized(64, 1.0, render.AnimationIdleDown, render.AnimationMoveDown))
-	l.Add("Minion", showcaseTestSpriteSized(64, 1.0, render.AnimationDefault))
+	l.Add("Grass", showcaseTestSpriteSized(16, 1.0, render.AnimationDefault))
+	l.Add("Huge", showcaseTestSpriteSized(512, 1.0, render.AnimationDefault))
+	l.Add("Pebble", showcaseTestSpriteSized(8, 1.0, render.AnimationDefault))
 
 	cells := showcaseLayout(l)
 	if len(cells) != 3 {
 		t.Fatalf("len(cells) = %d, want 3", len(cells))
 	}
-	if want := showcaseOriginX + 4*showcaseMinColumnPitch; cells[1].X != want {
-		t.Errorf("cells[1].X = %v, want %v", cells[1].X, want)
-	}
-	if want := cells[0].Y + 4*showcaseMinRowPitch; cells[2].Y != want {
-		t.Errorf("cells[2].Y = %v, want %v", cells[2].Y, want)
+
+	wantScales := map[string]float64{"Grass": 1.0, "Huge": 16.0 / 512.0, "Pebble": 1.0}
+	for i, cell := range cells {
+		if got, want := cell.FitScale, wantScales[cell.Name]; got != want {
+			t.Errorf("cell %q: FitScale = %v, want %v", cell.Name, got, want)
+		}
+		// All three share one row at the fixed column pitch, unmoved by the
+		// 512-pixel sprite among them.
+		wantX := showcaseOriginX + float64(i)*showcaseColumnPitch
+		if cell.X != wantX || cell.Y != showcaseOriginY {
+			t.Errorf("cell %q: position = (%v, %v), want (%v, %v)",
+				cell.Name, cell.X, cell.Y, wantX, showcaseOriginY)
+		}
 	}
 }
 
 // TestShowcaseLayoutWrapsAtTheSameColumnCountForLargeArt checks that sprite
-// size changes the spacing but not the shape of the grid: the wrap still
-// happens after showcaseColumnsPerRow cells.
+// size changes neither the spacing nor the shape of the grid: the wrap still
+// happens after showcaseColumnsPerRow cells, at the fixed row pitch.
 func TestShowcaseLayoutWrapsAtTheSameColumnCountForLargeArt(t *testing.T) {
 	l := render.NewSpriteLibrary()
 	names := []string{
@@ -304,7 +363,7 @@ func TestShowcaseLayoutWrapsAtTheSameColumnCountForLargeArt(t *testing.T) {
 	if eleventh.X != showcaseOriginX {
 		t.Errorf("11th cell: X = %v, want %v (origin)", eleventh.X, showcaseOriginX)
 	}
-	if want := showcaseOriginY + 4*showcaseMinRowPitch; eleventh.Y != want {
+	if want := showcaseOriginY + showcaseRowPitch; eleventh.Y != want {
 		t.Errorf("11th cell: Y = %v, want %v", eleventh.Y, want)
 	}
 }

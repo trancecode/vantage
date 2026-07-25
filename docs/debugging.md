@@ -67,11 +67,16 @@ Sprites with more than one animation get a row each, with one column per
 animation. Sprites with a single animation pack into a grid below them, ten to
 a row.
 
-Cell spacing adapts to the art: the grid measures the largest frame in the
-library, scaled by its sprite's `Scale`, and spreads the columns, rows and
-labels in proportion. Art that fits in one tile lays out at the engine's
-minimum spacing, and larger art gets proportionally more room instead of
-overlapping its neighbours. The number of columns per row is unaffected.
+The grid is a contact sheet: every cell is the same fixed size, whatever the
+art in it measures, so sprites stay comparable side by side and one outsized
+sprite cannot spread the whole grid. Each cell gives its art a slot one tile
+square. A sprite whose largest frame, multiplied by its own `Scale`, is bigger
+than that slot is scaled down to fit it; art at or below one tile is left at
+its natural size rather than blown up, so it stays pixel honest.
+
+The scaling is per draw. The showcase never changes a sprite's `Scale`, since
+the library hands the game the same sprite pointer, and rescaling it here would
+rescale it everywhere.
 
 ```bash
 ./game --scene sprite_showcase
