@@ -10,6 +10,7 @@ import (
 
 	"github.com/trancecode/vantage/config"
 	"github.com/trancecode/vantage/render"
+	"github.com/trancecode/vantage/scene"
 	"github.com/trancecode/vantage/util"
 )
 
@@ -49,6 +50,10 @@ type CameraSettings struct {
 // Show leaves scene visibility entirely to the game.
 type SceneSettings struct {
 	Show []string `toml:"show"`
+
+	// ShowcaseSlotTiles is how many tiles square a slot the sprite showcase
+	// gives each cell's art. Larger art is scaled down to fit.
+	ShowcaseSlotTiles float64 `toml:"showcase_slot_tiles"`
 }
 
 // DebugSettings configures debug mode and the debug HTTP server.
@@ -143,6 +148,8 @@ func (s *Settings) RegisterFlags(fs *flag.FlagSet) {
 	fs.IntVar(&s.Window.Height, "height", s.Window.Height, "Window height in pixels (0 = fullscreen at monitor size)")
 	fs.StringSliceVar(&s.Scene.Show, "scene", s.Scene.Show,
 		"Show only the named scenes and focus the first (repeatable)")
+	fs.Float64Var(&s.Scene.ShowcaseSlotTiles, "scene_showcase_slot_tiles", s.Scene.ShowcaseSlotTiles,
+		"Tiles square of the slot the sprite showcase gives each cell's art")
 	fs.BoolVar(&s.Debug.Enabled, "debug", s.Debug.Enabled, "Enable debug mode")
 	fs.BoolVar(&s.Debug.HTTPEnabled, "enable_debug_http_server", s.Debug.HTTPEnabled, "Enable the debug HTTP server")
 	fs.IntVar(&s.Debug.HTTPPort, "debug_http_port", s.Debug.HTTPPort, "Port for the debug HTTP server")
@@ -166,6 +173,9 @@ func (s *Settings) Validate() error {
 	if s.Render.TileSize <= 0 {
 		return fmt.Errorf("render.tile_size must be positive, got %v", s.Render.TileSize)
 	}
+	if s.Scene.ShowcaseSlotTiles <= 0 {
+		return fmt.Errorf("scene.showcase_slot_tiles must be positive, got %v", s.Scene.ShowcaseSlotTiles)
+	}
 	return nil
 }
 
@@ -175,4 +185,5 @@ func (s *Settings) Apply() {
 	render.UsePlaceholderSpriteImages = s.Render.UsePlaceholderSpriteImages
 	render.SpriteFilter = s.Render.Filter.Filter
 	render.TileSize = s.Render.TileSize
+	scene.ShowcaseSlotTiles = s.Scene.ShowcaseSlotTiles
 }

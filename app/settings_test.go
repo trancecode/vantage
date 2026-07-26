@@ -10,6 +10,7 @@ import (
 	flag "github.com/spf13/pflag"
 
 	"github.com/trancecode/vantage/render"
+	"github.com/trancecode/vantage/scene"
 	"github.com/trancecode/vantage/util"
 )
 
@@ -306,5 +307,65 @@ func TestApplySetsTileSize(t *testing.T) {
 	s.Apply()
 	if render.TileSize != 32 {
 		t.Fatalf("Apply did not set render.TileSize: %v", render.TileSize)
+	}
+}
+
+func TestLoadSettingsShowcaseSlotTilesDefaultsToOne(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Scene.ShowcaseSlotTiles != 1 {
+		t.Fatalf("scene.showcase_slot_tiles default = %v, want 1", s.Scene.ShowcaseSlotTiles)
+	}
+}
+
+func TestShowcaseSlotTilesOverrideAndFlag(t *testing.T) {
+	s, err := LoadSettings("", []string{"scene.showcase_slot_tiles=3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Scene.ShowcaseSlotTiles != 3 {
+		t.Fatalf("scene.showcase_slot_tiles = %v, want 3", s.Scene.ShowcaseSlotTiles)
+	}
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	s.RegisterFlags(fs)
+	if err := fs.Parse([]string{"--scene_showcase_slot_tiles=8"}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Scene.ShowcaseSlotTiles != 8 {
+		t.Fatalf("flag did not override the slot size: %v", s.Scene.ShowcaseSlotTiles)
+	}
+}
+
+func TestValidateRejectsANonPositiveSlotSize(t *testing.T) {
+	for _, size := range []float64{0, -3} {
+		s, err := LoadSettings("", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Scene.ShowcaseSlotTiles = size
+		err = s.Validate()
+		if err == nil {
+			t.Fatalf("Validate accepted a slot size of %v", size)
+		}
+		if !strings.Contains(err.Error(), "showcase_slot_tiles") {
+			t.Fatalf("error does not name the setting: %v", err)
+		}
+	}
+}
+
+func TestApplySetsShowcaseSlotTiles(t *testing.T) {
+	original := scene.ShowcaseSlotTiles
+	t.Cleanup(func() { scene.ShowcaseSlotTiles = original })
+
+	s, err := LoadSettings("", []string{"scene.showcase_slot_tiles=4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Apply()
+	if scene.ShowcaseSlotTiles != 4 {
+		t.Fatalf("Apply did not set scene.ShowcaseSlotTiles: %v", scene.ShowcaseSlotTiles)
 	}
 }

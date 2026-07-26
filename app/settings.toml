@@ -10,6 +10,7 @@ zoom_speed = 0.1
 
 [scene]
 show = []
+showcase_slot_tiles = 1
 
 [debug]
 enabled = true
