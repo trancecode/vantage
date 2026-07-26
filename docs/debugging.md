@@ -249,9 +249,11 @@ func init() {
 }
 ```
 
-`RegisterAnimationName` panics on an empty name or on a type that is already
-registered, both load-time mistakes worth failing loudly on rather than
-silently keeping whichever name registered first.
+Registering a type again under the name it already has does nothing, so
+registrations that run more than once stay safe. `RegisterAnimationName` panics
+on an empty name, and on a type already registered under a different name. Both
+are load-time mistakes worth failing loudly on rather than silently keeping
+whichever name registered first.
 
 The showcase orders a sprite's animations by their `AnimationType` value rather
 than by name, so the columns appear in the order a game declared its constants

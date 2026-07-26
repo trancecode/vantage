@@ -56,13 +56,24 @@ func TestRegisterAnimationNameEmptyPanics(t *testing.T) {
 	RegisterAnimationName(testAnimationType(2), "")
 }
 
-func TestRegisterAnimationNameDuplicatePanics(t *testing.T) {
+func TestRegisterAnimationNameConflictingNamePanics(t *testing.T) {
 	a := testAnimationType(3)
 	RegisterAnimationName(a, "First")
 	defer func() {
 		if recover() == nil {
-			t.Fatal("expected panic on a duplicate animation type")
+			t.Fatal("expected panic on a conflicting animation name")
 		}
 	}()
 	RegisterAnimationName(a, "Second")
+}
+
+func TestRegisterAnimationNameIdenticalNameIsANoOp(t *testing.T) {
+	// Registering the same name twice is benign, and keeping it that way is what
+	// lets a package's registrations run more than once, as under -count=2.
+	a := testAnimationType(4)
+	RegisterAnimationName(a, "South-east")
+	RegisterAnimationName(a, "South-east")
+	if got := AnimationName(a); got != "South-east" {
+		t.Fatalf("AnimationName = %q, want %q", got, "South-east")
+	}
 }

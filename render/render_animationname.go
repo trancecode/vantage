@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// enginePrefix is the prefix the generated String() gives the engine's own
-// animation type names, which is noise in a label.
-const enginePrefix = "Animation"
+// animationNamePrefix is the prefix the generated String() gives the engine's
+// own animation type names, which is noise in a label.
+const animationNamePrefix = "Animation"
 
 // animationNames holds display names registered for animation types. Not safe
 // for concurrent use: registration happens at init time and reads happen while
@@ -22,15 +22,23 @@ var animationNames = map[AnimationType]string{}
 // Registering one of the engine's own types is allowed, for a game that prefers
 // its own wording.
 //
-// It panics on an empty name or a type that is already registered. Both are
-// load-time programming errors, and registration runs from init, so failing
-// loudly beats a catalog that depends on package initialization order.
+// Registration is idempotent: re-registering a type with the name it already
+// has does nothing, so a package whose registrations run more than once, such as
+// a test binary run with -count=2, stays safe.
+//
+// It panics on an empty name, and on a type already registered under a
+// different name. Both are load-time programming errors, and registration runs
+// from init, so failing loudly beats a catalog that depends on package
+// initialization order.
 func RegisterAnimationName(a AnimationType, name string) {
 	if name == "" {
 		panic(fmt.Sprintf("animation name for %v must not be empty", a))
 	}
 	if existing, ok := animationNames[a]; ok {
-		panic(fmt.Sprintf("duplicate animation name for %v: %q and %q", a, existing, name))
+		if existing == name {
+			return
+		}
+		panic(fmt.Sprintf("conflicting animation names for %v: %q and %q", a, existing, name))
 	}
 	animationNames[a] = name
 }
@@ -47,10 +55,10 @@ func AnimationName(a AnimationType) string {
 	if strings.Contains(s, "(") {
 		// The stringer's fallback for an unrecognized value, e.g.
 		// "AnimationType(1065)", which also happens to start with
-		// enginePrefix. It has no real prefix to trim.
+		// animationNamePrefix. It has no real prefix to trim.
 		return s
 	}
-	trimmed, _ := strings.CutPrefix(s, enginePrefix)
+	trimmed, _ := strings.CutPrefix(s, animationNamePrefix)
 	return trimmed
 }
 
