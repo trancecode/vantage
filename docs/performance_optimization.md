@@ -81,6 +81,23 @@ If range queries show up hot in a profile, keep each cell as an EntityId-sorted
 slice instead of a set (insert/remove become O(cell size), queries become an
 ordered merge with no final sort), which also shrinks per-cell memory.
 
+## Tile ratio and screen multiplier computed per draw (render/render_sprite.go, render/render_camera.go)
+
+`Sprite.tileRatio` (`TileSize / SourceTileSize`) and `Camera.screenMultiplier`
+(`screenHeight / (defaultVerticalTileCount * TileSize)`) are both divisions
+recomputed on every call, `tileRatio` inside `buildDrawOp` on every sprite draw
+and `screenMultiplier` inside `EffectiveZoom` on every camera use, rather than
+being cached on the `Sprite`/`Camera` or constant-folded at build time. This is
+deliberate, not an oversight: `TileSize` is a `var`, read where used rather
+than captured, specifically so that a game changing it after sprites and
+cameras are constructed (which is the normal case, since sprites register from
+`init()` before settings are applied) takes effect everywhere. Caching either
+value would reintroduce the frozen-scale bug this change exists to remove.
+Left as a per-call division because it is cheap relative to the surrounding
+draw call; revisit only if profiling shows either division hot, and only with
+an invalidation scheme that still reacts to a `TileSize` change after
+construction.
+
 ## Sprite showcase per-frame redraw cost
 
 `scene.SpriteShowcaseScene.Draw` rebuilds the whole cell list every frame

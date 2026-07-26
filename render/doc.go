@@ -7,8 +7,11 @@
 // that need a different size without mutating the shared sprite. TextWriter
 // renders text using loaded fonts. DrawNameplate and DrawFloatingBar anchor a
 // label or a fraction bar a constant screen-pixel gap above a sprite, staying
-// correctly placed across camera zoom. TileSize (16px) defines the base tile
-// dimension used across the rendering pipeline. DrawList collects drawable
+// correctly placed across camera zoom. TileSize is engine configuration
+// (default 16) for how many pixels one world tile occupies; a sprite may also
+// declare SourceTileSize, the tile size its art was drawn for, which the
+// engine corrects for at draw time so the same sprite scales correctly under
+// any TileSize. DrawList collects drawable
 // payloads and iterates them in painter's order (ascending layer, then
 // ascending Y) for back-to-front 2D drawing.
 //
