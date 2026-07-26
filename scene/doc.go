@@ -3,7 +3,9 @@
 // with per-scene visibility and exclusive focus. BaseScene is an embeddable
 // default implementation, DialogScene is the engine's built-in modal dialog
 // overlay, and SpriteShowcaseScene draws every sprite in a render.SpriteLibrary
-// for visual inspection. Scenes are identified by a typed-string SceneName;
+// for visual inspection, laid out in a grid whose cell size is
+// ShowcaseSlotTiles tiles square. Scenes are identified by a typed-string
+// SceneName;
 // each game defines its own names, and the engine reserves DialogSceneName and
 // SpriteShowcaseSceneName.
 package scene

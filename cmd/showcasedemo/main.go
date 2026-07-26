@@ -4,7 +4,13 @@
 //
 // The generated sprites deliberately differ in size, from 8 to 64 pixels, and
 // one uses Sprite.Scale rather than large frames, which is what makes the
-// showcase's fixed slots and its scale-down-to-fit behavior visible.
+// showcase's fixed slots and its scale-down-to-fit behavior visible. Another
+// declares a SourceTileSize larger than a single tile and carries four
+// directional animations registered through render.RegisterAnimationName, so
+// both the tile ratio and the animation naming path have visual coverage here
+// too: raising --scene_showcase_slot_tiles shows its art at its true size
+// instead of shrunk to fit a one tile slot, and its labels read "S", "E", "N",
+// "W" rather than the generated AnimationType(64) placeholder.
 //
 // Usage:
 //
@@ -35,6 +41,27 @@ import (
 // frameInset divides a frame's size to get its border thickness, so each
 // generated frame shows its own extent once the showcase scales it.
 const frameInset = 8
+
+// Directional animation types for the demo's own SourceTileSize sprite below,
+// defined at render.AnimationGameBase and up like any game-defined animation
+// state. Their names are registered in init, before registerSprites builds
+// anything that uses them.
+const (
+	animationSouth render.AnimationType = render.AnimationGameBase + iota
+	animationEast
+	animationNorth
+	animationWest
+)
+
+// init registers display names for this demo's own animation types, the same
+// way a game registers names for its facings, before any sprite using them is
+// built.
+func init() {
+	render.RegisterAnimationName(animationSouth, "S")
+	render.RegisterAnimationName(animationEast, "E")
+	render.RegisterAnimationName(animationNorth, "N")
+	render.RegisterAnimationName(animationWest, "W")
+}
 
 // framesPerAnimation is how many frames each generated animation cycles
 // through, enough for the animation to be visibly moving.
@@ -94,6 +121,7 @@ func registerSprites() {
 	green := color.RGBA{R: 70, G: 200, B: 90, A: 255}
 	blue := color.RGBA{R: 80, G: 130, B: 230, A: 255}
 	amber := color.RGBA{R: 230, G: 180, B: 60, A: 255}
+	purple := color.RGBA{R: 160, G: 90, B: 200, A: 255}
 
 	// Several animations each: one row per sprite, one column per animation.
 	render.Sprites.Add("HeroNormal16", demoSprite(16, 1, red,
@@ -103,6 +131,13 @@ func registerSprites() {
 		render.AnimationIdleDown, render.AnimationMoveDown, render.AnimationAttackDown))
 	render.Sprites.Add("GiantScaled16x4", demoSprite(16, 4, amber,
 		render.AnimationIdleDown, render.AnimationMoveDown))
+
+	// A 64 pixel frame declaring the tile size it was drawn for, so it is two
+	// tiles at the default tile size, with directional animations carrying
+	// registered names instead of the generated AnimationType placeholder.
+	render.Sprites.Add("DirectionalTiles64x2", demoSprite(64, 1, purple,
+		animationSouth, animationEast, animationNorth, animationWest,
+	).SetSourceTileSize(32))
 
 	// One animation each: packed ten to a row, so twelve of them wrap.
 	for i, size := range []int{16, 16, 32, 8, 16, 64, 16, 24, 16, 48, 16, 16} {

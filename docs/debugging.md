@@ -69,10 +69,12 @@ a row.
 
 The grid is a contact sheet: every cell is the same fixed size, whatever the
 art in it measures, so sprites stay comparable side by side and one outsized
-sprite cannot spread the whole grid. Each cell gives its art a slot one tile
-square. A sprite whose largest frame, multiplied by its own `Scale`, is bigger
-than that slot is scaled down to fit it; art at or below one tile is left at
-its natural size rather than blown up, so it stays pixel honest.
+sprite cannot spread the whole grid. Each cell gives its art a slot, one tile
+square by default and configurable through `[scene] showcase_slot_tiles` (see
+below). A sprite whose largest frame, multiplied by its own `Scale` and its
+tile ratio, is bigger than that slot is scaled down to fit it; art at or below
+the slot is left at its natural size rather than blown up, so it stays pixel
+honest.
 
 The scaling is per draw. The showcase never changes a sprite's `Scale`, since
 the library hands the game the same sprite pointer, and rescaling it here would
@@ -179,6 +181,82 @@ xvfb-run -a go run ./cmd/showcasedemo \
     --run_for 1000ms
 ```
 
+### Slot size
+
+`[scene] showcase_slot_tiles` is how many tiles square a slot the sprite
+showcase gives each cell's art. It defaults to 1, the size the grid used before
+the setting existed:
+
+```toml
+[scene]
+showcase_slot_tiles = 1
+```
+
+A value of zero or less is a startup error, reported when settings are
+validated and before any of them are applied.
+
+A game whose characters stand taller than one tile wants this raised: a one
+tile slot otherwise shrinks them down until they cannot be judged. The gap
+between cells and the space reserved for labels stay the same size whatever the
+slot, since labels are drawn at a fixed pixel size and do not grow with it.
+
+The `--scene_showcase_slot_tiles` flag sets the same thing, so sizes can be
+compared without editing a settings file:
+
+```bash
+xvfb-run -a go run ./cmd/showcasedemo \
+    --width 800 --height 600 \
+    --scene_showcase_slot_tiles 3 \
+    --screenshot_path shot.png \
+    --screenshot_delay 500ms \
+    --run_for 1000ms
+```
+
+### Naming animations
+
+Showcase labels use `render.AnimationName`, which returns a registered display
+name if the animation type has one, and otherwise its generated `String()`
+with the engine's `Animation` prefix trimmed: `render.AnimationIdleDown` reads
+as `IdleDown`. A game's own animation types, at or above
+`render.AnimationGameBase`, have no such prefix to trim and fall back to the
+stringer's placeholder, `AnimationType(64)` and so on, which is unreadable in a
+label.
+
+Register a name for each with `render.RegisterAnimationName`, typically from an
+`init` function so every sprite built afterwards already has readable labels:
+
+```go
+const (
+    animationNorth render.AnimationType = render.AnimationGameBase + iota
+    animationNorthEast
+    animationEast
+    animationSouthEast
+    animationSouth
+    animationSouthWest
+    animationWest
+    animationNorthWest
+)
+
+func init() {
+    render.RegisterAnimationName(animationNorth, "N")
+    render.RegisterAnimationName(animationNorthEast, "NE")
+    render.RegisterAnimationName(animationEast, "E")
+    render.RegisterAnimationName(animationSouthEast, "SE")
+    render.RegisterAnimationName(animationSouth, "S")
+    render.RegisterAnimationName(animationSouthWest, "SW")
+    render.RegisterAnimationName(animationWest, "W")
+    render.RegisterAnimationName(animationNorthWest, "NW")
+}
+```
+
+`RegisterAnimationName` panics on an empty name or on a type that is already
+registered, both load-time mistakes worth failing loudly on rather than
+silently keeping whichever name registered first.
+
+The showcase orders a sprite's animations by their `AnimationType` value rather
+than by name, so the columns appear in the order a game declared its constants
+in, not alphabetically.
+
 ### Running the showcase without a game
 
 `cmd/showcasedemo` runs the showcase against procedurally generated placeholder
@@ -197,6 +275,10 @@ The generated sprites deliberately differ in size, from 8 to 64 pixels, and one
 uses `Sprite.Scale` rather than large frames. That is what makes the fixed slots
 and the scale-down-to-fit behavior visible: the 24, 32, 48 and 64 pixel tiles
 all render at the size of the 16 pixel ones, while the 8 pixel tile stays small.
+One further sprite, `DirectionalTiles64x2`, declares a `SourceTileSize` of 32
+on a 64 pixel frame and carries four animations registered through
+`render.RegisterAnimationName`, so both the slot size and the animation naming
+paths have visual coverage here too, alongside their unit test coverage.
 
 Every engine flag applies, so the same command also exercises scene selection
 and screenshot capture. To capture a frame without a display:
