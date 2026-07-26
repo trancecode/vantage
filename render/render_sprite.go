@@ -146,7 +146,7 @@ func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera, d
 	// multiplies in exactly where displayScale does. ZeroPosition keeps its
 	// existing meaning, in Scale-applied pixels, which is why the translate does
 	// not include Scale.
-	ratio := s.tileRatio()
+	ratio := s.TileRatio()
 	scale := s.Scale * ratio * displayScale
 	op.GeoM.Scale(scale, scale)
 	anchor := ratio * displayScale
@@ -278,7 +278,7 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 // multiplies this result by that same scale.
 func (s *Sprite) VisibleTopAboveZero() float64 {
 	if s.cachedVisibleTopAboveZero != nil {
-		return *s.cachedVisibleTopAboveZero * s.tileRatio()
+		return *s.cachedVisibleTopAboveZero * s.TileRatio()
 	}
 
 	var img *ebiten.Image
@@ -312,7 +312,7 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 	}
 
 	s.cachedVisibleTopAboveZero = &result
-	return result * s.tileRatio()
+	return result * s.TileRatio()
 }
 
 // SetScale sets the scale of the sprite.
@@ -328,10 +328,17 @@ func (s *Sprite) SetSourceTileSize(size float64) *Sprite {
 	return s
 }
 
-// tileRatio is the scale that maps art drawn for SourceTileSize onto the game's
-// current TileSize. It is computed on every call rather than stored, because
-// sprites are built from init() before settings are applied.
-func (s *Sprite) tileRatio() float64 {
+// TileRatio is the scale that maps art drawn for SourceTileSize onto the game's
+// current TileSize, and 1 for a sprite that declares no SourceTileSize. It is
+// computed on every call rather than stored, because sprites are built from
+// init() before settings are applied.
+//
+// The engine already applies it at draw time, so a caller that only draws
+// sprites never needs it. Use it when reconstructing a sprite's drawn size or
+// position outside the draw path: fitting art into a fixed slot, hit-testing a
+// sprite's screen rectangle, or placing UI against its extent. Multiplying a
+// frame's raw pixel size by this ratio gives the size the engine draws it at.
+func (s *Sprite) TileRatio() float64 {
 	if s.SourceTileSize <= 0 {
 		return 1.0
 	}

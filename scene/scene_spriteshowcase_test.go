@@ -265,6 +265,74 @@ func TestShowcaseFitScaleShrinksOversizedArtOnly(t *testing.T) {
 	}
 }
 
+// TestShowcaseFitScaleMeasuresTheArtAtItsDrawnSize covers art that declares the
+// tile size it was drawn for. The engine already shrinks such art by the tile
+// ratio before the showcase's display scale is applied, so the fit scale must
+// measure the corrected size. Measuring raw pixels applies the ratio twice and
+// draws the sprite a fraction of the slot it should fill.
+//
+// This is the case sprite_generation_pipeline hits: its sprites are
+// character-sized rather than tile-sized, so every one of them declares a
+// SourceTileSize, and the showcase is what it inspects them with.
+func TestShowcaseFitScaleMeasuresTheArtAtItsDrawnSize(t *testing.T) {
+	// render.TileSize is 16, so a SourceTileSize of 64 is a ratio of 0.25.
+	sourceSized := func(size int, sourceTileSize float64, scale float64) *render.Sprite {
+		return showcaseTestSpriteSized(size, scale, render.AnimationDefault).
+			SetSourceTileSize(sourceTileSize)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		sprite *render.Sprite
+		want   float64
+	}{
+		{
+			"64x64 art drawn for 64 pixel tiles already fills one slot",
+			sourceSized(64, 64, 1.0),
+			1.0,
+		},
+		{
+			"64x64 art drawn for 32 pixel tiles is drawn at 32 and halves",
+			sourceSized(64, 32, 1.0),
+			0.5,
+		},
+		{
+			"128x128 art drawn for 64 pixel tiles is drawn at 32 and halves",
+			sourceSized(128, 64, 1.0),
+			0.5,
+		},
+		{
+			"a sprite's own Scale still counts on top of the ratio",
+			sourceSized(64, 64, 4.0),
+			0.25,
+		},
+		{
+			"art corrected below a slot is not blown up",
+			sourceSized(32, 64, 1.0),
+			1.0,
+		},
+		// The compatibility guarantee: without a SourceTileSize the ratio is 1
+		// and these keep exactly the values they had before it existed. The
+		// full set is pinned by TestShowcaseFitScaleShrinksOversizedArtOnly.
+		{
+			"16x16 art without a source tile size fills a slot exactly",
+			showcaseTestSpriteSized(16, 1.0, render.AnimationDefault),
+			1.0,
+		},
+		{
+			"64x64 art without a source tile size still shrinks to a quarter",
+			showcaseTestSpriteSized(64, 1.0, render.AnimationDefault),
+			0.25,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := showcaseFitScale(tc.sprite); got != tc.want {
+				t.Fatalf("showcaseFitScale = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestShowcaseFitScaleMeasuresTheLargestFrameOfTheSprite checks that the
 // measurement covers every frame of every animation rather than the first one
 // it finds, so a sprite whose frames differ in size still fits its slot.

@@ -83,9 +83,9 @@ ordered merge with no final sort), which also shrinks per-cell memory.
 
 ## Tile ratio and screen multiplier computed per draw (render/render_sprite.go, render/render_camera.go)
 
-`Sprite.tileRatio` (`TileSize / SourceTileSize`) and `Camera.screenMultiplier`
+`Sprite.TileRatio` (`TileSize / SourceTileSize`) and `Camera.screenMultiplier`
 (`screenHeight / (defaultVerticalTileCount * TileSize)`) are both divisions
-recomputed on every call, `tileRatio` inside `buildDrawOp` on every sprite draw
+recomputed on every call, `TileRatio` inside `buildDrawOp` on every sprite draw
 and `screenMultiplier` inside `EffectiveZoom` on every camera use, rather than
 being cached on the `Sprite`/`Camera` or constant-folded at build time. This is
 deliberate, not an oversight: `TileSize` is a `var`, read where used rather

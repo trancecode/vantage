@@ -147,8 +147,8 @@ func TestTileRatioIsOneWithoutASourceTileSize(t *testing.T) {
 	for _, source := range []float64{0, -1, -64} {
 		s := NewSprite()
 		s.SourceTileSize = source
-		if got := s.tileRatio(); got != 1.0 {
-			t.Fatalf("tileRatio with SourceTileSize %v = %v, want 1", source, got)
+		if got := s.TileRatio(); got != 1.0 {
+			t.Fatalf("TileRatio with SourceTileSize %v = %v, want 1", source, got)
 		}
 	}
 }
@@ -169,8 +169,8 @@ func TestTileRatioScalesArtToTheGameTileSize(t *testing.T) {
 		{16, 2.0}, // coarser art, drawn up
 	} {
 		s := NewSprite().SetSourceTileSize(tc.source)
-		if got := s.tileRatio(); got != tc.want {
-			t.Fatalf("tileRatio for source %v at TileSize 32 = %v, want %v", tc.source, got, tc.want)
+		if got := s.TileRatio(); got != tc.want {
+			t.Fatalf("TileRatio for source %v at TileSize 32 = %v, want %v", tc.source, got, tc.want)
 		}
 	}
 }
