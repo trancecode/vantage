@@ -129,8 +129,8 @@ func TestShowcaseLayoutWrapsSingleAnimationRows(t *testing.T) {
 	if eleventh.X != showcaseOriginX {
 		t.Errorf("11th cell: X = %v, want %v (origin)", eleventh.X, showcaseOriginX)
 	}
-	if eleventh.Y != tenth.Y+showcaseRowPitch {
-		t.Errorf("11th cell: Y = %v, want %v (10th Y + row pitch)", eleventh.Y, tenth.Y+showcaseRowPitch)
+	if eleventh.Y != tenth.Y+showcaseRowPitch() {
+		t.Errorf("11th cell: Y = %v, want %v (10th Y + row pitch)", eleventh.Y, tenth.Y+showcaseRowPitch())
 	}
 }
 
@@ -143,13 +143,14 @@ func TestShowcaseLayoutMultiAnimationSpriteSharesOneRow(t *testing.T) {
 		t.Fatalf("len(cells) = %d, want 2", len(cells))
 	}
 
-	// AnimationIdleDown.String() < AnimationMoveDown.String(), so
-	// AnimationIdleDown comes first.
-	if cells[0].Animation != render.AnimationIdleDown {
-		t.Errorf("cells[0].Animation = %v, want %v", cells[0].Animation, render.AnimationIdleDown)
+	// render.AnimationMoveDown (2) < render.AnimationIdleDown (6), so
+	// AnimationMoveDown comes first: animations sort by AnimationType value,
+	// not by name.
+	if cells[0].Animation != render.AnimationMoveDown {
+		t.Errorf("cells[0].Animation = %v, want %v", cells[0].Animation, render.AnimationMoveDown)
 	}
-	if cells[1].Animation != render.AnimationMoveDown {
-		t.Errorf("cells[1].Animation = %v, want %v", cells[1].Animation, render.AnimationMoveDown)
+	if cells[1].Animation != render.AnimationIdleDown {
+		t.Errorf("cells[1].Animation = %v, want %v", cells[1].Animation, render.AnimationIdleDown)
 	}
 
 	if cells[0].Y != showcaseOriginY || cells[1].Y != showcaseOriginY {
@@ -158,8 +159,8 @@ func TestShowcaseLayoutMultiAnimationSpriteSharesOneRow(t *testing.T) {
 	if cells[0].X != showcaseOriginX {
 		t.Errorf("cells[0].X = %v, want %v", cells[0].X, showcaseOriginX)
 	}
-	if cells[1].X != showcaseOriginX+showcaseColumnPitch {
-		t.Errorf("cells[1].X = %v, want %v", cells[1].X, showcaseOriginX+showcaseColumnPitch)
+	if cells[1].X != showcaseOriginX+showcaseColumnPitch() {
+		t.Errorf("cells[1].X = %v, want %v", cells[1].X, showcaseOriginX+showcaseColumnPitch())
 	}
 }
 
@@ -180,27 +181,27 @@ func TestShowcaseLayoutMultiAnimationSpritesComeBeforeSingle(t *testing.T) {
 		t.Errorf("cells[2] = %q, want %q", cells[2].Name, "Grass")
 	}
 	// The single-animation sprite's row starts below the multi-animation row.
-	if cells[2].Y != cells[0].Y+showcaseRowPitch {
-		t.Errorf("cells[2].Y = %v, want %v (multi-animation row Y + row pitch)", cells[2].Y, cells[0].Y+showcaseRowPitch)
+	if cells[2].Y != cells[0].Y+showcaseRowPitch() {
+		t.Errorf("cells[2].Y = %v, want %v (multi-animation row Y + row pitch)", cells[2].Y, cells[0].Y+showcaseRowPitch())
 	}
 }
 
-// TestShowcaseGridGeometryIsFixed pins the grid constants as literals. They are
-// deliberately independent of any library's art, so a game whose sprites are
-// tile sized keeps exactly the layout it has always had.
+// TestShowcaseGridGeometryIsFixed pins the grid geometry at the default slot.
+// It is deliberately independent of any library's art, so a game whose
+// sprites are tile sized keeps exactly the layout it has always had.
 func TestShowcaseGridGeometryIsFixed(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		got  float64
 		want float64
 	}{
-		{"column pitch", showcaseColumnPitch, 2.0},
-		{"row pitch", showcaseRowPitch, 4.0},
+		{"column pitch", showcaseColumnPitch(), 2.0},
+		{"row pitch", showcaseRowPitch(), 4.0},
 		{"origin X", showcaseOriginX, 1.0},
 		{"origin Y", showcaseOriginY, 1.0},
-		{"label center X", showcaseLabelCenterX, 0.5},
-		{"sprite label Y", showcaseSpriteLabelY, 1.2},
-		{"animation label Y", showcaseAnimationLabelY, 1.8},
+		{"label center X", showcaseLabelCenterX(), 0.5},
+		{"sprite label Y", showcaseSpriteLabelY(), 1.2},
+		{"animation label Y", showcaseAnimationLabelY(), 1.8},
 		{"slot pixels", render.TileSize, 16.0},
 	} {
 		if tc.got != tc.want {
@@ -221,8 +222,8 @@ func TestShowcaseLayoutTileSizedArtUsesTheFixedPitches(t *testing.T) {
 	l.Add("Grass", showcaseTestSprite(render.AnimationDefault))
 
 	want := []showcaseCell{
-		{Name: "Character", Animation: render.AnimationIdleDown, X: 1.0, Y: 1.0, FitScale: 1.0},
-		{Name: "Character", Animation: render.AnimationMoveDown, X: 3.0, Y: 1.0, FitScale: 1.0},
+		{Name: "Character", Animation: render.AnimationMoveDown, X: 1.0, Y: 1.0, FitScale: 1.0},
+		{Name: "Character", Animation: render.AnimationIdleDown, X: 3.0, Y: 1.0, FitScale: 1.0},
 		{Name: "Grass", Animation: render.AnimationDefault, X: 1.0, Y: 5.0, FitScale: 1.0},
 	}
 	cells := showcaseLayout(l)
@@ -398,7 +399,7 @@ func TestShowcaseLayoutFitScaleIsPerCell(t *testing.T) {
 		}
 		// All three share one row at the fixed column pitch, unmoved by the
 		// 512-pixel sprite among them.
-		wantX := showcaseOriginX + float64(i)*showcaseColumnPitch
+		wantX := showcaseOriginX + float64(i)*showcaseColumnPitch()
 		if cell.X != wantX || cell.Y != showcaseOriginY {
 			t.Errorf("cell %q: position = (%v, %v), want (%v, %v)",
 				cell.Name, cell.X, cell.Y, wantX, showcaseOriginY)
@@ -432,7 +433,7 @@ func TestShowcaseLayoutWrapsAtTheSameColumnCountForLargeArt(t *testing.T) {
 	if eleventh.X != showcaseOriginX {
 		t.Errorf("11th cell: X = %v, want %v (origin)", eleventh.X, showcaseOriginX)
 	}
-	if want := showcaseOriginY + showcaseRowPitch; eleventh.Y != want {
+	if want := showcaseOriginY + showcaseRowPitch(); eleventh.Y != want {
 		t.Errorf("11th cell: Y = %v, want %v", eleventh.Y, want)
 	}
 }
@@ -506,5 +507,133 @@ func TestShowcaseLabelsAreNeverHiddenByZoom(t *testing.T) {
 	}
 	if w.MaxZoom <= render.DefaultMaxZoomForText {
 		t.Fatalf("label MaxZoom = %v, want above the default %v", w.MaxZoom, render.DefaultMaxZoomForText)
+	}
+}
+
+func TestShowcaseSlotTilesDefaultsToOne(t *testing.T) {
+	// The compatibility guarantee: at one tile every derived quantity equals
+	// the constant it replaced, so the existing layout tests hold.
+	if ShowcaseSlotTiles != 1 {
+		t.Fatalf("ShowcaseSlotTiles = %v, want 1", ShowcaseSlotTiles)
+	}
+	if got := showcaseColumnPitch(); got != 2.0 {
+		t.Fatalf("column pitch = %v, want 2", got)
+	}
+	if got := showcaseRowPitch(); got != 4.0 {
+		t.Fatalf("row pitch = %v, want 4", got)
+	}
+	if got := showcaseLabelCenterX(); got != 0.5 {
+		t.Fatalf("label centre X = %v, want 0.5", got)
+	}
+	if got := showcaseSpriteLabelY(); got != 1.2 {
+		t.Fatalf("sprite label Y = %v, want 1.2", got)
+	}
+	if got := showcaseAnimationLabelY(); got != 1.8 {
+		t.Fatalf("animation label Y = %v, want 1.8", got)
+	}
+}
+
+func TestShowcaseGeometryDerivesFromTheSlot(t *testing.T) {
+	original := ShowcaseSlotTiles
+	t.Cleanup(func() { ShowcaseSlotTiles = original })
+	ShowcaseSlotTiles = 3
+
+	// The gap stays one tile and the label space two, because labels are drawn
+	// at a fixed pixel size and do not grow with the slot.
+	if got := showcaseColumnPitch(); got != 4.0 {
+		t.Fatalf("column pitch = %v, want 4", got)
+	}
+	if got := showcaseRowPitch(); got != 6.0 {
+		t.Fatalf("row pitch = %v, want 6", got)
+	}
+	if got := showcaseLabelCenterX(); got != 1.5 {
+		t.Fatalf("label centre X = %v, want 1.5", got)
+	}
+	if got := showcaseSpriteLabelY(); got != 3.2 {
+		t.Fatalf("sprite label Y = %v, want 3.2", got)
+	}
+	if got := showcaseAnimationLabelY(); got != 3.8 {
+		t.Fatalf("animation label Y = %v, want 3.8", got)
+	}
+}
+
+func TestShowcaseFitScaleUsesTheSlotSize(t *testing.T) {
+	original := ShowcaseSlotTiles
+	t.Cleanup(func() { ShowcaseSlotTiles = original })
+
+	// Art two tiles tall: shrunk by half into a one tile slot, left alone in a
+	// three tile slot.
+	sprite := showcaseTestSpriteSized(32, 1.0, render.AnimationDefault)
+
+	ShowcaseSlotTiles = 1
+	if got := showcaseFitScale(sprite); got != 0.5 {
+		t.Fatalf("fit scale at a one tile slot = %v, want 0.5", got)
+	}
+
+	ShowcaseSlotTiles = 3
+	if got := showcaseFitScale(sprite); got != 1.0 {
+		t.Fatalf("fit scale at a three tile slot = %v, want 1", got)
+	}
+}
+
+func TestShowcaseLayoutSpacesCellsBySlot(t *testing.T) {
+	original := ShowcaseSlotTiles
+	t.Cleanup(func() { ShowcaseSlotTiles = original })
+	ShowcaseSlotTiles = 3
+
+	l := render.NewSpriteLibrary()
+	l.Add("A", showcaseTestSprite(render.AnimationDefault))
+	l.Add("B", showcaseTestSprite(render.AnimationDefault))
+
+	cells := showcaseLayout(l)
+	if len(cells) != 2 {
+		t.Fatalf("len(cells) = %d, want 2", len(cells))
+	}
+	if got := cells[1].X - cells[0].X; got != 4.0 {
+		t.Fatalf("cell spacing = %v, want the 4 tile column pitch", got)
+	}
+}
+
+func TestShowcaseLayoutWrapsAtTheSameColumnCountForAnySlot(t *testing.T) {
+	original := ShowcaseSlotTiles
+	t.Cleanup(func() { ShowcaseSlotTiles = original })
+	ShowcaseSlotTiles = 5
+
+	l := render.NewSpriteLibrary()
+	for _, n := range []string{"01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11"} {
+		l.Add(n, showcaseTestSprite(render.AnimationDefault))
+	}
+
+	cells := showcaseLayout(l)
+	if len(cells) != 11 {
+		t.Fatalf("len(cells) = %d, want 11", len(cells))
+	}
+	if cells[10].X != showcaseOriginX {
+		t.Fatalf("11th cell X = %v, want the origin %v", cells[10].X, showcaseOriginX)
+	}
+	if got := cells[10].Y - cells[9].Y; got != showcaseRowPitch() {
+		t.Fatalf("11th cell dropped %v, want one row pitch %v", got, showcaseRowPitch())
+	}
+}
+
+func TestShowcaseLayoutOrdersAnimationsByValueNotName(t *testing.T) {
+	// Once a game can name its types, alphabetical order scrambles them: eight
+	// facings named S, SE, E, NE would sort E, N, NE, S. Value order keeps the
+	// order the game declared.
+	first := render.AnimationGameBase + 2000
+	second := render.AnimationGameBase + 2001
+	render.RegisterAnimationName(first, "S")
+	render.RegisterAnimationName(second, "E")
+
+	l := render.NewSpriteLibrary()
+	l.Add("Facings", showcaseTestSprite(first, second))
+
+	cells := showcaseLayout(l)
+	if len(cells) != 2 {
+		t.Fatalf("len(cells) = %d, want 2", len(cells))
+	}
+	if cells[0].Animation != first || cells[1].Animation != second {
+		t.Fatalf("animations ordered %v then %v, want value order %v then %v",
+			cells[0].Animation, cells[1].Animation, first, second)
 	}
 }
