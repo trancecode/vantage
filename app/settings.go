@@ -152,13 +152,17 @@ func (s *Settings) RegisterFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&s.Run.For.Duration, "run_for", s.Run.For.Duration, "Exit after this duration (0 = run until closed)")
 	fs.StringVar(&s.Log.Level, "log_level", s.Log.Level, "Minimum log level: trace, debug, info, warn, error")
 	fs.Var(&s.Render.Filter, "render_filter", "Texture filter for scaled sprites: nearest or linear")
-	fs.Float64Var(&s.Render.TileSize, "tile_size", s.Render.TileSize,
+	fs.Float64Var(&s.Render.TileSize, "render_tile_size", s.Render.TileSize,
 		"Pixels per world tile before camera zoom")
 }
 
-// validate reports a setting whose value cannot be used. Call it before Apply,
-// so a bad value is a startup error rather than a global set to nonsense.
-func (s *Settings) validate() error {
+// Validate reports a setting whose value cannot be used. App.Run calls it on
+// the settings it loads, so a game running through the app package gets this
+// for free. Call it before Apply when building a Settings by hand, so a bad
+// value is a startup error rather than an engine global set to nonsense: Apply
+// writes the values through whatever they are, and a tile size of zero makes
+// every camera's scale a division by zero with no diagnostic anywhere.
+func (s *Settings) Validate() error {
 	if s.Render.TileSize <= 0 {
 		return fmt.Errorf("render.tile_size must be positive, got %v", s.Render.TileSize)
 	}

@@ -82,43 +82,72 @@ func TestDrawAnimationGeometryIsUnchangedByTheDisplayScale(t *testing.T) {
 // the display scale and ZeroPosition: the scale is uniform about the zero
 // position, so the anchored pixel lands on the same screen point at every
 // display scale and only the drawn extent changes.
+//
+// The second case adds a source tile size on top, so the tile ratio, a display
+// scale other than 1 and a non-zero ZeroPosition are all exercised together.
+// The anchored source pixel is ZeroPosition divided by Scale whatever the
+// ratio is, because ratio and display scale multiply into both the scale and
+// the anchor offset: that is the invariant, and asserting where the pixel
+// lands catches the two being confused in a way that recomputing the expected
+// GeoM from the same expression cannot.
 func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
-	c := drawOpTestCamera()
-	p := geometry.NewVector2(3, 5)
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+	TileSize = 32
+
 	const scale = 2.0
 	zero := geometry.NewVector2(8, 24)
-	s := NewSprite().SetScale(scale).SetZeroPosition(zero)
 
-	// ZeroPosition is expressed in post-Scale pixels, so the source pixel it
-	// anchors is ZeroPosition divided by Scale.
-	anchorSourceX, anchorSourceY := zero.X()/scale, zero.Y()/scale
-	wantAnchor := c.WorldToScreen(p)
+	for _, tc := range []struct {
+		name   string
+		sprite *Sprite
+	}{
+		{
+			"no source tile size",
+			NewSprite().SetScale(scale).SetZeroPosition(zero),
+		},
+		{
+			"source tile size 64 at tile size 32, ratio 0.5",
+			NewSprite().SetScale(scale).SetZeroPosition(zero).SetSourceTileSize(64),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := drawOpTestCamera()
+			p := geometry.NewVector2(3, 5)
+			s := tc.sprite
 
-	// The frame's top-left corner, whose distance from the anchor is the drawn
-	// extent the display scale is supposed to shrink.
-	cornerX, cornerY := s.buildDrawOp(p, false, c, 1.0).GeoM.Apply(0, 0)
+			// ZeroPosition is expressed in post-Scale pixels, so the source
+			// pixel it anchors is ZeroPosition divided by Scale.
+			anchorSourceX, anchorSourceY := zero.X()/scale, zero.Y()/scale
+			wantAnchor := c.WorldToScreen(p)
 
-	const eps = 1e-9
-	for _, displayScale := range []float64{1.0, 0.5, 0.25} {
-		op := s.buildDrawOp(p, false, c, displayScale)
+			// The frame's top-left corner, whose distance from the anchor is
+			// the drawn extent the display scale is supposed to shrink.
+			cornerX, cornerY := s.buildDrawOp(p, false, c, 1.0).GeoM.Apply(0, 0)
 
-		gotX, gotY := op.GeoM.Apply(anchorSourceX, anchorSourceY)
-		if diff := gotX - wantAnchor.X(); diff > eps || diff < -eps {
-			t.Errorf("display scale %v: anchor X = %v, want %v", displayScale, gotX, wantAnchor.X())
-		}
-		if diff := gotY - wantAnchor.Y(); diff > eps || diff < -eps {
-			t.Errorf("display scale %v: anchor Y = %v, want %v", displayScale, gotY, wantAnchor.Y())
-		}
+			const eps = 1e-9
+			for _, displayScale := range []float64{1.0, 0.5, 0.25} {
+				op := s.buildDrawOp(p, false, c, displayScale)
 
-		gotCornerX, gotCornerY := op.GeoM.Apply(0, 0)
-		wantCornerX := wantAnchor.X() + (cornerX-wantAnchor.X())*displayScale
-		wantCornerY := wantAnchor.Y() + (cornerY-wantAnchor.Y())*displayScale
-		if diff := gotCornerX - wantCornerX; diff > eps || diff < -eps {
-			t.Errorf("display scale %v: corner X = %v, want %v", displayScale, gotCornerX, wantCornerX)
-		}
-		if diff := gotCornerY - wantCornerY; diff > eps || diff < -eps {
-			t.Errorf("display scale %v: corner Y = %v, want %v", displayScale, gotCornerY, wantCornerY)
-		}
+				gotX, gotY := op.GeoM.Apply(anchorSourceX, anchorSourceY)
+				if diff := gotX - wantAnchor.X(); diff > eps || diff < -eps {
+					t.Errorf("display scale %v: anchor X = %v, want %v", displayScale, gotX, wantAnchor.X())
+				}
+				if diff := gotY - wantAnchor.Y(); diff > eps || diff < -eps {
+					t.Errorf("display scale %v: anchor Y = %v, want %v", displayScale, gotY, wantAnchor.Y())
+				}
+
+				gotCornerX, gotCornerY := op.GeoM.Apply(0, 0)
+				wantCornerX := wantAnchor.X() + (cornerX-wantAnchor.X())*displayScale
+				wantCornerY := wantAnchor.Y() + (cornerY-wantAnchor.Y())*displayScale
+				if diff := gotCornerX - wantCornerX; diff > eps || diff < -eps {
+					t.Errorf("display scale %v: corner X = %v, want %v", displayScale, gotCornerX, wantCornerX)
+				}
+				if diff := gotCornerY - wantCornerY; diff > eps || diff < -eps {
+					t.Errorf("display scale %v: corner Y = %v, want %v", displayScale, gotCornerY, wantCornerY)
+				}
+			}
+		})
 	}
 }
 

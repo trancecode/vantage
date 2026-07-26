@@ -260,7 +260,7 @@ func TestTileSizeOverrideAndFlag(t *testing.T) {
 
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	s.RegisterFlags(fs)
-	if err := fs.Parse([]string{"--tile_size=64"}); err != nil {
+	if err := fs.Parse([]string{"--render_tile_size=64"}); err != nil {
 		t.Fatal(err)
 	}
 	if s.Render.TileSize != 64 {
@@ -275,9 +275,9 @@ func TestValidateRejectsANonPositiveTileSize(t *testing.T) {
 			t.Fatal(err)
 		}
 		s.Render.TileSize = size
-		err = s.validate()
+		err = s.Validate()
 		if err == nil {
-			t.Fatalf("validate accepted a tile size of %v", size)
+			t.Fatalf("Validate accepted a tile size of %v", size)
 		}
 		if !strings.Contains(err.Error(), "tile_size") {
 			t.Fatalf("error does not name the setting: %v", err)
@@ -290,8 +290,8 @@ func TestValidateAcceptsThePositiveDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.validate(); err != nil {
-		t.Fatalf("validate rejected the default settings: %v", err)
+	if err := s.Validate(); err != nil {
+		t.Fatalf("Validate rejected the default settings: %v", err)
 	}
 }
 

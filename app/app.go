@@ -62,7 +62,7 @@ func (a *App) RequestExit() {
 // Run applies settings, sets up the window, initializes scenes, and runs the
 // Ebiten loop. It returns nil on a clean exit.
 func (a *App) Run() error {
-	if err := a.settings.validate(); err != nil {
+	if err := a.settings.Validate(); err != nil {
 		return err
 	}
 	a.settings.Apply()
