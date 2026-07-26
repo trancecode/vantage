@@ -16,6 +16,12 @@ const defaultVerticalTileCount = 20.0
 // where it is used rather than captured, so a game that changes it takes effect
 // everywhere. Games register sprites from init(), before settings are applied,
 // so nothing may freeze this value at construction.
+//
+// Raising it makes every sprite that declares no Sprite.SourceTileSize draw
+// proportionally smaller, since its art is then a smaller fraction of a tile.
+// Nothing reports this, because it is not an error: declaring SourceTileSize is
+// how a sprite says which tile size its art was drawn for, and the engine then
+// corrects its draw so it covers the same fraction of a tile at any TileSize.
 var TileSize float64 = 16
 
 // Camera represents the game's camera.

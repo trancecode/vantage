@@ -144,6 +144,41 @@ xvfb-run -a go run ./cmd/showcasedemo \
 
 Any other name is rejected when settings load, naming the accepted values.
 
+### Pixels per tile
+
+`[render] tile_size` is how many pixels one world tile occupies before camera
+zoom. It defaults to 16, the size the engine used before the setting existed,
+and it sets the showcase's slot size as well as the scale of everything the
+camera draws:
+
+```toml
+[render]
+tile_size = 16
+```
+
+A value of zero or less is a startup error, reported when settings are
+validated and before any of them are applied. The value is a `float64`, so a
+fractional tile size is accepted.
+
+Raising `tile_size` makes every sprite that does not declare a
+`SourceTileSize` draw proportionally smaller, because its art is then a smaller
+fraction of a tile: 16 pixel art at a tile size of 32 covers half a tile.
+Nothing is reported, because nothing is wrong. Declare `SourceTileSize` on a
+sprite to say which tile size its art was drawn for, and the engine corrects
+its draw so it keeps covering the same fraction of a tile.
+
+The `--render_tile_size` flag sets the same thing, so sizes can be compared
+without editing a settings file:
+
+```bash
+xvfb-run -a go run ./cmd/showcasedemo \
+    --width 800 --height 600 \
+    --render_tile_size 32 \
+    --screenshot_path shot.png \
+    --screenshot_delay 500ms \
+    --run_for 1000ms
+```
+
 ### Running the showcase without a game
 
 `cmd/showcasedemo` runs the showcase against procedurally generated placeholder

@@ -11,9 +11,9 @@
 // (default 16) for how many pixels one world tile occupies; a sprite may also
 // declare SourceTileSize, the tile size its art was drawn for, which the
 // engine corrects for at draw time so the same sprite scales correctly under
-// any TileSize. DrawList collects drawable
-// payloads and iterates them in painter's order (ascending layer, then
-// ascending Y) for back-to-front 2D drawing.
+// any TileSize. DrawList collects drawable payloads and iterates them in
+// painter's order (ascending layer, then ascending Y) for back-to-front 2D
+// drawing.
 //
 // SpriteLibrary maps display names to sprites, with the package-level Sprites
 // as the default library a game registers into at init time. SpriteFilter
