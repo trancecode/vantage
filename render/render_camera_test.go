@@ -64,3 +64,55 @@ func TestNewCameraControllerDefaults(t *testing.T) {
 		t.Fatalf("unexpected defaults: MoveSpeed=%v ZoomSpeed=%v", cc.MoveSpeed, cc.ZoomSpeed)
 	}
 }
+
+func TestTileSizeDefaultsTo16(t *testing.T) {
+	// A change to the shipped default silently rescales every consuming game,
+	// so it must be a deliberate act.
+	if TileSize != 16 {
+		t.Fatalf("TileSize = %v, want 16", TileSize)
+	}
+}
+
+func TestEffectiveZoomTracksATileSizeChangedAfterTheCameraWasBuilt(t *testing.T) {
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+
+	c := NewCamera(640, 640)
+	before := c.EffectiveZoom()
+
+	TileSize = 32
+	after := c.EffectiveZoom()
+
+	if after == before {
+		t.Fatal("EffectiveZoom ignored a tile size changed after construction")
+	}
+	if want := before / 2; after != want {
+		t.Fatalf("EffectiveZoom = %v after doubling TileSize, want %v", after, want)
+	}
+}
+
+func TestEffectiveZoomUnchangedAtTheDefaultTileSize(t *testing.T) {
+	// The compatibility guarantee: 640/(20*16) = 2, times a user zoom of 1.
+	c := NewCamera(640, 640)
+	if got := c.EffectiveZoom(); got != 2 {
+		t.Fatalf("EffectiveZoom = %v, want 2", got)
+	}
+}
+
+func TestScreenCameraIgnoresTileSize(t *testing.T) {
+	// A screen-space camera is an identity transform and must not be affected
+	// by the world tile size.
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+
+	c := NewScreenCamera(640, 480)
+	before := c.EffectiveZoom()
+
+	TileSize = 64
+	if after := c.EffectiveZoom(); after != before {
+		t.Fatalf("screen camera EffectiveZoom changed with TileSize: %v then %v", before, after)
+	}
+	if before != 1 {
+		t.Fatalf("screen camera EffectiveZoom = %v, want 1", before)
+	}
+}

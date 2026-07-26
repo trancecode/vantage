@@ -201,7 +201,7 @@ func TestShowcaseGridGeometryIsFixed(t *testing.T) {
 		{"label center X", showcaseLabelCenterX, 0.5},
 		{"sprite label Y", showcaseSpriteLabelY, 1.2},
 		{"animation label Y", showcaseAnimationLabelY, 1.8},
-		{"slot pixels", showcaseSlotPixels, 16.0},
+		{"slot pixels", render.TileSize, 16.0},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("%s = %v, want %v", tc.name, tc.got, tc.want)

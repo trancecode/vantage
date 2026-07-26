@@ -7,16 +7,25 @@ import (
 	"github.com/trancecode/vantage/geometry"
 )
 
-const (
-	TileSize                 = 16
-	defaultVerticalTileCount = 20.0
-)
+// defaultVerticalTileCount is how many tiles a camera shows vertically at a
+// user zoom of 1.
+const defaultVerticalTileCount = 20.0
+
+// TileSize is how many pixels one world tile occupies before camera zoom. It is
+// engine configuration, set through the [render] tile_size setting, and is read
+// where it is used rather than captured, so a game that changes it takes effect
+// everywhere. Games register sprites from init(), before settings are applied,
+// so nothing may freeze this value at construction.
+var TileSize float64 = 16
 
 // Camera represents the game's camera.
 type Camera struct {
-	pos                       geometry.Vector2
-	zoom                      float64
-	screenMultiplier          float64 // Multiplier to normalize zoom across different screen sizes
+	pos  geometry.Vector2
+	zoom float64
+	// fixedScreenMultiplier overrides the tile-derived multiplier when non-zero,
+	// which is what makes a screen-space camera an identity transform. Zero means
+	// derive it from the screen height and the current TileSize.
+	fixedScreenMultiplier     float64
 	minZoom                   float64
 	maxZoom                   float64
 	screenWidth, screenHeight int
@@ -24,18 +33,13 @@ type Camera struct {
 
 // NewCamera creates and returns a new Camera with default values.
 func NewCamera(screenWidth, screenHeight int) *Camera {
-	// Calculate multiplier to show exactly defaultVerticalTileCount tiles vertically
-	targetTilesVertical := defaultVerticalTileCount
-	screenMultiplier := float64(screenHeight) / (targetTilesVertical * TileSize)
-
 	return &Camera{
-		pos:              geometry.Zero2D(),
-		zoom:             1.0, // User-facing default zoom is 1.0
-		screenMultiplier: screenMultiplier,
-		minZoom:          0.2,
-		maxZoom:          5,
-		screenWidth:      screenWidth,
-		screenHeight:     screenHeight,
+		pos:          geometry.Zero2D(),
+		zoom:         1.0, // User-facing default zoom is 1.0
+		minZoom:      0.2,
+		maxZoom:      5,
+		screenWidth:  screenWidth,
+		screenHeight: screenHeight,
 	}
 }
 
@@ -44,13 +48,13 @@ func NewCamera(screenWidth, screenHeight int) *Camera {
 // making it suitable for UI elements that should remain in screen coordinates.
 func NewScreenCamera(screenWidth, screenHeight int) *Camera {
 	return &Camera{
-		pos:              geometry.Zero2D(),
-		zoom:             1,
-		screenMultiplier: 1.0,
-		minZoom:          1,
-		maxZoom:          1,
-		screenWidth:      screenWidth,
-		screenHeight:     screenHeight,
+		pos:                   geometry.Zero2D(),
+		zoom:                  1,
+		fixedScreenMultiplier: 1.0,
+		minZoom:               1,
+		maxZoom:               1,
+		screenWidth:           screenWidth,
+		screenHeight:          screenHeight,
 	}
 }
 
@@ -85,7 +89,18 @@ func (c *Camera) Zoom() float64 {
 // normalization factor so that a given user zoom frames the same number of
 // tiles on any resolution.
 func (c *Camera) EffectiveZoom() float64 {
-	return c.zoom * c.screenMultiplier
+	return c.zoom * c.screenMultiplier()
+}
+
+// screenMultiplier normalizes zoom across screen sizes, so a camera shows
+// defaultVerticalTileCount tiles vertically at a user zoom of 1. It is computed
+// on demand rather than stored, so a tile size configured after the camera was
+// built still applies.
+func (c *Camera) screenMultiplier() float64 {
+	if c.fixedScreenMultiplier != 0 {
+		return c.fixedScreenMultiplier
+	}
+	return float64(c.screenHeight) / (defaultVerticalTileCount * TileSize)
 }
 
 // MinZoom returns the minimum user-level zoom the camera clamps to.

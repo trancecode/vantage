@@ -40,15 +40,11 @@ const (
 	// showcaseColumnsPerRow caps how many single-animation sprites share a row,
 	// so their labels do not overlap.
 	showcaseColumnsPerRow = 10
-	// showcaseSlotPixels is the side of the square each cell gives its art, in
-	// pixels. One tile, which is the size the pitches and label offsets above
-	// leave room for.
-	showcaseSlotPixels = render.TileSize
 )
 
 // showcaseFitScale returns the display scale that fits a sprite's art inside
-// one cell's slot: the largest frame dimension across its animations,
-// multiplied by the sprite's own Scale, divided into showcaseSlotPixels.
+// one cell's slot, which is one tile: the largest frame dimension across its
+// animations, multiplied by the sprite's own Scale, divided into render.TileSize.
 //
 // The result is capped at 1, so oversized art shrinks but art at or below a
 // slot is left at its natural size rather than blown up. Magnifying it would
@@ -77,7 +73,7 @@ func showcaseFitScale(sprite *render.Sprite) float64 {
 	if artPixels <= 0 {
 		return 1.0
 	}
-	return min(1.0, showcaseSlotPixels/artPixels)
+	return min(1.0, render.TileSize/artPixels)
 }
 
 // showcaseLabelBackground is the semi-transparent backdrop that keeps labels
