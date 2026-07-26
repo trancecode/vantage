@@ -30,3 +30,4 @@ level = "info"
 [render]
 use_placeholder_sprite_images = false
 filter = "nearest"
+tile_size = 16

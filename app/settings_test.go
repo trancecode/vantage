@@ -238,3 +238,73 @@ func TestApplySetsSpriteFilter(t *testing.T) {
 		t.Fatalf("Apply did not set render.SpriteFilter: %v", render.SpriteFilter)
 	}
 }
+
+func TestLoadSettingsTileSizeDefaultsTo16(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Render.TileSize != 16 {
+		t.Fatalf("render.tile_size default = %v, want 16", s.Render.TileSize)
+	}
+}
+
+func TestTileSizeOverrideAndFlag(t *testing.T) {
+	s, err := LoadSettings("", []string{"render.tile_size=32"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Render.TileSize != 32 {
+		t.Fatalf("render.tile_size = %v, want 32", s.Render.TileSize)
+	}
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	s.RegisterFlags(fs)
+	if err := fs.Parse([]string{"--tile_size=64"}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Render.TileSize != 64 {
+		t.Fatalf("flag did not override render.tile_size: %v", s.Render.TileSize)
+	}
+}
+
+func TestValidateRejectsANonPositiveTileSize(t *testing.T) {
+	for _, size := range []float64{0, -16} {
+		s, err := LoadSettings("", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Render.TileSize = size
+		err = s.validate()
+		if err == nil {
+			t.Fatalf("validate accepted a tile size of %v", size)
+		}
+		if !strings.Contains(err.Error(), "tile_size") {
+			t.Fatalf("error does not name the setting: %v", err)
+		}
+	}
+}
+
+func TestValidateAcceptsThePositiveDefault(t *testing.T) {
+	s, err := LoadSettings("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.validate(); err != nil {
+		t.Fatalf("validate rejected the default settings: %v", err)
+	}
+}
+
+func TestApplySetsTileSize(t *testing.T) {
+	original := render.TileSize
+	t.Cleanup(func() { render.TileSize = original })
+
+	s, err := LoadSettings("", []string{"render.tile_size=32"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Apply()
+	if render.TileSize != 32 {
+		t.Fatalf("Apply did not set render.TileSize: %v", render.TileSize)
+	}
+}

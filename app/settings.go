@@ -79,6 +79,7 @@ type LogSettings struct {
 type RenderSettings struct {
 	UsePlaceholderSpriteImages bool          `toml:"use_placeholder_sprite_images"`
 	Filter                     FilterSetting `toml:"filter"`
+	TileSize                   float64       `toml:"tile_size"`
 }
 
 // FilterSetting is the texture filter used when sprites are drawn at anything
@@ -151,6 +152,17 @@ func (s *Settings) RegisterFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&s.Run.For.Duration, "run_for", s.Run.For.Duration, "Exit after this duration (0 = run until closed)")
 	fs.StringVar(&s.Log.Level, "log_level", s.Log.Level, "Minimum log level: trace, debug, info, warn, error")
 	fs.Var(&s.Render.Filter, "render_filter", "Texture filter for scaled sprites: nearest or linear")
+	fs.Float64Var(&s.Render.TileSize, "tile_size", s.Render.TileSize,
+		"Pixels per world tile before camera zoom")
+}
+
+// validate reports a setting whose value cannot be used. Call it before Apply,
+// so a bad value is a startup error rather than a global set to nonsense.
+func (s *Settings) validate() error {
+	if s.Render.TileSize <= 0 {
+		return fmt.Errorf("render.tile_size must be positive, got %v", s.Render.TileSize)
+	}
+	return nil
 }
 
 // Apply applies the settings that control engine-global toggles.
@@ -158,4 +170,5 @@ func (s *Settings) Apply() {
 	util.DebugMode = s.Debug.Enabled
 	render.UsePlaceholderSpriteImages = s.Render.UsePlaceholderSpriteImages
 	render.SpriteFilter = s.Render.Filter.Filter
+	render.TileSize = s.Render.TileSize
 }
