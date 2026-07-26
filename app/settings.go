@@ -149,7 +149,7 @@ func (s *Settings) RegisterFlags(fs *flag.FlagSet) {
 	fs.StringSliceVar(&s.Scene.Show, "scene", s.Scene.Show,
 		"Show only the named scenes and focus the first (repeatable)")
 	fs.Float64Var(&s.Scene.ShowcaseSlotTiles, "scene_showcase_slot_tiles", s.Scene.ShowcaseSlotTiles,
-		"Tiles square of the slot the sprite showcase gives each cell's art")
+		"Sprite showcase slot size, in tiles square")
 	fs.BoolVar(&s.Debug.Enabled, "debug", s.Debug.Enabled, "Enable debug mode")
 	fs.BoolVar(&s.Debug.HTTPEnabled, "enable_debug_http_server", s.Debug.HTTPEnabled, "Enable the debug HTTP server")
 	fs.IntVar(&s.Debug.HTTPPort, "debug_http_port", s.Debug.HTTPPort, "Port for the debug HTTP server")

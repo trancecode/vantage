@@ -222,8 +222,9 @@ as `IdleDown`. A game's own animation types, at or above
 stringer's placeholder, `AnimationType(64)` and so on, which is unreadable in a
 label.
 
-Register a name for each with `render.RegisterAnimationName`, typically from an
-`init` function so every sprite built afterwards already has readable labels:
+Register a name for each with `render.RegisterAnimationName`. Names are looked
+up when a label is drawn, not when a sprite is built, so registering any time
+before the first frame works. An `init` function is the simplest place:
 
 ```go
 const (

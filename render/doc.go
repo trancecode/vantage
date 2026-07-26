@@ -8,10 +8,9 @@
 // RegisterAnimationName gives an AnimationType a display name for labels such
 // as the sprite showcase's; AnimationName returns it, falling back to the
 // type's generated String with the engine's Animation prefix trimmed.
-// TextWriter
-// renders text using loaded fonts. DrawNameplate and DrawFloatingBar anchor a
-// label or a fraction bar a constant screen-pixel gap above a sprite, staying
-// correctly placed across camera zoom. TileSize is engine configuration
+// TextWriter renders text using loaded fonts. DrawNameplate and DrawFloatingBar
+// anchor a label or a fraction bar a constant screen-pixel gap above a sprite,
+// staying correctly placed across camera zoom. TileSize is engine configuration
 // (default 16) for how many pixels one world tile occupies; a sprite may also
 // declare SourceTileSize, the tile size its art was drawn for, which the
 // engine corrects for at draw time so the same sprite scales correctly under

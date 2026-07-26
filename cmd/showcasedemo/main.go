@@ -44,8 +44,8 @@ const frameInset = 8
 
 // Directional animation types for the demo's own SourceTileSize sprite below,
 // defined at render.AnimationGameBase and up like any game-defined animation
-// state. Their names are registered in init, before registerSprites builds
-// anything that uses them.
+// state. Their names are registered in init, which is well before the first
+// frame reads them.
 const (
 	animationSouth render.AnimationType = render.AnimationGameBase + iota
 	animationEast
@@ -54,8 +54,9 @@ const (
 )
 
 // init registers display names for this demo's own animation types, the same
-// way a game registers names for its facings, before any sprite using them is
-// built.
+// way a game registers names for its facings. Names are read when a label is
+// drawn, not when a sprite is built, so any point before the first frame would
+// do.
 func init() {
 	render.RegisterAnimationName(animationSouth, "S")
 	render.RegisterAnimationName(animationEast, "E")
