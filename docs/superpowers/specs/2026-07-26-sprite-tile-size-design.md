@@ -55,8 +55,35 @@ Every use of it inside the engine is already float64 arithmetic, and so is every
 use in the two consuming games. All eight consumer call sites were checked:
 `lockstep/shell/shell_draw.go:272,284`, `lockstep/shell/shell_scene.go:404,405,410,411`
 and `nrg/rts/rts_scene.go:137,138`. Each multiplies or divides a float64, so
-giving `TileSize` a concrete float64 type compiles unchanged. Nothing uses it in
-a `const` declaration, which would have blocked the change outright.
+giving `TileSize` a concrete float64 type compiles unchanged.
+
+One place in the engine does have to change. `scene/scene_spriteshowcase.go:46`
+declares `showcaseSlotPixels = render.TileSize` inside a `const` block, which
+stops compiling the moment `TileSize` is a variable. It becomes a variable too,
+or better, the showcase reads `render.TileSize` where it needs it, since a slot
+frozen at load time would ignore a configured tile size for the same reason
+described under the initialization-order trap below. No consumer has this
+problem; only vantage's own showcase does.
+
+### Why a variable rather than an accessor
+
+An exported variable can be assigned by a game, which an accessor would prevent.
+It is still the right choice.
+
+`Settings.Apply` has to set the value, so an accessor implies an exported
+`SetTileSize` beside it, and a game can call a late setter exactly as easily as
+it can assign a late variable. The encapsulation does not prevent mistimed
+changes, it only adds a step. Validation is the one thing it would genuinely
+buy, and that already comes from `Settings.validate()` at startup.
+
+Against it, the engine already treats global configuration as exported mutable
+state, in `render.UsePlaceholderSpriteImages`, `render.SpriteFilter`,
+`render.Sprites` and `util.DebugMode`, the last of which F12 deliberately
+toggles while running. An accessor here would be the exception. It would also
+turn an upgrade that needs no consumer edits into one that rewrites all eight
+call sites as `render.TileSize()`.
+
+The hazard worth fixing is not mutability but capture, covered next.
 
 `app.RenderSettings` gains `TileSize float64` with a `[render] tile_size`
 default of 16, a `--tile_size` flag, and `Settings.Apply` assigning it to
@@ -155,6 +182,29 @@ the single most important constraint in this document, because getting it wrong
 produces art that is correct in a game using the default tile size and subtly
 wrong in every other, with no error anywhere.
 
+### The camera already captures it
+
+`NewCamera` (`render/render_camera.go:29`) computes
+`screenMultiplier = screenHeight / (defaultVerticalTileCount * TileSize)` once,
+at construction, and stores it. Every zoom calculation then runs through that
+stored number.
+
+This is the trap already present in the code, and it is the reason mutability is
+not the thing to worry about. A camera built before the tile size is configured
+keeps scaling by the old value, silently, and no accessor or setter prevents it,
+because the freezing happens on read rather than on write.
+
+`Camera` therefore stops storing `screenMultiplier` and computes it where it is
+used, in `EffectiveZoom`. It is a division per call on a value already read every
+frame, so the cost does not signify, and it removes the only place in the engine
+where the tile size is frozen. With that done, a game assigning `render.TileSize`
+at any point behaves correctly rather than half-correctly.
+
+Scene cameras are built in `Scene.Init`, which now runs from `App.Layout` and so
+after `Settings.Apply`, meaning settings-driven configuration is already safe
+today. The fix is for everything else: a game constructing its own camera, and
+any later change to the tile size.
+
 ## Non-goals
 
 * No asset modules. Declaring a source tile size is what would eventually let a
@@ -171,9 +221,12 @@ wrong in every other, with no error anywhere.
   the engine's existing one-anchor-per-sprite model.
 * No runtime tile size changes. It is read at draw time, so a change would take
   effect, but nothing supports or tests reconfiguring a running game.
-* No change to how the sprite showcase sizes its slots. That is a separate piece
-  of work which this change makes tractable, since a sprite's footprint in tiles
-  becomes derivable rather than guessed.
+* No change to how the sprite showcase sizes its slots, beyond the mechanical
+  one its `const` forces. That is a separate piece of work which this change
+  makes tractable, since a sprite's footprint in tiles becomes derivable rather
+  than guessed.
+* No accessor for the tile size, and no attempt to stop a game assigning it. See
+  the reasoning above; the capture fix is what makes assignment safe.
 
 ## Testing
 
@@ -193,6 +246,14 @@ wrong in every other, with no error anywhere.
   is the compatibility guarantee for every existing sprite.
 * `SetSourceTileSize` clears the visible-extent caches.
 * `VisibleTopAboveZero` accounts for the ratio.
+
+* `Camera.EffectiveZoom` tracks a tile size changed after the camera was built,
+  which is the regression guard for the capture described above. Building a
+  camera, changing `render.TileSize`, and reading `EffectiveZoom` must reflect
+  the new value.
+* A camera built at a given screen height reports the same effective zoom as
+  before this change when the tile size is left at its default, which is the
+  compatibility guarantee for existing games.
 
 `app`:
 
