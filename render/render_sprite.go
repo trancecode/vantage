@@ -20,6 +20,13 @@ type Sprite struct {
 	Scale        float64
 	Type         SpriteType
 
+	// SourceTileSize is the tile size this sprite's art was drawn for. Zero
+	// means it was drawn for whatever the game's tile size is, so no correction
+	// applies. It is authorial metadata and is never inferred from the image: a
+	// 64 pixel image drawn for 128 pixel tiles and a 64 pixel image drawn for 32
+	// pixel tiles are different sprites that happen to share a file size.
+	SourceTileSize float64
+
 	// cachedVisibleTopAboveZero caches the result of VisibleTopAboveZero.
 	cachedVisibleTopAboveZero *float64
 
@@ -123,8 +130,8 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 }
 
 // buildDrawOp builds the draw options for the sprite at world-tile position p:
-// sprite scale combined with displayScale, zero-position offset, optional
-// horizontal flip, then the camera transform.
+// sprite scale combined with the tile ratio and displayScale, zero-position
+// offset, optional horizontal flip, then the camera transform.
 //
 // displayScale multiplies s.Scale instead of replacing it, and the
 // zero-position offset is multiplied by it as well. Because that offset is
@@ -135,8 +142,15 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.Filter = SpriteFilter
-	op.GeoM.Scale(s.Scale*displayScale, s.Scale*displayScale)
-	op.GeoM.Translate(-s.ZeroPosition.X()*displayScale, -s.ZeroPosition.Y()*displayScale)
+	// The tile ratio is an engine-applied uniform scale about the anchor, so it
+	// multiplies in exactly where displayScale does. ZeroPosition keeps its
+	// existing meaning, in Scale-applied pixels, which is why the translate does
+	// not include Scale.
+	ratio := s.tileRatio()
+	scale := s.Scale * ratio * displayScale
+	op.GeoM.Scale(scale, scale)
+	anchor := ratio * displayScale
+	op.GeoM.Translate(-s.ZeroPosition.X()*anchor, -s.ZeroPosition.Y()*anchor)
 	if requiresFlip {
 		op.GeoM.Scale(-1, 1)
 	}
@@ -245,10 +259,13 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 
 // VisibleTopAboveZero returns how far the visible sprite content
 // (non-transparent pixels) extends above ZeroPosition in one frame, measured in
-// drawn pixels: the frame is scaled by Scale before the zero-position offset is
-// applied (see buildDrawOp), so the row offset is multiplied by Scale to match
-// what ends up on screen. Frames across animations share the same size and
-// layout, so the result is computed once from any available frame and cached.
+// drawn pixels including the tile ratio: the frame is scaled by Scale before
+// the zero-position offset is applied (see buildDrawOp), so the row offset is
+// multiplied by Scale to match what ends up on screen. Frames across
+// animations share the same size and layout, so the result is computed once
+// from any available frame and cached; the cache holds the pre-ratio value, so
+// the ratio is applied fresh on every call and a tile size changed after the
+// first call still takes effect.
 //
 // Use this instead of the raw frame height when placing UI elements (like
 // nameplates) above a sprite: transparent padding at the top of the frame is
@@ -261,7 +278,7 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 // multiplies this result by that same scale.
 func (s *Sprite) VisibleTopAboveZero() float64 {
 	if s.cachedVisibleTopAboveZero != nil {
-		return *s.cachedVisibleTopAboveZero
+		return *s.cachedVisibleTopAboveZero * s.tileRatio()
 	}
 
 	var img *ebiten.Image
@@ -295,13 +312,30 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 	}
 
 	s.cachedVisibleTopAboveZero = &result
-	return result
+	return result * s.tileRatio()
 }
 
 // SetScale sets the scale of the sprite.
 func (s *Sprite) SetScale(scale float64) *Sprite {
 	s.Scale = scale
 	return s
+}
+
+// SetSourceTileSize sets the tile size this sprite's art was drawn for and
+// returns the sprite, so it chains with the other setters.
+func (s *Sprite) SetSourceTileSize(size float64) *Sprite {
+	s.SourceTileSize = size
+	return s
+}
+
+// tileRatio is the scale that maps art drawn for SourceTileSize onto the game's
+// current TileSize. It is computed on every call rather than stored, because
+// sprites are built from init() before settings are applied.
+func (s *Sprite) tileRatio() float64 {
+	if s.SourceTileSize <= 0 {
+		return 1.0
+	}
+	return TileSize / s.SourceTileSize
 }
 
 // SetZeroPosition sets the zero position of the sprite.

@@ -139,3 +139,177 @@ func TestDrawAnimationScaledDrawsEveryDisplayScale(t *testing.T) {
 		s.DrawAnimationScaled(screen, c, p, AnimationIdleLeft, 100*time.Millisecond, displayScale)
 	}
 }
+
+// TestTileRatioIsOneWithoutASourceTileSize covers the compatibility
+// guarantee: a sprite that never opts into a source tile size sees no
+// correction, whatever nonsensical value SourceTileSize might hold.
+func TestTileRatioIsOneWithoutASourceTileSize(t *testing.T) {
+	for _, source := range []float64{0, -1, -64} {
+		s := NewSprite()
+		s.SourceTileSize = source
+		if got := s.tileRatio(); got != 1.0 {
+			t.Fatalf("tileRatio with SourceTileSize %v = %v, want 1", source, got)
+		}
+	}
+}
+
+// TestTileRatioScalesArtToTheGameTileSize covers the core mapping: art drawn
+// for a source tile size is scaled onto the game's current TileSize.
+func TestTileRatioScalesArtToTheGameTileSize(t *testing.T) {
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+
+	TileSize = 32
+	for _, tc := range []struct {
+		source float64
+		want   float64
+	}{
+		{32, 1.0}, // drawn for the game's own tile size
+		{64, 0.5}, // finer art, drawn down
+		{16, 2.0}, // coarser art, drawn up
+	} {
+		s := NewSprite().SetSourceTileSize(tc.source)
+		if got := s.tileRatio(); got != tc.want {
+			t.Fatalf("tileRatio for source %v at TileSize 32 = %v, want %v", tc.source, got, tc.want)
+		}
+	}
+}
+
+// TestSetSourceTileSizeChains covers that SetSourceTileSize both sets the
+// field and returns the sprite, like the other chainable setters.
+func TestSetSourceTileSizeChains(t *testing.T) {
+	s := NewSprite()
+	if got := s.SetSourceTileSize(64); got != s {
+		t.Fatal("SetSourceTileSize did not return the sprite")
+	}
+	if s.SourceTileSize != 64 {
+		t.Fatalf("SourceTileSize = %v, want 64", s.SourceTileSize)
+	}
+}
+
+// TestBuildDrawOpUnchangedWithoutASourceTileSize is the compatibility
+// guarantee: a sprite that does not opt in draws exactly as it did before
+// source tile sizes existed.
+func TestBuildDrawOpUnchangedWithoutASourceTileSize(t *testing.T) {
+	c := drawOpTestCamera()
+	s := NewSprite().SetScale(2).SetZeroPosition(geometry.NewVector2(8, 24))
+
+	got := s.buildDrawOp(geometry.NewVector2(3, 4), false, c, 1.0)
+
+	want := &ebiten.DrawImageOptions{}
+	want.GeoM.Scale(2, 2)
+	want.GeoM.Translate(-8, -24)
+	c.Adjust(want, geometry.NewVector2(3, 4))
+
+	if !geoMEquals(got, want) {
+		t.Fatalf("GeoM = %v, want %v", got.GeoM, want.GeoM)
+	}
+}
+
+// TestBuildDrawOpAppliesTheTileRatio covers that the ratio alone, with no
+// sprite scale, shrinks the draw as buildDrawOp's doc comment describes.
+func TestBuildDrawOpAppliesTheTileRatio(t *testing.T) {
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+	TileSize = 32
+
+	c := drawOpTestCamera()
+	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
+
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 1.0)
+
+	want := &ebiten.DrawImageOptions{}
+	want.GeoM.Scale(0.5, 0.5)
+	c.Adjust(want, geometry.NewVector2(0, 0))
+
+	if !geoMEquals(got, want) {
+		t.Fatalf("GeoM = %v, want %v", got.GeoM, want.GeoM)
+	}
+}
+
+// TestBuildDrawOpComposesScaleRatioAndDisplayScale covers that the sprite
+// scale, the tile ratio and the display scale all multiply into one uniform
+// scale rather than only one of them taking effect.
+func TestBuildDrawOpComposesScaleRatioAndDisplayScale(t *testing.T) {
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+	TileSize = 32
+
+	c := drawOpTestCamera()
+	s := NewSprite().SetScale(3).SetSourceTileSize(64) // ratio 0.5
+
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 2.0)
+
+	// 3 * 0.5 * 2 = 3
+	want := &ebiten.DrawImageOptions{}
+	want.GeoM.Scale(3, 3)
+	c.Adjust(want, geometry.NewVector2(0, 0))
+
+	if !geoMEquals(got, want) {
+		t.Fatalf("GeoM = %v, want %v", got.GeoM, want.GeoM)
+	}
+}
+
+// TestTileRatioScalesTheAnchor covers that the anchored point lands on the
+// same world position whatever the ratio, so the translate offset scales with
+// it exactly as it does with displayScale.
+func TestTileRatioScalesTheAnchor(t *testing.T) {
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+	TileSize = 32
+
+	c := drawOpTestCamera()
+	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
+
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 1.0)
+
+	want := &ebiten.DrawImageOptions{}
+	want.GeoM.Scale(0.5, 0.5)
+	want.GeoM.Translate(-0*0.5, -0*0.5)
+	c.Adjust(want, geometry.NewVector2(0, 0))
+
+	if !geoMEquals(got, want) {
+		t.Fatalf("GeoM = %v, want %v", got.GeoM, want.GeoM)
+	}
+
+	// With a real anchor, the translate is the anchor times the ratio.
+	s = NewSprite().SetSourceTileSize(64).SetZeroPosition(geometry.NewVector2(10, 20))
+	got = s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 1.0)
+
+	want = &ebiten.DrawImageOptions{}
+	want.GeoM.Scale(0.5, 0.5)
+	want.GeoM.Translate(-10*0.5, -20*0.5)
+	c.Adjust(want, geometry.NewVector2(0, 0))
+
+	if !geoMEquals(got, want) {
+		t.Fatalf("anchored GeoM = %v, want %v", got.GeoM, want.GeoM)
+	}
+}
+
+// TestVisibleTopAboveZeroScalesWithTheTileRatio covers that the tile ratio is
+// applied on every return path from the cache, so a tile size change after
+// the sprite's visible extent was first measured is still picked up.
+//
+// Seeded rather than measured: VisibleTopAboveZero scans pixels with img.At,
+// which cannot run outside an ebiten.RunGame loop. The cache holds the
+// pre-ratio value, so seeding it is exactly what a prior measurement would
+// have left behind.
+func TestVisibleTopAboveZeroScalesWithTheTileRatio(t *testing.T) {
+	original := TileSize
+	t.Cleanup(func() { TileSize = original })
+
+	cached := 12.0
+	s := NewSprite()
+	s.cachedVisibleTopAboveZero = &cached
+
+	if got := s.VisibleTopAboveZero(); got != cached {
+		t.Fatalf("VisibleTopAboveZero = %v without a source tile size, want %v", got, cached)
+	}
+
+	s.SetSourceTileSize(32)
+	TileSize = 16 // ratio 0.5
+
+	if got, want := s.VisibleTopAboveZero(), cached/2; got != want {
+		t.Fatalf("VisibleTopAboveZero = %v at ratio 0.5, want %v", got, want)
+	}
+}
