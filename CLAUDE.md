@@ -73,11 +73,12 @@ Vantage is a reusable 2D game engine built on [Ebitengine](https://ebitengine.or
 
 ### Go Version Consistency
 
-The whole repository uses a single Go version.
+The `go` directive in `go.mod` is the single source of truth for the repository's Go version, and the only place in the live tree that names one. (Dated plan records under `docs/superpowers/plans/` quote the version that was current when they were written; they are historical records, not configuration, and are not kept in sync.)
 
-* `go.mod` is the canonical Go version for the repository. Its `go` directive defines the version every other surface must match.
-* All other Go-version references (workflow `go-version` references, Dockerfiles, tool configs) must equal the `go.mod` version. There is no intentional version skew.
-* If you add a new file that references a Go version, register it wherever the version-sync check looks so it stays in sync. Forgetting to do so silently reintroduces version skew.
+* Never hardcode a `go-version:` literal in a workflow. Use `go-version-file: go.mod` with `actions/setup-go` so the version follows `go.mod` automatically.
+* The same rule applies to any other surface that needs a Go version (Dockerfiles, tool configs): derive it from `go.mod` rather than repeating it. A second copy of the version can drift; there is no sync check to catch it.
+* `.github/workflows/check-go-version.yml` runs weekly and compares the `go` directive against the latest stable Go release. When the repository falls behind, it opens a `claude`-labelled issue asking for the bump.
+* That workflow deliberately only opens an issue, never a pull request. A workflow that crafted the bump itself would have to push it with the built-in `GITHUB_TOKEN`, which may not push commits touching files under `.github/workflows/` — the failure mode that sank an earlier design, back when the version had to be updated in a workflow file too. Keeping the workflow out of the git plumbing entirely also keeps the bump on the normal pull-request path, where the checks that matter for a compiler upgrade actually run.
 
 ### Go-Specific Testing Requirements
 
