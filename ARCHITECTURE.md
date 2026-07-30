@@ -136,8 +136,8 @@ the simulation stack (its `core` package wires exactly the pattern above).
 * Prefer contributing missing ECS capabilities upstream to `trancecode/ecs`
   rather than re-introducing boilerplate in a consuming package.
 * Run the required checks before pushing: `task lint` (which includes
-  `task test:nodisplay`), `task test:headless` (the `render`, `ui`, `scene`, and
-  `app` packages need a display, provided by xvfb in that target), and
-  `go vet ./...`. Set `GOMODCACHE=/tmp/go-mod-cache`.
+  `task test:nodisplay`), `task test:headless` (the presentation stack needs a
+  display, provided by xvfb in that target), and `go vet ./...`. Set
+  `GOMODCACHE=/tmp/go-mod-cache`.
 * Larger subsystems get a design spec under `docs/superpowers/specs/` before
   implementation; keep it as the durable rationale.

@@ -52,8 +52,12 @@ echo "Checking that ${#HEADLESS_PACKAGES[@]} packages link without Ebitengine...
 FOUND_ISSUES=0
 for pkg in "${HEADLESS_PACKAGES[@]}"; do
     # -test covers the test binary too, since the acceptance is that these
-    # packages can also be tested without a display.
-    if go list -deps -test "$pkg" | grep -q 'hajimehoshi/ebiten'; then
+    # packages can also be tested without a display. The deps go through a
+    # variable rather than a pipe into grep -q: under pipefail, a grep that
+    # exits on the first match can leave go list killed by SIGPIPE, and the
+    # non-zero pipeline status would read as "no match".
+    deps=$(go list -deps -test "$pkg")
+    if grep -q 'hajimehoshi/ebiten' <<<"$deps"; then
         echo "Error: $pkg pulls Ebitengine into its dependency graph"
         echo "  Run: go list -deps -test $pkg | grep ebiten"
         FOUND_ISSUES=1
