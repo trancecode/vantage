@@ -35,8 +35,8 @@ tasks:
       apply the patch, then review it: the fixers occasionally leave a redundant
       assignment behind.
 
-      The tool skips files excluded by build tags, so the race-tagged sources are
-      checked in a second pass.
+      The tool skips files excluded by build tags, so a second pass covers the
+      sources that only build under the race tag.
     cmds:
       - go fix -diff ./...
       - go fix -diff -tags race ./...
@@ -52,6 +52,18 @@ tasks:
     desc: Run tests with a virtual display (for Ebiten/CI)
     cmds:
       - xvfb-run -a go test -v ./...
+
+  test:nodisplay:
+    desc: Check the graphics-free packages build and test with no display at all
+    summary: |
+      Runs scripts/check-headless-packages.sh, which fails if a package outside
+      the presentation stack pulls Ebitengine into its dependency graph, then
+      builds and runs those packages' tests with DISPLAY unset and no xvfb.
+
+      This is what a headless consumer does: a server-side simulation or a CI
+      job that links the simulation stack and never opens a window.
+    cmds:
+      - ./scripts/check-headless-packages.sh
 
   lint:
     desc: Run linters and helper checks
@@ -72,6 +84,7 @@ tasks:
         fi
       - xvfb-run -a go test -race -short ./...
       - ./scripts/check-multiple-blank-lines.sh
+      - task: test:nodisplay
 
   setup:
     desc: Download dependencies for a fresh checkout
