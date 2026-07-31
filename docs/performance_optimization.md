@@ -59,12 +59,42 @@ reschedules (stagger) and cancels (interrupt/death) are occasional and the queue
 holds roughly one event per active entity; revisit only if reschedule/cancel
 shows up as hot in a profile.
 
+## Per-search allocation in A* (pathfinding/astar.go)
+
+`FindPath` allocates a `map[Coord]*pathNode`, a heap, and one `pathNode` per
+touched tile on every call. Benchmarks (`pathfinding/astar_bench_test.go`)
+measure a 256-tile journey at ~314 µs with 810 allocations and 129 kB, roughly
+1.2 µs per expanded tile, which is dominated by hashing and node allocation
+rather than by the search itself. Storing nodes by value in a
+`map[Coord]pathNode` (with `parent` as a `Coord`), or backing the node store
+with a dense per-map slice reused across calls, would remove almost all of it.
+Left as-is because the measured blocker was never the cost of a successful
+search but the cost of an unsuccessful one, which is now rejected up front; see
+[pathfinding_performance.md](pathfinding_performance.md). Revisit if long
+journeys are re-planned often enough for the constant factor to matter, which
+would also make path caching with explicit invalidation worth having.
+
+## Distant unreachable goals still flood the map (pathfinding/astar.go)
+
+`FindPath` rejects a goal whose own tile or whose every neighbour is unenterable
+without searching, which covers agents converging on one destination. A goal cut
+off by a barrier further away is still established as unreachable the only way
+A* can: by expanding every reachable tile, ~92k expansions and ~130 ms on a
+304x304 map. Ruling it out cheaply needs connectivity components (a per-tile
+region id, recomputed or repaired when terrain changes), which is a design
+decision about terrain-change notification rather than a local optimization.
+Left undone until a workload actually routes toward walled-off goals; see
+[pathfinding_performance.md](pathfinding_performance.md).
+
 ## Path-following search costs (motion/motion_towards.go)
 
 `MoveEntityTowardsArea` searches concentric square rings around the area center
 and calls `FindPathBetween` (a full A* run) for every candidate tile in every
 ring, so a single bounded move step can trigger dozens of full pathfinding
-searches. A cheaper reachability probe, memoization of results across
+searches. Candidates already taken by another agent used to cost a full map
+flood each; `FindPath` now rejects those up front, so what remains is dozens of
+ordinary searches rather than dozens of worst-case ones. A cheaper reachability
+probe, memoization of results across
 candidates, or a single multi-goal search from the entity would cut this
 substantially. Separately, `MoveEntityTowards`'s fallback (taken whenever no
 waypoint on the direct path is reachable) scans an O(maxTileDistance^2) grid of
