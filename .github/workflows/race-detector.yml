@@ -1,4 +1,4 @@
-name: Code Analysis
+name: Race Detector
 
 on:
   push:
@@ -11,9 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  analysis:
-    uses: trancecode/github-workflows/.github/workflows/go-analysis.yml@main
+  race:
+    uses: trancecode/github-workflows/.github/workflows/go-race.yml@main
     with:
       system-packages: 'libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config xorg-dev'
-      golangci-args: '--disable=staticcheck'
-      staticcheck-checks: 'inherit'
+      xvfb: true
