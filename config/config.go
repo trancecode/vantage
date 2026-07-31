@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"reflect"
 	"strings"
@@ -88,6 +89,9 @@ func (l *Loader) AddDefaultsFile(path string) error {
 
 // Load applies the configured layers into the registered targets. localPath may
 // be empty (skipped) or name a file that need not exist (skipped when absent).
+// A platform with no filesystem at all (js/wasm, where every file operation
+// reports ENOSYS) counts as absent too, so a browser build falls back to the
+// defaults rather than failing to start.
 func (l *Loader) Load(localPath string, overrides []string) error {
 	for i, doc := range l.defaults {
 		if err := l.decodeAll(doc); err != nil {
@@ -97,7 +101,7 @@ func (l *Loader) Load(localPath string, overrides []string) error {
 	if localPath != "" {
 		data, err := os.ReadFile(localPath)
 		if err != nil {
-			if !os.IsNotExist(err) {
+			if !localConfigAbsent(err) {
 				return fmt.Errorf("reading config file %q: %w", localPath, err)
 			}
 		} else if err := l.decodeAll(data); err != nil {
@@ -110,6 +114,17 @@ func (l *Loader) Load(localPath string, overrides []string) error {
 		}
 	}
 	return nil
+}
+
+// localConfigAbsent reports whether err from reading the local config file
+// means "there is no such config to read", as opposed to a config that exists
+// but could not be read. A genuinely missing file and a platform with no
+// filesystem are both absences: js/wasm reports ENOSYS for every file
+// operation, which maps to errors.ErrUnsupported. Anything else (a permission
+// denial, a directory in the file's place, an IO error) is a real failure and
+// must not be silently swallowed into the defaults.
+func localConfigAbsent(err error) bool {
+	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, errors.ErrUnsupported)
 }
 
 // decodeAll decodes doc into every target; a target ignores sections it does

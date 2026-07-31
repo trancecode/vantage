@@ -1,9 +1,11 @@
 package config
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -75,6 +77,45 @@ func TestMissingLocalFileSkipped(t *testing.T) {
 	}
 	if r.Net.Port != 80 {
 		t.Fatalf("defaults lost: %+v", r)
+	}
+}
+
+// A filesystem-less platform (js/wasm) reports ENOSYS rather than ENOENT for
+// every file operation, so treating only ENOENT as "absent" made Load fail to
+// start a browser build instead of falling back to the defaults.
+func TestLocalConfigAbsentTreatsUnsupportedAsMissing(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"missing file", &fs.PathError{Op: "open", Path: "absent.toml", Err: syscall.ENOENT}, true},
+		{"no filesystem", &fs.PathError{Op: "open", Path: "config.toml", Err: syscall.ENOSYS}, true},
+		{"permission denied", &fs.PathError{Op: "open", Path: "config.toml", Err: syscall.EACCES}, false},
+		{"directory in the way", &fs.PathError{Op: "read", Path: "config.toml", Err: syscall.EISDIR}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := localConfigAbsent(tc.err); got != tc.want {
+				t.Fatalf("localConfigAbsent(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
+// The permissive half of localConfigAbsent must not swallow a config that
+// exists but cannot be read: a directory where the file should be is a real
+// failure, not a reason to fall back to the defaults.
+func TestUnreadableLocalFileReported(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.Mkdir(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	err := newRootLoader(&root{}).Load(dir, nil)
+	if err == nil {
+		t.Fatal("a directory in the config file's place should be reported, got nil")
+	}
+	if !strings.Contains(err.Error(), "reading config file") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
