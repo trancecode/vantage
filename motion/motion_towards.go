@@ -1,8 +1,10 @@
 package motion
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/trancecode/ecs/ecs"
@@ -49,6 +51,14 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 		return MoveStart{Outcome: MoveOutcomeNoPath, Destination: destination}
 	}
 
+	return s.moveAlongPath(entityId, currentPos, destination, path, opts)
+}
+
+// moveAlongPath starts one bounded step along an already planned path, which
+// must be a non-empty route from currentPos to destination. Callers that
+// planned the path themselves use it to move without planning again;
+// MoveEntityTowards documents what a step is and when it is refused.
+func (s *System) moveAlongPath(entityId ecs.EntityId, currentPos, destination geometry.Vector2, path []geometry.Vector2, opts MoveOptions) MoveStart {
 	// Move to the first reachable waypoint within a single step.
 	for _, waypoint := range path {
 		if currentPos.DistanceTo(waypoint) > s.MaxMoveActionDistance {
@@ -96,7 +106,7 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 // MoveEntityTowardsArea starts moving an entity one bounded step toward a
 // circular area defined by center and radius (in tiles): it finds the
 // reachable tile center inside the area that is closest to the entity and
-// steps toward it via MoveEntityTowards.
+// takes the same step toward it that MoveEntityTowards would.
 //
 // The returned MoveStart reports MoveOutcomeAtDestination when the entity is
 // already inside the area and MoveOutcomeNoPath when no tile in the area is
@@ -129,25 +139,50 @@ func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Ve
 		return MoveStart{Outcome: MoveOutcomeAtDestination, Destination: currentPos}
 	}
 
+	target, path, found := s.findAreaTarget(currentPos, center, radius)
+	if !found {
+		return MoveStart{Outcome: MoveOutcomeNoPath, Destination: center}
+	}
+	return s.moveAlongPath(entityId, currentPos, target, path, opts)
+}
+
+// areaCandidate is a tile inside a target area that an entity could head for,
+// paired with its distance to that entity.
+type areaCandidate struct {
+	center   geometry.Vector2
+	distance float64
+}
+
+// findAreaTarget picks the tile center inside the circular area (center,
+// radius in tiles) that an entity at currentPos should head for: the one
+// closest to currentPos among the reachable tiles of the innermost ring that
+// holds any. It returns that target along with the path to it, so the caller
+// can step along the path rather than plan it a second time, and reports
+// false when the area holds no reachable tile.
+//
+// Candidates that no path can end on — out of bounds, unwalkable or reserved
+// — are discarded by tile lookup, and the rest are searched nearest first, so
+// a decision normally costs a single search. Only a candidate that is
+// walkable and free yet cut off from the entity by terrain costs a search
+// that finds nothing.
+func (s *System) findAreaTarget(currentPos, center geometry.Vector2, radius float64) (target geometry.Vector2, path []geometry.Vector2, found bool) {
 	centerTile := tilemap.WorldPositionToTile(center)
+	originTile := tilemap.WorldPositionToTile(currentPos)
 	maxTileDistance := int(math.Ceil(radius))
 
 	// Check tiles in concentric squares of increasing distance from the
 	// center; among reachable tiles at the same ring, prefer the one closest
 	// to the entity.
-	var targetPos *geometry.Vector2
-	minDistanceToEntity := math.MaxFloat64
-
-	for distance := 0; distance <= maxTileDistance && targetPos == nil; distance++ {
+	for ring := 0; ring <= maxTileDistance; ring++ {
 		var tilesToCheck []tilemap.TileCoord
 
-		if distance == 0 {
+		if ring == 0 {
 			tilesToCheck = append(tilesToCheck, centerTile)
 		} else {
-			for dx := -distance; dx <= distance; dx++ {
-				for dy := -distance; dy <= distance; dy++ {
+			for dx := -ring; dx <= ring; dx++ {
+				for dy := -ring; dy <= ring; dy++ {
 					// Only tiles on the perimeter of the square.
-					if math.Abs(float64(dx)) != float64(distance) && math.Abs(float64(dy)) != float64(distance) {
+					if math.Abs(float64(dx)) != float64(ring) && math.Abs(float64(dy)) != float64(ring) {
 						continue
 					}
 					tile := tilemap.TileCoord{X: centerTile.X + dx, Y: centerTile.Y + dy}
@@ -158,20 +193,60 @@ func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Ve
 			}
 		}
 
+		candidates := make([]areaCandidate, 0, len(tilesToCheck))
 		for _, tile := range tilesToCheck {
-			tileCenter := tilemap.TileToWorldPosition(tile)
-			if len(s.FindPathBetween(currentPos, tileCenter)) == 0 {
+			if !s.canEndPathOnTile(tile, originTile) {
 				continue
 			}
-			if distToEntity := currentPos.DistanceTo(tileCenter); distToEntity < minDistanceToEntity {
-				minDistanceToEntity = distToEntity
-				targetPos = &tileCenter
+			tileCenter := tilemap.TileToWorldPosition(tile)
+			candidates = append(candidates, areaCandidate{
+				center:   tileCenter,
+				distance: currentPos.DistanceTo(tileCenter),
+			})
+		}
+
+		// Sort stably so that candidates equally close to the entity keep
+		// their scan order: consumers replay on the tile this picks.
+		slices.SortStableFunc(candidates, func(a, b areaCandidate) int {
+			return cmp.Compare(a.distance, b.distance)
+		})
+
+		for _, candidate := range candidates {
+			path = s.FindPathBetween(currentPos, candidate.center)
+			if len(path) == 0 {
+				continue
 			}
+			return candidate.center, path, true
 		}
 	}
 
-	if targetPos != nil {
-		return s.MoveEntityTowards(entityId, *targetPos, opts)
+	return geometry.Vector2{}, nil, false
+}
+
+// canEndPathOnTile reports whether a path from an entity standing on
+// originTile could end on tile, by tile lookup alone. It mirrors the
+// rejections FindPathBetween makes without searching: nothing reaches a tile
+// that is out of bounds, unwalkable or reserved. A tile the entity already
+// stands on is exempt, matching FindPathBetween's within-tile case, which
+// steers to the tile center whatever the tile holds.
+func (s *System) canEndPathOnTile(tile, originTile tilemap.TileCoord) bool {
+	if tile == originTile {
+		return true
 	}
-	return MoveStart{Outcome: MoveOutcomeNoPath, Destination: center}
+	if s.Terrain == nil {
+		// FindPathBetween panics without terrain; let it, rather than
+		// swallowing the candidate here.
+		return true
+	}
+	if !s.Terrain.IsInBounds(tile.X, tile.Y) || !s.Terrain.IsWalkable(tile.X, tile.Y) {
+		return false
+	}
+	if s.Occupancy != nil {
+		// Any reservation blocks the goal, including this entity's own:
+		// pathfinding routes around reserved tiles without exception.
+		if _, occupied := s.Occupancy.GetOccupant(tile); occupied {
+			return false
+		}
+	}
+	return true
 }

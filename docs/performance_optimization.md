@@ -61,16 +61,19 @@ shows up as hot in a profile.
 
 ## Path-following search costs (motion/motion_towards.go)
 
-`MoveEntityTowardsArea` searches concentric square rings around the area center
-and calls `FindPathBetween` (a full A* run) for every candidate tile in every
-ring, so a single bounded move step can trigger dozens of full pathfinding
-searches. A cheaper reachability probe, memoization of results across
-candidates, or a single multi-goal search from the entity would cut this
-substantially. Separately, `MoveEntityTowards`'s fallback (taken whenever no
-waypoint on the direct path is reachable) scans an O(maxTileDistance^2) grid of
-tiles around the entity, calling `CanReach` per cell. Both are ported verbatim
-from the game sources (nrg/lockstep) and are only worth optimizing if profiling
-shows them hot.
+`findAreaTarget` discards candidate tiles that no path can end on by tile
+lookup and searches the rest nearest first, so a movement decision normally
+costs a single A* run. What remains is the sealed-off candidate: a tile that is
+in bounds, walkable and unreserved but cut off from the entity by terrain costs
+a search that explores the entity's whole region before failing, and a ring can
+hold several of them. A cheap reachability probe (or a search that gives up
+once its frontier is exhausted near the entity) would bound that case; it is
+left alone because sealed pockets inside a target area are rare, and the cost
+of a *failing* search is a pathfinding-side concern rather than a caller-side
+one. Separately, `moveAlongPath`'s fallback (taken whenever no waypoint on the
+direct path is reachable) scans an O(maxTileDistance^2) grid of tiles around
+the entity, calling `CanReach` per cell. It is ported verbatim from the game
+sources (nrg/lockstep) and is only worth optimizing if profiling shows it hot.
 
 ## SpatialGrid.GetRange result sorting (tilemap/tilemap_grid.go)
 
