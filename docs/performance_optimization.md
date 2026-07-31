@@ -88,19 +88,20 @@ Left undone until a workload actually routes toward walled-off goals; see
 
 ## Path-following search costs (motion/motion_towards.go)
 
-`MoveEntityTowardsArea` searches concentric square rings around the area center
-and calls `FindPathBetween` (a full A* run) for every candidate tile in every
-ring, so a single bounded move step can trigger dozens of full pathfinding
-searches. Candidates already taken by another agent used to cost a full map
-flood each; `FindPath` now rejects those up front, so what remains is dozens of
-ordinary searches rather than dozens of worst-case ones. A cheaper reachability
-probe, memoization of results across
-candidates, or a single multi-goal search from the entity would cut this
-substantially. Separately, `MoveEntityTowards`'s fallback (taken whenever no
-waypoint on the direct path is reachable) scans an O(maxTileDistance^2) grid of
-tiles around the entity, calling `CanReach` per cell. Both are ported verbatim
-from the game sources (nrg/lockstep) and are only worth optimizing if profiling
-shows them hot.
+`findAreaTarget` discards candidate tiles that no path can end on by tile
+lookup and searches the rest nearest first, so a movement decision normally
+costs a single A* run. What remains is the sealed-off candidate: a tile that is
+in bounds, walkable and unreserved, and whose immediate surroundings are open
+enough that `FindPath` cannot reject it up front, yet is cut off from the entity
+by terrain further away. Such a tile costs a search that explores the entity's
+whole region before failing, and a ring can hold several of them. That is the
+caller-side face of the section above, and it is left alone for the same reason:
+ruling it out cheaply needs connectivity information the pathfinder does not
+keep, and sealed pockets inside a target area are rare. Separately,
+`moveAlongPath`'s fallback (taken whenever no waypoint on the direct path is
+reachable) scans an O(maxTileDistance^2) grid of tiles around the entity,
+calling `CanReach` per cell. It is ported verbatim from the game sources
+(nrg/lockstep) and is only worth optimizing if profiling shows it hot.
 
 ## SpatialGrid.GetRange result sorting (tilemap/tilemap_grid.go)
 

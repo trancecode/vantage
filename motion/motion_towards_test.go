@@ -3,9 +3,11 @@ package motion
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/trancecode/ecs/ecs"
 	"github.com/trancecode/vantage/easing"
+	"github.com/trancecode/vantage/geometry"
 	"github.com/trancecode/vantage/tilemap"
 )
 
@@ -146,6 +148,110 @@ func TestMoveEntityTowardsArea_StepsTowardArea(t *testing.T) {
 	}
 	if start.Distance > s.MaxMoveActionDistance {
 		t.Errorf("expected single bounded step, got distance %v", start.Distance)
+	}
+}
+
+// countPathSearches makes s count the path searches it runs, through the same
+// RecordPhase hook games use to profile them, and returns the counter.
+func countPathSearches(s *System) *int {
+	searches := 0
+	s.RecordPhase = func(name string, _ time.Duration) {
+		if name == "pathfinding" {
+			searches++
+		}
+	}
+	return &searches
+}
+
+func TestMoveEntityTowardsArea_SearchesOncePerDecision(t *testing.T) {
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	searches := countPathSearches(s)
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 6, Y: 6})
+
+	start := s.MoveEntityTowardsArea(e.id, center, 2.0, MoveOptions{Speed: 1.0})
+
+	if !start.Started() {
+		t.Fatalf("expected a step toward the area, got %+v", start)
+	}
+	if *searches != 1 {
+		t.Errorf("expected a single path search per decision, got %v", *searches)
+	}
+}
+
+func TestMoveEntityTowardsArea_SearchesNothingWhenAreaIsTaken(t *testing.T) {
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	centerTile := tilemap.TileCoord{X: 5, Y: 5}
+	// Reserve every tile within the radius, the crowded case the ring scan
+	// exists to handle.
+	for _, tile := range []tilemap.TileCoord{centerTile, {X: 4, Y: 5}, {X: 6, Y: 5}, {X: 5, Y: 4}, {X: 5, Y: 6}} {
+		s.Occupancy.SetOccupant(tile, e.world.NewEntity())
+	}
+	searches := countPathSearches(s)
+
+	start := s.MoveEntityTowardsArea(e.id, tilemap.TileToWorldPosition(centerTile), 1.0, MoveOptions{Speed: 1.0})
+
+	if start.Outcome != MoveOutcomeNoPath {
+		t.Fatalf("expected MoveOutcomeNoPath when every tile in the area is taken, got %+v", start)
+	}
+	if *searches != 0 {
+		t.Errorf("expected reserved tiles to be discarded without searching, got %v searches", *searches)
+	}
+}
+
+func TestMoveEntityTowardsArea_StepsToTheEntitysOwnTileCenter(t *testing.T) {
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 5, Y: 5})
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 5})
+	// Stand the entity off the center of its own tile, far enough out to be
+	// outside the area: the tile it holds is then the only candidate, and it
+	// is reserved by the entity itself.
+	sc, ok := s.Spatials.Get(e.id)
+	if !ok {
+		t.Fatal("expected the entity to have a Spatial")
+	}
+	sc.Position = center.Sub(geometry.NewVector2(0.4, 0.4))
+
+	start := s.MoveEntityTowardsArea(e.id, center, 0.3, MoveOptions{Speed: 1.0})
+
+	if !start.Started() {
+		t.Fatalf("expected a step onto the entity's own tile center, got %+v", start)
+	}
+	if start.Destination != center {
+		t.Errorf("expected the step to target %v, got %v", center, start.Destination)
+	}
+}
+
+func TestFindAreaTarget_PrefersNearestReachableTileOnNearestRing(t *testing.T) {
+	s, _ := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	// Seal tile (4,4) behind walls: it is the ring tile closest to the
+	// entity, so the scan must search it, find nothing and move on. The
+	// walls also cover the area's own tile (5,5), leaving the ring.
+	s.Terrain.(*testTerrain).blocked = map[tilemap.TileCoord]bool{
+		{X: 3, Y: 3}: true, {X: 4, Y: 3}: true, {X: 5, Y: 3}: true,
+		{X: 3, Y: 4}: true, {X: 5, Y: 4}: true,
+		{X: 3, Y: 5}: true, {X: 4, Y: 5}: true, {X: 5, Y: 5}: true,
+	}
+	searches := countPathSearches(s)
+	currentPos := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 0, Y: 0})
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 5})
+
+	target, path, ok := s.findAreaTarget(currentPos, center, 2.0)
+
+	if !ok {
+		t.Fatal("expected a reachable tile on the ring")
+	}
+	// (4,6) and (6,4) are equally close to the entity; the scan order
+	// decides between them, and consumers replay on that decision.
+	want := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 4, Y: 6})
+	if target != want {
+		t.Errorf("expected target %v, got %v", want, target)
+	}
+	if len(path) == 0 || path[len(path)-1] != want {
+		t.Errorf("expected the path to the target to be returned, got %v", path)
+	}
+	// One search for the sealed tile, one for the target: a blocked
+	// candidate costs a search, a reserved or unwalkable one does not.
+	if *searches != 2 {
+		t.Errorf("expected 2 path searches, got %v", *searches)
 	}
 }
 
