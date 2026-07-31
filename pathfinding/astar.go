@@ -33,7 +33,7 @@ type pathNode struct {
 	f      float64   // Total cost (g + h)
 	parent *pathNode // Parent node in the path
 	index  int       // Index in the priority queue, -1 when not queued
-	closed bool      // Expanded already, so no better route to it remains
+	closed bool      // Expanded already, so the search will not revisit it
 }
 
 // pathNodeQueue implements a priority queue for A* pathfinding
@@ -147,8 +147,9 @@ func canMoveDiagonally(terrain TerrainProvider, from, to Coord) bool {
 type OccupancyChecker func(coord Coord) bool
 
 // isGoalApproachable reports whether any tile the search could step to the goal
-// from is enterable. It answers conservatively: it ignores the diagonal
-// corner-cutting rule, so a goal it accepts may still turn out to be sealed off.
+// from is enterable. It answers conservatively, ignoring both the diagonal
+// corner-cutting rule and terrain speed, so a goal it accepts may still turn
+// out to be sealed off; only a goal it rejects is certainly unreachable.
 //
 // The start tile counts as approachable even when occupancy reports it taken,
 // because occupancy normally includes the moving entity's own reservation and
@@ -282,8 +283,9 @@ func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 				moveCost = diagonalCost
 			}
 
-			// Account for terrain speed. A walkable tile can still report a
-			// speed of zero, in which case there is no finite cost to enter it.
+			// Account for terrain speed. Cost averages the two tiles' speeds, so
+			// a step between two walkable tiles that both report zero speed has
+			// no finite cost and cannot be taken.
 			actualCost := calculateMovementCost(terrain, current.coord, neighbor, moveCost)
 			if math.IsInf(actualCost, 1) {
 				continue
