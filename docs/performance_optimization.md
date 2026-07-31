@@ -59,21 +59,49 @@ reschedules (stagger) and cancels (interrupt/death) are occasional and the queue
 holds roughly one event per active entity; revisit only if reschedule/cancel
 shows up as hot in a profile.
 
+## Per-search allocation in A* (pathfinding/astar.go)
+
+`FindPath` allocates a `map[Coord]*pathNode`, a heap, and one `pathNode` per
+touched tile on every call. Benchmarks (`pathfinding/astar_bench_test.go`)
+measure a 256-tile journey at ~314 µs with 810 allocations and 129 kB, roughly
+1.2 µs per expanded tile, which is dominated by hashing and node allocation
+rather than by the search itself. Storing nodes by value in a
+`map[Coord]pathNode` (with `parent` as a `Coord`), or backing the node store
+with a dense per-map slice reused across calls, would remove almost all of it.
+Left as-is because the measured blocker was never the cost of a successful
+search but the cost of an unsuccessful one, which is now rejected up front; see
+[pathfinding_performance.md](pathfinding_performance.md). Revisit if long
+journeys are re-planned often enough for the constant factor to matter, which
+would also make path caching with explicit invalidation worth having.
+
+## Distant unreachable goals still flood the map (pathfinding/astar.go)
+
+`FindPath` rejects a goal whose own tile or whose every neighbour is unenterable
+without searching, which covers agents converging on one destination. A goal cut
+off by a barrier further away is still established as unreachable the only way
+A* can: by expanding every reachable tile, ~92k expansions and ~130 ms on a
+304x304 map. Ruling it out cheaply needs connectivity components (a per-tile
+region id, recomputed or repaired when terrain changes), which is a design
+decision about terrain-change notification rather than a local optimization.
+Left undone until a workload actually routes toward walled-off goals; see
+[pathfinding_performance.md](pathfinding_performance.md).
+
 ## Path-following search costs (motion/motion_towards.go)
 
 `findAreaTarget` discards candidate tiles that no path can end on by tile
 lookup and searches the rest nearest first, so a movement decision normally
 costs a single A* run. What remains is the sealed-off candidate: a tile that is
-in bounds, walkable and unreserved but cut off from the entity by terrain costs
-a search that explores the entity's whole region before failing, and a ring can
-hold several of them. A cheap reachability probe (or a search that gives up
-once its frontier is exhausted near the entity) would bound that case; it is
-left alone because sealed pockets inside a target area are rare, and the cost
-of a *failing* search is a pathfinding-side concern rather than a caller-side
-one. Separately, `moveAlongPath`'s fallback (taken whenever no waypoint on the
-direct path is reachable) scans an O(maxTileDistance^2) grid of tiles around
-the entity, calling `CanReach` per cell. It is ported verbatim from the game
-sources (nrg/lockstep) and is only worth optimizing if profiling shows it hot.
+in bounds, walkable and unreserved, and whose immediate surroundings are open
+enough that `FindPath` cannot reject it up front, yet is cut off from the entity
+by terrain further away. Such a tile costs a search that explores the entity's
+whole region before failing, and a ring can hold several of them. That is the
+caller-side face of the section above, and it is left alone for the same reason:
+ruling it out cheaply needs connectivity information the pathfinder does not
+keep, and sealed pockets inside a target area are rare. Separately,
+`moveAlongPath`'s fallback (taken whenever no waypoint on the direct path is
+reachable) scans an O(maxTileDistance^2) grid of tiles around the entity,
+calling `CanReach` per cell. It is ported verbatim from the game sources
+(nrg/lockstep) and is only worth optimizing if profiling shows it hot.
 
 ## SpatialGrid.GetRange result sorting (tilemap/tilemap_grid.go)
 

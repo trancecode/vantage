@@ -162,9 +162,10 @@ type areaCandidate struct {
 //
 // Candidates that no path can end on — out of bounds, unwalkable or reserved
 // — are discarded by tile lookup, and the rest are searched nearest first, so
-// a decision normally costs a single search. Only a candidate that is
-// walkable and free yet cut off from the entity by terrain costs a search
-// that finds nothing.
+// a decision normally costs a single search. What still costs a search that
+// finds nothing is a candidate open enough that FindPath cannot reject it
+// either — walkable, free, with an enterable tile beside it — yet cut off
+// from the entity by terrain further away.
 func (s *System) findAreaTarget(currentPos, center geometry.Vector2, radius float64) (target geometry.Vector2, path []geometry.Vector2, found bool) {
 	centerTile := tilemap.WorldPositionToTile(center)
 	originTile := tilemap.WorldPositionToTile(currentPos)

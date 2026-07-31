@@ -1,18 +1,19 @@
-package util
+package render
 
 import (
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/trancecode/vantage/util"
 )
 
 func TestScreenLoggerPrintProfiler(t *testing.T) {
-	prev := DebugMode
-	DebugMode = true
-	defer func() { DebugMode = prev }()
+	prev := util.DebugMode
+	util.DebugMode = true
+	defer func() { util.DebugMode = prev }()
 
-	p := NewProfiler()
+	p := util.NewProfiler()
 	p.Record("move", 10*time.Millisecond)
 	p.Record("ai", 5*time.Millisecond)
 

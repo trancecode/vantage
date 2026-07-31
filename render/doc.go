@@ -22,4 +22,8 @@
 // as the default library a game registers into at init time. SpriteFilter
 // selects how sprites are resampled when drawn at anything other than their
 // native size, defaulting to nearest so pixel art stays crisp.
+//
+// ScreenLogger draws the debug overlay, with the package-level Log as the
+// shared instance; it lives here rather than in util so that util and the
+// simulation packages above it stay free of any graphics dependency.
 package render

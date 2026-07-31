@@ -335,3 +335,106 @@ func TestFindPathOccupiedGoal(t *testing.T) {
 
 	assert.Nil(t, path, "Should not find path to occupied destination")
 }
+
+// ringOccupancy returns an occupancy checker marking the eight tiles around
+// center as taken.
+func ringOccupancy(center Coord) OccupancyChecker {
+	occupied := make(map[Coord]bool)
+	for _, dir := range directions {
+		occupied[Coord{center.X + dir.X, center.Y + dir.Y}] = true
+	}
+	return func(coord Coord) bool { return occupied[coord] }
+}
+
+// TestFindPathGoalRingedByOccupants tests that a free goal whose every
+// approach is taken is rejected rather than searched for.
+func TestFindPathGoalRingedByOccupants(t *testing.T) {
+	terrain := newMockTerrain(10, 10)
+
+	for y := range 10 {
+		for x := range 10 {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+
+	goal := Coord{5, 5}
+	path := FindPath(terrain, Coord{0, 0}, goal, ringOccupancy(goal))
+
+	assert.Nil(t, path, "Should not find path to a goal with no free approach")
+}
+
+// TestFindPathGoalRingedButAdjacentStart tests that the tile the search starts
+// from still counts as an approach to the goal even when occupancy reports it
+// taken, which it does whenever the reservation belongs to the moving entity.
+func TestFindPathGoalRingedButAdjacentStart(t *testing.T) {
+	terrain := newMockTerrain(10, 10)
+
+	for y := range 10 {
+		for x := range 10 {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+
+	goal := Coord{5, 5}
+	start := Coord{4, 4}
+	path := FindPath(terrain, start, goal, ringOccupancy(goal))
+
+	require.NotNil(t, path)
+	assert.Equal(t, []Coord{start, goal}, path)
+}
+
+// TestFindPathImpassableSpeed tests that a walkable tile reporting zero speed
+// cannot be crossed, since entering it from another such tile has no finite
+// cost.
+func TestFindPathImpassableSpeed(t *testing.T) {
+	terrain := newMockTerrain(10, 10)
+
+	for y := range 10 {
+		for x := range 10 {
+			terrain.setWalkable(x, y, true)
+			terrain.setSpeed(x, y, 1.0)
+		}
+	}
+
+	// A two-column band of walkable but zero-speed tiles spanning the map.
+	// Stepping into the band still averages against speed 1, but stepping from
+	// one band tile to the next averages zero, so the band cannot be crossed.
+	for y := range 10 {
+		terrain.setSpeed(4, y, 0)
+		terrain.setSpeed(5, y, 0)
+	}
+
+	path := FindPath(terrain, Coord{0, 5}, Coord{9, 5}, nil)
+
+	assert.Nil(t, path, "Should not cross a band of zero-speed terrain")
+}
+
+// TestFindPathDeterministic tests that repeated searches over identical inputs
+// return identical paths, which the simulation relies on for reproducibility.
+func TestFindPathDeterministic(t *testing.T) {
+	terrain := newMockTerrain(30, 30)
+
+	for y := range 30 {
+		for x := range 30 {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+
+	// Scattered obstacles, so the search has genuine choices to make.
+	for y := 5; y < 25; y++ {
+		terrain.setWalkable(10, y, false)
+		terrain.setWalkable(20, 29-y, false)
+	}
+
+	occupied := map[Coord]bool{{15, 12}: true, {15, 13}: true, {15, 14}: true}
+	isOccupied := func(coord Coord) bool { return occupied[coord] }
+
+	start := Coord{0, 0}
+	goal := Coord{29, 29}
+	want := FindPath(terrain, start, goal, isOccupied)
+	require.NotNil(t, want)
+
+	for range 5 {
+		assert.Equal(t, want, FindPath(terrain, start, goal, isOccupied))
+	}
+}

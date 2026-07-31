@@ -32,7 +32,8 @@ type pathNode struct {
 	h      float64   // Heuristic cost from this node to goal
 	f      float64   // Total cost (g + h)
 	parent *pathNode // Parent node in the path
-	index  int       // Index in the priority queue
+	index  int       // Index in the priority queue, -1 when not queued
+	closed bool      // Expanded already, so the search will not revisit it
 }
 
 // pathNodeQueue implements a priority queue for A* pathfinding
@@ -145,24 +146,77 @@ func canMoveDiagonally(terrain TerrainProvider, from, to Coord) bool {
 // If provided, the pathfinding algorithm will avoid occupied coordinates.
 type OccupancyChecker func(coord Coord) bool
 
+// isGoalApproachable reports whether any tile the search could step to the goal
+// from is enterable. It answers conservatively, ignoring both the diagonal
+// corner-cutting rule and terrain speed, so a goal it accepts may still turn
+// out to be sealed off; only a goal it rejects is certainly unreachable.
+//
+// The start tile counts as approachable even when occupancy reports it taken,
+// because occupancy normally includes the moving entity's own reservation and
+// the search never applies the occupancy check to its start tile.
+func isGoalApproachable(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker) bool {
+	for _, dir := range directions {
+		neighbor := Coord{X: goal.X + dir.X, Y: goal.Y + dir.Y}
+		if neighbor == start {
+			return true
+		}
+		if !terrain.IsInBounds(neighbor.X, neighbor.Y) || !terrain.IsWalkable(neighbor.X, neighbor.Y) {
+			continue
+		}
+		if isOccupied != nil && isOccupied(neighbor) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // FindPath finds a path between two coordinates using A* pathfinding algorithm.
 // It uses the terrain provider to query terrain properties and an optional
-// occupancy checker to avoid occupied coordinates.
+// occupancy checker to avoid occupied coordinates. It returns nil when no path
+// exists, when start and goal are the same, and when the goal is out of bounds,
+// unwalkable, occupied or has no enterable tile next to it — the last three
+// being answered without searching, since a search would have to flood the map
+// to reach them.
 func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker) []Coord {
+	path, _ := findPath(terrain, start, goal, isOccupied)
+	return path
+}
+
+// findPath implements FindPath and additionally reports how many nodes the
+// search expanded (popped from the open set). The count is what tells apart a
+// search that walked a narrow corridor to the goal from one that flooded the
+// map, so the benchmarks measure it alongside wall-clock cost.
+func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker) (path []Coord, expanded int) {
 	// Quick checks
 	if start == goal {
-		return nil // No path needed when already at destination
+		return nil, 0 // No path needed when already at destination
 	}
 
 	if !terrain.IsInBounds(goal.X, goal.Y) || !terrain.IsWalkable(goal.X, goal.Y) {
-		return nil // Goal is not reachable
+		return nil, 0 // Goal is not reachable
+	}
+
+	// Reject a goal the search could never enter before searching for it.
+	// Establishing the same answer by search costs a full flood of every
+	// reachable tile: on a 304x304 open map that is ~92k expansions and ~130 ms,
+	// against ~370 us for the longest journey that does succeed there. Both
+	// rejections below are routine once many agents converge on one destination.
+	if isOccupied != nil && isOccupied(goal) {
+		return nil, 0 // Goal tile is taken
+	}
+
+	if !isGoalApproachable(terrain, start, goal, isOccupied) {
+		return nil, 0 // Goal is sealed off by its immediate surroundings
 	}
 
 	// Initialize A* data structures
 	openSet := &pathNodeQueue{}
 	heap.Init(openSet)
 
-	closedSet := make(map[Coord]bool)
+	// nodeMap holds every node the search has touched, open and closed alike.
+	// Carrying the closed flag on the node rather than in a second map keeps the
+	// neighbour loop down to one hash lookup per neighbour.
 	nodeMap := make(map[Coord]*pathNode)
 
 	// Create and add the start node
@@ -170,6 +224,7 @@ func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 		coord: start,
 		g:     0,
 		h:     heuristic(start, goal),
+		index: -1,
 	}
 	startNode.f = startNode.g + startNode.h
 
@@ -179,19 +234,19 @@ func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 	// A* main loop
 	for openSet.Len() > 0 {
 		current := heap.Pop(openSet).(*pathNode)
+		expanded++
 
 		// Check if we reached the goal
 		if current.coord == goal {
 			// Reconstruct path (append then reverse for O(n) instead of prepend O(n²))
-			var path []Coord
 			for node := current; node != nil; node = node.parent {
 				path = append(path, node.coord)
 			}
 			slices.Reverse(path)
-			return path
+			return path, expanded
 		}
 
-		closedSet[current.coord] = true
+		current.closed = true
 
 		// Explore neighbors
 		for _, dir := range directions {
@@ -200,8 +255,10 @@ func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 				Y: current.coord.Y + dir.Y,
 			}
 
-			// Skip if neighbor is in closed set
-			if closedSet[neighbor] {
+			// Look the node up once: both the closed check and the relaxation
+			// below need it.
+			neighborNode, visited := nodeMap[neighbor]
+			if visited && neighborNode.closed {
 				continue
 			}
 
@@ -226,37 +283,41 @@ func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 				moveCost = diagonalCost
 			}
 
-			// Account for terrain speed
+			// Account for terrain speed. Cost averages the two tiles' speeds, so
+			// a step between two walkable tiles that both report zero speed has
+			// no finite cost and cannot be taken.
 			actualCost := calculateMovementCost(terrain, current.coord, neighbor, moveCost)
+			if math.IsInf(actualCost, 1) {
+				continue
+			}
 
+			// Skip unless this path to the neighbor beats the best one so far
 			tentativeG := current.g + actualCost
+			if visited && tentativeG >= neighborNode.g {
+				continue
+			}
 
-			// Get or create neighbor node
-			neighborNode, exists := nodeMap[neighbor]
-			if !exists {
+			if !visited {
 				neighborNode = &pathNode{
 					coord: neighbor,
-					g:     math.Inf(1),
 					h:     heuristic(neighbor, goal),
+					index: -1, // Not in the open set yet
 				}
 				nodeMap[neighbor] = neighborNode
 			}
 
-			// Update neighbor if this path is better
-			if tentativeG < neighborNode.g {
-				neighborNode.g = tentativeG
-				neighborNode.f = neighborNode.g + neighborNode.h
-				neighborNode.parent = current
+			neighborNode.g = tentativeG
+			neighborNode.f = neighborNode.g + neighborNode.h
+			neighborNode.parent = current
 
-				if !exists || neighborNode.index == -1 {
-					heap.Push(openSet, neighborNode)
-				} else {
-					heap.Fix(openSet, neighborNode.index)
-				}
+			if neighborNode.index == -1 {
+				heap.Push(openSet, neighborNode)
+			} else {
+				heap.Fix(openSet, neighborNode.index)
 			}
 		}
 	}
 
 	// No path found
-	return nil
+	return nil, expanded
 }

@@ -218,12 +218,12 @@ func (a *App) Update() error {
 
 // Draw implements ebiten.Game.
 func (a *App) Draw(screen *ebiten.Image) {
-	util.Log.PrintFpsCounter()
+	render.Log.PrintFpsCounter()
 	a.manager.Draw(screen)
 	if a.screenshot != nil {
 		a.screenshot.capture(screen)
 	}
-	util.Log.Draw(screen)
+	render.Log.Draw(screen)
 }
 
 // Layout implements ebiten.Game.

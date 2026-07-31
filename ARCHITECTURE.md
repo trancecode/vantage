@@ -22,7 +22,7 @@ the most important invariant to preserve when extending the engine.
 
 | Package | Purpose | Depends on (vantage / ecs) |
 |---|---|---|
-| `util` | Shared infrastructure: `Time`, `Profiler`, `ScreenLogger`, `PriorityQueue`, logging, debug HTTP | — |
+| `util` | Shared infrastructure: `Time`, `Profiler`, `PriorityQueue`, logging, debug HTTP | — |
 | `geometry` | 2D geometric types and operations (`Vector2`, shapes) | `util` |
 | `easing` | Easing curves (`Curve`, `Apply`) for shaping interpolated progress | — |
 | `config` | Layered configuration loader (`Loader`, `Duration`) | — |
@@ -31,7 +31,7 @@ the most important invariant to preserve when extending the engine.
 | `tilemap` | Tile coordinates, `SpatialGrid` (range queries), `TileOccupancyManager` | `geometry`, `ecs` |
 | `sim` | Deterministic event scheduling: `Driver`, `EventQueue`, `Event`, `TickSystem`, `EventHandler` | `util`, `ecs` |
 | `motion` | Movement components (`Spatial`, `Movement`) and `System` (a tick system) | `geometry`, `easing`, `pathfinding`, `tilemap`, `ecs` |
-| `render` | Graphics layer: camera, sprites, sprite library, text, tile scaling | `asset`, `geometry` |
+| `render` | Graphics layer: camera, sprites, sprite library, text, tile scaling, `ScreenLogger` | `asset`, `geometry`, `util` |
 | `ui` | Interactive user-interface components | `asset` |
 | `scene` | `Scene` interface, the `Manager` that drives scenes, and the sprite showcase (`cmd/showcasedemo` runs it on placeholder art) | `render`, `ui`, `geometry` |
 | `app` | Top-level `App` (implements `ebiten.Game`), window, scene selection, screenshots | `config`, `render`, `scene`, `util` |
@@ -54,6 +54,15 @@ The graph is acyclic and splits into two stacks over shared foundations.
 Only `sim`, `motion`, and `tilemap` depend on `ecs`. The simulation and
 presentation stacks meet only in the game and in `app`, never inside the
 simulation packages, so headless simulation and testing stay possible.
+
+That separation is enforced, not just intended. Ebitengine aborts the process at
+init time when no display is available, so a single stray import would make the
+whole simulation stack unusable on a server or in a CI job without xvfb.
+`scripts/check-headless-packages.sh` (run by `task lint`, `task test:nodisplay`,
+and the Go workflow) fails if any package outside the presentation stack pulls
+Ebitengine into its dependency graph, then builds and runs those packages' tests
+with `DISPLAY` unset. Adding graphics to a package means declaring it in that
+script's `GRAPHICS_PACKAGES` list.
 
 ## Key abstractions
 
@@ -80,8 +89,9 @@ simulation packages, so headless simulation and testing stay possible.
   AI use these instead of scanning all entities.
 * **Debug and profiling (`util`).** `Profiler` accumulates named wall-time
   timings (the `Driver` records its systems and drain into one when attached);
-  `ScreenLogger` and the debug HTTP server surface diagnostics. These never
-  affect the simulation. See `docs/debugging.md` for usage and configuration.
+  the debug HTTP server and `render.ScreenLogger` surface diagnostics. These
+  never affect the simulation. See `docs/debugging.md` for usage and
+  configuration.
 
 ## Building a game on vantage
 
@@ -125,8 +135,9 @@ the simulation stack (its `core` package wires exactly the pattern above).
   package overview in `doc.go`).
 * Prefer contributing missing ECS capabilities upstream to `trancecode/ecs`
   rather than re-introducing boilerplate in a consuming package.
-* Run the required checks before pushing: `task lint`, `task test:headless`
-  (the `render`, `ui`, `scene`, and `app` packages need a display, provided by
-  xvfb in that target), and `go vet ./...`. Set `GOMODCACHE=/tmp/go-mod-cache`.
+* Run the required checks before pushing: `task lint` (which includes
+  `task test:nodisplay`), `task test:headless` (the presentation stack needs a
+  display, provided by xvfb in that target), and `go vet ./...`. Set
+  `GOMODCACHE=/tmp/go-mod-cache`.
 * Larger subsystems get a design spec under `docs/superpowers/specs/` before
   implementation; keep it as the durable rationale.
