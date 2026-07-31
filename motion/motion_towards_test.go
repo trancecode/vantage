@@ -7,6 +7,7 @@ import (
 
 	"github.com/trancecode/ecs/ecs"
 	"github.com/trancecode/vantage/easing"
+	"github.com/trancecode/vantage/geometry"
 	"github.com/trancecode/vantage/tilemap"
 )
 
@@ -194,6 +195,28 @@ func TestMoveEntityTowardsArea_SearchesNothingWhenAreaIsTaken(t *testing.T) {
 	}
 	if *searches != 0 {
 		t.Errorf("expected reserved tiles to be discarded without searching, got %v searches", *searches)
+	}
+}
+
+func TestMoveEntityTowardsArea_StepsToTheEntitysOwnTileCenter(t *testing.T) {
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 5, Y: 5})
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 5})
+	// Stand the entity off the center of its own tile, far enough out to be
+	// outside the area: the tile it holds is then the only candidate, and it
+	// is reserved by the entity itself.
+	sc, ok := s.Spatials.Get(e.id)
+	if !ok {
+		t.Fatal("expected the entity to have a Spatial")
+	}
+	sc.Position = center.Sub(geometry.NewVector2(0.4, 0.4))
+
+	start := s.MoveEntityTowardsArea(e.id, center, 0.3, MoveOptions{Speed: 1.0})
+
+	if !start.Started() {
+		t.Fatalf("expected a step onto the entity's own tile center, got %+v", start)
+	}
+	if start.Destination != center {
+		t.Errorf("expected the step to target %v, got %v", center, start.Destination)
 	}
 }
 
