@@ -1,8 +1,9 @@
 # Debugging and development tools
 
-The engine's debug tooling lives in `util`, with wiring points in `app`
-(settings, key bindings) and `sim` (driver profiling). Everything here is
-diagnostics only and never affects the simulation.
+The engine's debug tooling lives in `util`, apart from the on-screen overlay,
+which is in `render` because it draws. Wiring points are in `app` (settings,
+key bindings) and `sim` (driver profiling). Everything here is diagnostics only
+and never affects the simulation.
 
 ## Debug mode
 
@@ -295,19 +296,16 @@ xvfb-run -a go run ./cmd/showcasedemo \
 
 ## Screen logger (on-screen overlay)
 
-`util.ScreenLogger` buffers debug lines each frame and draws them as an
-overlay; `util.Log` is the shared instance. `Printf` and `Print` queue lines
+`render.ScreenLogger` buffers debug lines each frame and draws them as an
+overlay; `render.Log` is the shared instance. `Printf` and `Print` queue lines
 (no-ops unless `util.DebugMode` is on), `Draw` renders and clears the buffer,
 so lines must be re-queued every frame.
 
 ```go
-util.Log.PrintFpsCounter()                 // "FPS: ..."
-util.Log.Printf("entities: %d", n)
-util.Log.Draw(screen)                      // from the game's Draw
+render.Log.PrintFpsCounter()               // "FPS: ..."
+render.Log.Printf("entities: %d", n)
+render.Log.Draw(screen)                    // from the game's Draw
 ```
-
-Note: `ScreenLogger` has a `//go:build race` variant in `util_debug_race.go`.
-New methods must be added to both files or the `-race` gate fails.
 
 ## Profiler
 
@@ -323,11 +321,11 @@ A nil profiler (the default) disables profiling with zero overhead.
 profiler := util.NewProfiler()
 driver.SetProfiler(profiler)              // before RunUntil
 // ...
-util.Log.PrintProfiler(profiler)          // one overlay line per phase
+render.Log.PrintProfiler(profiler)        // one overlay line per phase
 ```
 
-`ScreenLogger.PrintProfiler` renders a snapshot on the debug overlay: name,
-total, average, and call count per phase.
+`render.ScreenLogger.PrintProfiler` renders a snapshot on the debug overlay:
+name, total, average, and call count per phase.
 
 ## Debug HTTP server
 
@@ -355,6 +353,27 @@ if the stop does not happen within the timeout, for one-shot stall detection.
 `[screenshot] path`, `delay`, and `frequency` settings (see
 `app.ScreenshotSettings`). Game-time advance is clamped so captures land on
 exact game-time targets, which keeps screenshot sequences deterministic.
+
+## Running without a display
+
+Ebitengine aborts the process at init time when no display is available, so any
+package that links it can only be built and tested under xvfb. The simulation
+stack must stay linkable without one, so games can run headless simulations on a
+server and in CI:
+
+```bash
+task test:nodisplay
+```
+
+That runs `scripts/check-headless-packages.sh`, which fails if a package outside
+the presentation stack (`app`, `asset`, `render`, `scene`, `ui`,
+`visualtest/capture`, `cmd/showcasedemo`) pulls Ebitengine into its dependency
+graph, then builds and runs the remaining packages' tests with `DISPLAY` unset
+and no xvfb. `task lint` and the Go workflow both run it.
+
+The check treats every package as graphics-free unless it is listed in the
+script's `GRAPHICS_PACKAGES`, so a new package is covered without being added
+anywhere. Introducing graphics to a package means declaring it in that list.
 
 ## Visual-regression testing
 

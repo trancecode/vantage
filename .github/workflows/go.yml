@@ -41,3 +41,10 @@ jobs:
         env:
           CI: true
         run: xvfb-run -a go test -v ./...
+
+      # Deliberately not wrapped in xvfb-run: the point is that these packages
+      # need no display at all.
+      - name: Test without a display
+        env:
+          CI: true
+        run: ./scripts/check-headless-packages.sh
