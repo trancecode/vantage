@@ -17,3 +17,4 @@ jobs:
       system-packages: 'libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config xorg-dev'
       golangci-args: '--disable=staticcheck'
       staticcheck-checks: 'inherit'
+      check-modernizers: true
