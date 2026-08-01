@@ -2,46 +2,19 @@ name: Go
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
+
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
+
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev \
-            libxinerama-dev libxrandr-dev libxxf86vm-dev \
-            libasound2-dev pkg-config xorg-dev xvfb
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Build
-        run: go build -v ./...
-        env:
-          GOFLAGS: "-buildvcs=false"
-
-      - name: Test
-        env:
-          CI: true
-        run: xvfb-run -a go test -v ./...
-
-      # Deliberately not wrapped in xvfb-run: the point is that these packages
-      # need no display at all.
-      - name: Test without a display
-        env:
-          CI: true
-        run: ./scripts/check-headless-packages.sh
+    uses: trancecode/github-workflows/.github/workflows/go-build-test.yml@main
+    with:
+      system-packages: 'libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config xorg-dev xvfb'
+      test-command: 'xvfb-run -a go test -v ./...'
+      post-test-command: './scripts/check-headless-packages.sh'
