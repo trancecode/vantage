@@ -21,6 +21,22 @@ tasks:
     cmds:
       - GOFLAGS="{{.GOFLAGS}}" go build -v ./...
 
+  fmt:check:
+    desc: Fail if any file is not gofmt-clean
+    summary: |
+      Lists the files gofmt would rewrite and fails when there are any. This is
+      the first gate the Code Analysis workflow runs, so a formatting slip stops
+      the local lint run at the same point CI stops. Run `gofmt -w .` to fix.
+    cmds:
+      - |
+        unformatted="$(gofmt -l .)"
+        if [ -n "$unformatted" ]; then
+          echo "These files are not gofmt-clean:"
+          echo "$unformatted"
+          exit 1
+        fi
+        echo "All files are gofmt-clean"
+
   vet:
     desc: Run go vet for static analysis
     cmds:
@@ -63,7 +79,12 @@ tasks:
 
   lint:
     desc: Run linters and helper checks
+    summary: |
+      Mirrors the Code Analysis workflow, in the order that workflow runs its
+      gates, and adds the local-only checks below it. A clean run here should
+      predict a green Code Analysis check.
     cmds:
+      - task: fmt:check
       - task: vet
       - task: fix:check
       - |
@@ -73,8 +94,11 @@ tasks:
           echo "staticcheck not installed, skipping..."
         fi
       - |
+        # staticcheck runs standalone above, as it does in CI. golangci-lint
+        # bundles it too but also enables the QF quickfix family, so leaving
+        # both on reports the same tool twice with different opinions.
         if command -v golangci-lint >/dev/null 2>&1; then
-          golangci-lint run --timeout=5m
+          golangci-lint run --timeout=5m --disable=staticcheck
         else
           echo "golangci-lint not installed, skipping..."
         fi

@@ -102,7 +102,8 @@ export GOMODCACHE=/tmp/go-mod-cache
 1. **Run lint checks**: `export GOMODCACHE=/tmp/go-mod-cache && task lint`
 2. **Run tests**: `export GOMODCACHE=/tmp/go-mod-cache && task test:headless`
    * Use `task test:headless` instead of `go test`. The `render`, `ui`, and `scene` packages initialize Ebiten/GLFW, which needs a display. The headless target runs tests under a virtual display (xvfb), avoiding X11/GLFW initialization errors.
-3. **Run go vet**: `go vet` must complete successfully.
+
+`task lint` mirrors the `Code Analysis` check: gofmt, `go vet`, `go fix -diff`, staticcheck, golangci-lint, and the blank-line check, in that order. Run it rather than the individual tools.
 
 #### When Tests Cannot Be Run
 
@@ -115,7 +116,6 @@ If the testing commands fail due to environment issues:
 - [ ] Set `GOMODCACHE=/tmp/go-mod-cache`
 - [ ] Run `task lint` successfully
 - [ ] Run `task test:headless` successfully
-- [ ] Run `go vet` successfully
 - [ ] No lint warnings or errors
 
 ### Dependency Management for Go
