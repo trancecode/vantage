@@ -18,3 +18,4 @@ jobs:
       golangci-args: '--disable=staticcheck'
       staticcheck-checks: 'inherit'
       check-modernizers: true
+      ignore-paths: '*.md LICENSE docs/**'
