@@ -97,6 +97,13 @@ The default Go module cache may not be writable. Always set a custom module cach
 export GOMODCACHE=/tmp/go-mod-cache
 ```
 
+On a fresh checkout, also install the linters `task lint` depends on:
+```bash
+task install:tools
+```
+`task lint` fails hard, rather than skipping, when staticcheck or golangci-lint
+is missing from PATH, so this is required before the first run.
+
 #### Required Checks
 
 1. **Run lint checks**: `export GOMODCACHE=/tmp/go-mod-cache && task lint`
