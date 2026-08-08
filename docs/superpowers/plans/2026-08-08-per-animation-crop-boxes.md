@@ -175,16 +175,20 @@ func TestBuildDrawOpComposesRatioAndDisplayScale(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run the tests to confirm the rewrite is behaviour-preserving**
 
 ```bash
-export GOMODCACHE=/tmp/go-mod-cache && xvfb-run -a go test ./render/ 2>&1 | head -20
+export GOMODCACHE=/tmp/go-mod-cache && xvfb-run -a go test ./render/ 2>&1 | tail -20
 ```
 
-Expected: compile failure, `s.Scale undefined` is not yet true, so instead expect
-`TestBuildDrawOpUnchangedWithoutASourceTileSize` and its neighbours to FAIL on
-mismatched geometry, because the implementation still multiplies by `Scale` of 1
-while the tests no longer set 2 or 3.
+Expected: PASS, and that is the point. This task deletes a field rather than
+adding behaviour, so there is no failing-test phase to stage: `Scale` defaults to
+1, so a test that no longer sets it already describes what the code does once the
+field is gone. Tests passing here proves the rewrite changed no expectations.
+
+The real gate for this task is Step 6: after the deletion the package must still
+compile and every test must still pass. A test that failed here would mean the
+rewrite in Step 1 changed an expectation it should not have.
 
 - [ ] **Step 3: Delete Scale from the sprite**
 
