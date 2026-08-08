@@ -1,6 +1,7 @@
 package render
 
 import (
+	"image"
 	"testing"
 	"time"
 
@@ -325,30 +326,67 @@ func TestTileRatioScalesTheAnchor(t *testing.T) {
 }
 
 // TestVisibleTopAboveZeroScalesWithTheTileRatio covers that the tile ratio is
-// applied on every return path from the cache, so a tile size change after
-// the sprite's visible extent was first measured is still picked up.
+// applied on every return path from the cache, so a tile size change after the
+// sprite's visible extent was first measured is still picked up.
 //
 // Seeded rather than measured: VisibleTopAboveZero scans pixels with img.At,
 // which cannot run outside an ebiten.RunGame loop. The cache holds the
-// pre-ratio value, so seeding it is exactly what a prior measurement would
-// have left behind.
+// pre-ratio value, so seeding it is exactly what a prior measurement would have
+// left behind.
 func TestVisibleTopAboveZeroScalesWithTheTileRatio(t *testing.T) {
 	original := TileSize
 	t.Cleanup(func() { TileSize = original })
 
-	cached := 12.0
 	s := NewSprite()
-	s.cachedVisibleTopAboveZero = &cached
+	s.cachedVisibleTopAboveZero[AnimationIdleDown] = 12.0
 
-	if got := s.VisibleTopAboveZero(); got != cached {
-		t.Fatalf("VisibleTopAboveZero = %v without a source tile size, want %v", got, cached)
+	if got := s.VisibleTopAboveZero(AnimationIdleDown); got != 12.0 {
+		t.Fatalf("VisibleTopAboveZero = %v without a source tile size, want 12", got)
 	}
 
 	s.SetSourceTileSize(32)
 	TileSize = 16 // ratio 0.5
 
-	if got, want := s.VisibleTopAboveZero(), cached/2; got != want {
+	if got, want := s.VisibleTopAboveZero(AnimationIdleDown), 6.0; got != want {
 		t.Fatalf("VisibleTopAboveZero = %v at ratio 0.5, want %v", got, want)
+	}
+}
+
+// TestVisibleExtentIsPerAnimation covers that each animation keeps its own
+// measurement, so a sheet whose animations have different heights does not
+// return one animation's answer for all of them. Without this a nameplate would
+// drift vertically as a character changed animation.
+func TestVisibleExtentIsPerAnimation(t *testing.T) {
+	s := NewSprite()
+	s.cachedVisibleTopAboveZero[AnimationIdleDown] = 12.0
+	s.cachedVisibleTopAboveZero[AnimationIdleRight] = 40.0
+	s.cachedVisibleBounds[AnimationIdleDown] = image.Rect(0, 0, 8, 12)
+	s.cachedVisibleBounds[AnimationIdleRight] = image.Rect(0, 0, 32, 40)
+
+	if got, want := s.VisibleTopAboveZero(AnimationIdleDown), 12.0; got != want {
+		t.Fatalf("VisibleTopAboveZero(IdleDown) = %v, want %v", got, want)
+	}
+	if got, want := s.VisibleTopAboveZero(AnimationIdleRight), 40.0; got != want {
+		t.Fatalf("VisibleTopAboveZero(IdleRight) = %v, want %v", got, want)
+	}
+	if got, want := s.VisibleBounds(AnimationIdleDown), image.Rect(0, 0, 8, 12); got != want {
+		t.Fatalf("VisibleBounds(IdleDown) = %v, want %v", got, want)
+	}
+	if got, want := s.VisibleBounds(AnimationIdleRight), image.Rect(0, 0, 32, 40); got != want {
+		t.Fatalf("VisibleBounds(IdleRight) = %v, want %v", got, want)
+	}
+}
+
+// TestVisibleExtentOfAnUnknownAnimationIsEmpty covers that these are queries:
+// an animation the sprite does not have returns the zero value rather than
+// panicking or measuring an unrelated frame.
+func TestVisibleExtentOfAnUnknownAnimationIsEmpty(t *testing.T) {
+	s := NewSprite()
+	if got := s.VisibleBounds(AnimationIdleDown); !got.Empty() {
+		t.Fatalf("VisibleBounds of an unknown animation = %v, want empty", got)
+	}
+	if got := s.VisibleTopAboveZero(AnimationIdleDown); got != 0 {
+		t.Fatalf("VisibleTopAboveZero of an unknown animation = %v, want 0", got)
 	}
 }
 

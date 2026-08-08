@@ -38,8 +38,12 @@ type FloatingBarStyle struct {
 // The label's horizontal alignment, color, and visibility above extreme zoom
 // come from writer; use TextAlignment AlignCenter for a nameplate centered on
 // the sprite. DefaultNameplateGapPixels is the recommended value for gapPixels.
-func DrawNameplate(screen *ebiten.Image, camera *Camera, worldPos geometry.Vector2, sprite *Sprite, writer *TextWriter, gapPixels float64) {
-	bottom := overlayBottomScreen(camera, worldPos, sprite.VisibleTopAboveZero(), gapPixels)
+//
+// The animation is required because a sprite's visible top depends on which
+// animation is drawn; passing the animation currently playing keeps the label
+// at a constant gap as the character changes animation.
+func DrawNameplate(screen *ebiten.Image, camera *Camera, worldPos geometry.Vector2, sprite *Sprite, a AnimationType, writer *TextWriter, gapPixels float64) {
+	bottom := overlayBottomScreen(camera, worldPos, sprite.VisibleTopAboveZero(a), gapPixels)
 
 	// text.Draw anchors the label by its top, so shift up by the on-screen text
 	// height to land its bottom on the overlay anchor. Scaling text grows with
@@ -64,8 +68,12 @@ func DrawNameplate(screen *ebiten.Image, camera *Camera, worldPos geometry.Vecto
 //
 // The bar is always drawn: choosing the fill color and deciding when to show it
 // (for example hiding it at full value) is left to the caller.
-func DrawFloatingBar(screen *ebiten.Image, camera *Camera, worldPos geometry.Vector2, sprite *Sprite, fraction float64, style FloatingBarStyle) {
-	bottom := overlayBottomScreen(camera, worldPos, sprite.VisibleTopAboveZero(), style.GapPixels)
+//
+// The animation is required because a sprite's visible top depends on which
+// animation is drawn; passing the animation currently playing keeps the label
+// at a constant gap as the character changes animation.
+func DrawFloatingBar(screen *ebiten.Image, camera *Camera, worldPos geometry.Vector2, sprite *Sprite, a AnimationType, fraction float64, style FloatingBarStyle) {
+	bottom := overlayBottomScreen(camera, worldPos, sprite.VisibleTopAboveZero(a), style.GapPixels)
 	x := bottom.X() - style.Width/2
 	y := bottom.Y() - style.Height
 

@@ -25,11 +25,12 @@ type Sprite struct {
 	// pixel tiles are different sprites that happen to share a file size.
 	SourceTileSize float64
 
-	// cachedVisibleTopAboveZero caches the result of VisibleTopAboveZero.
-	cachedVisibleTopAboveZero *float64
+	// cachedVisibleTopAboveZero caches VisibleTopAboveZero per animation, holding
+	// the pre-ratio value so a tile size changed later still takes effect.
+	cachedVisibleTopAboveZero map[AnimationType]float64
 
-	// cachedVisibleBounds caches the result of VisibleBounds.
-	cachedVisibleBounds *image.Rectangle
+	// cachedVisibleBounds caches VisibleBounds per animation.
+	cachedVisibleBounds map[AnimationType]image.Rectangle
 }
 
 // Animation represents a sequence of images forming an animation.
@@ -47,7 +48,9 @@ type Animation struct {
 // NewSprite creates and returns a new Sprite with default values.
 func NewSprite() *Sprite {
 	return &Sprite{
-		Animations: make(map[AnimationType]*Animation),
+		Animations:                make(map[AnimationType]*Animation),
+		cachedVisibleTopAboveZero: make(map[AnimationType]float64),
+		cachedVisibleBounds:       make(map[AnimationType]image.Rectangle),
 	}
 }
 
@@ -200,19 +203,18 @@ func (s *Sprite) DrawAnimationScaled(screen *ebiten.Image, c *Camera, p geometry
 }
 
 // VisibleBounds returns the bounding rectangle of non-transparent pixels in
-// one frame, expressed in frame-local pixel coordinates. Cached after first
-// call. Returns an empty rectangle if no visible content is found.
-func (s *Sprite) VisibleBounds() image.Rectangle {
-	if s.cachedVisibleBounds != nil {
-		return *s.cachedVisibleBounds
+// the first frame of the given animation, expressed in frame-local pixel
+// coordinates. Cached per animation after first call. Returns an empty
+// rectangle if no visible content is found.
+//
+// The rectangle is in the source animation's own coordinates and is not
+// mirrored, so a hit test against a flipped sprite is reflected about the
+// anchor.
+func (s *Sprite) VisibleBounds(a AnimationType) image.Rectangle {
+	if cached, ok := s.cachedVisibleBounds[a]; ok {
+		return cached
 	}
-	var img *ebiten.Image
-	for _, anim := range s.Animations {
-		if len(anim.Images) > 0 {
-			img = anim.Images[0]
-			break
-		}
-	}
+	img := s.animationFrame(a)
 	var result image.Rectangle
 	if img != nil {
 		frame := img.Bounds()
@@ -220,8 +222,8 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 		maxX, maxY := frame.Min.X-1, frame.Min.Y-1
 		for y := frame.Min.Y; y < frame.Max.Y; y++ {
 			for x := frame.Min.X; x < frame.Max.X; x++ {
-				_, _, _, a := img.At(x, y).RGBA()
-				if a == 0 {
+				_, _, _, alpha := img.At(x, y).RGBA()
+				if alpha == 0 {
 					continue
 				}
 				if x < minX {
@@ -246,19 +248,18 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 			)
 		}
 	}
-	s.cachedVisibleBounds = &result
+	s.cachedVisibleBounds[a] = result
 	return result
 }
 
 // VisibleTopAboveZero returns how far the visible sprite content
-// (non-transparent pixels) extends above ZeroPosition in one frame, measured in
-// drawn pixels including the tile ratio: the row offset and ZeroPosition are
-// both in source pixels, and the tile ratio maps them to what ends up on
-// screen. Frames across
-// animations share the same size and layout, so the result is computed once
-// from any available frame and cached; the cache holds the pre-ratio value, so
-// the ratio is applied fresh on every call and a tile size changed after the
-// first call still takes effect.
+// (non-transparent pixels) extends above ZeroPosition, measured for the given
+// animation, since animations may have different crop sizes and anchors,
+// measured in drawn pixels including the tile ratio: the row offset and
+// ZeroPosition are both in source pixels, and the tile ratio maps them to
+// what ends up on screen. The result is cached per animation; the cache holds
+// the pre-ratio value, so the ratio is applied fresh on every call and a tile
+// size changed after the first call still takes effect.
 //
 // Use this instead of the raw frame height when placing UI elements (like
 // nameplates) above a sprite: transparent padding at the top of the frame is
@@ -269,28 +270,21 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 // DrawAnimation uses. DrawAnimationScaled scales uniformly about the zero
 // position, so a caller placing UI above a sprite drawn at a display scale
 // multiplies this result by that same scale.
-func (s *Sprite) VisibleTopAboveZero() float64 {
-	if s.cachedVisibleTopAboveZero != nil {
-		return *s.cachedVisibleTopAboveZero * s.TileRatio()
+func (s *Sprite) VisibleTopAboveZero(a AnimationType) float64 {
+	if cached, ok := s.cachedVisibleTopAboveZero[a]; ok {
+		return cached * s.TileRatio()
 	}
 
-	var img *ebiten.Image
-	anchorY := 0.0
-	for a, anim := range s.Animations {
-		if len(anim.Images) > 0 {
-			img = anim.Images[0]
-			anchorY = s.Anchor(a).Y()
-			break
-		}
-	}
+	img := s.animationFrame(a)
 	result := 0.0
 	if img != nil {
+		anchorY := s.Anchor(a).Y()
 		bounds := img.Bounds()
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			rowHasPixel := false
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				_, _, _, a := img.At(x, y).RGBA()
-				if a > 0 {
+				_, _, _, alpha := img.At(x, y).RGBA()
+				if alpha > 0 {
 					rowHasPixel = true
 					break
 				}
@@ -306,7 +300,7 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 		}
 	}
 
-	s.cachedVisibleTopAboveZero = &result
+	s.cachedVisibleTopAboveZero[a] = result
 	return result * s.TileRatio()
 }
 
@@ -348,6 +342,26 @@ func (s *Sprite) Anchor(a AnimationType) geometry.Vector2 {
 		}
 	}
 	return geometry.Zero2D()
+}
+
+// animationFrame returns the first frame of a, resolving a mirrored animation
+// to the animation it is drawn from, and nil when neither exists or has
+// frames.
+func (s *Sprite) animationFrame(a AnimationType) *ebiten.Image {
+	animation, ok := s.Animations[a]
+	if !ok {
+		other, mirrored := MirroredAnimations[a]
+		if !mirrored {
+			return nil
+		}
+		if animation, ok = s.Animations[other]; !ok {
+			return nil
+		}
+	}
+	if len(animation.Images) == 0 {
+		return nil
+	}
+	return animation.Images[0]
 }
 
 // SetZeroPosition sets one anchor on every animation the sprite currently has,
