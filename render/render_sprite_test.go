@@ -459,6 +459,103 @@ func TestSetZeroPositionPanicsWithoutAnimations(t *testing.T) {
 	NewSprite().SetZeroPosition(geometry.NewVector2(1, 2))
 }
 
+// TestLoadSpriteAnimationsBuildsPerAnimationGeometry covers the primitive
+// loader: each animation gets its own frames, its own anchor and its own
+// duration, with no uniform grid involved.
+func TestLoadSpriteAnimationsBuildsPerAnimationGeometry(t *testing.T) {
+	img := ebiten.NewImage(64, 64)
+	specs := map[AnimationType]AnimationSpec{
+		AnimationIdleDown: {
+			Frames:   []image.Rectangle{image.Rect(0, 0, 8, 12), image.Rect(8, 0, 16, 12)},
+			Anchor:   geometry.NewVector2(4, 12),
+			Duration: 200 * time.Millisecond,
+		},
+		AnimationIdleRight: {
+			Frames: []image.Rectangle{image.Rect(0, 16, 32, 48)},
+			Anchor: geometry.NewVector2(16, 32),
+		},
+	}
+
+	s, err := LoadSpriteAnimations(img, specs)
+	if err != nil {
+		t.Fatalf("LoadSpriteAnimations returned error: %v", err)
+	}
+
+	if got := len(s.Animations[AnimationIdleDown].Images); got != 2 {
+		t.Fatalf("IdleDown frame count = %d, want 2", got)
+	}
+	if got, want := s.Anchor(AnimationIdleDown), geometry.NewVector2(4, 12); got != want {
+		t.Fatalf("Anchor(IdleDown) = %v, want %v", got, want)
+	}
+	if got, want := s.Anchor(AnimationIdleRight), geometry.NewVector2(16, 32); got != want {
+		t.Fatalf("Anchor(IdleRight) = %v, want %v", got, want)
+	}
+	if got, want := s.Animations[AnimationIdleDown].Duration, 200*time.Millisecond; got != want {
+		t.Fatalf("IdleDown duration = %v, want %v", got, want)
+	}
+	// A zero duration defaults to one second, matching LoadSprite.
+	if got, want := s.Animations[AnimationIdleRight].Duration, time.Second; got != want {
+		t.Fatalf("IdleRight duration = %v, want %v", got, want)
+	}
+	// Frames of different animations may differ in size.
+	if got := s.Animations[AnimationIdleRight].Images[0].Bounds().Dx(); got != 32 {
+		t.Fatalf("IdleRight frame width = %d, want 32", got)
+	}
+}
+
+// TestLoadSpriteAnimationsRejectsBadGeometry covers the three ways a spec can be
+// wrong, each of which is a programming error worth naming rather than drawing
+// something wrong.
+func TestLoadSpriteAnimationsRejectsBadGeometry(t *testing.T) {
+	img := ebiten.NewImage(64, 64)
+	for _, tc := range []struct {
+		name string
+		spec AnimationSpec
+	}{
+		{"no frames", AnimationSpec{}},
+		{"empty rectangle", AnimationSpec{Frames: []image.Rectangle{image.Rect(4, 4, 4, 4)}}},
+		{"outside the image", AnimationSpec{Frames: []image.Rectangle{image.Rect(0, 0, 128, 128)}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := LoadSpriteAnimations(img, map[AnimationType]AnimationSpec{
+				AnimationIdleDown: tc.spec,
+			}); err == nil {
+				t.Fatal("LoadSpriteAnimations accepted an invalid spec")
+			}
+		})
+	}
+}
+
+// TestLoadSpriteMatchesLoadSpriteAnimations covers that the uniform grid is just
+// a convenient way to describe the same thing, since LoadSprite is a wrapper.
+func TestLoadSpriteMatchesLoadSpriteAnimations(t *testing.T) {
+	img := ebiten.NewImage(32, 32)
+
+	fromGrid, err := LoadSprite(img, 2, 2, map[AnimationType][]int{
+		AnimationIdleDown: {0, 1},
+	}, nil)
+	if err != nil {
+		t.Fatalf("LoadSprite returned error: %v", err)
+	}
+
+	fromSpecs, err := LoadSpriteAnimations(img, map[AnimationType]AnimationSpec{
+		AnimationIdleDown: {Frames: []image.Rectangle{
+			image.Rect(0, 0, 16, 16), image.Rect(16, 0, 32, 16),
+		}},
+	})
+	if err != nil {
+		t.Fatalf("LoadSpriteAnimations returned error: %v", err)
+	}
+
+	for i := range fromGrid.Animations[AnimationIdleDown].Images {
+		got := fromGrid.Animations[AnimationIdleDown].Images[i].Bounds()
+		want := fromSpecs.Animations[AnimationIdleDown].Images[i].Bounds()
+		if got != want {
+			t.Fatalf("frame %d bounds = %v, want %v", i, got, want)
+		}
+	}
+}
+
 // TestBuildDrawOpUsesTheAnimationAnchor covers that the draw path reads the
 // anchor of the animation being drawn. Two animations with different anchors,
 // drawn at one world position, must both land their own anchor pixel on that

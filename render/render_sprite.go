@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"image"
+	"slices"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -395,42 +396,114 @@ var (
 	}
 )
 
-// LoadSprite slices img into a grid of width columns by height rows, assigns the frame indexes in indexes to each
-// AnimationType, and sets per-animation durations (defaulting to one second when unspecified). Note: width and height
-// are column/row counts, not pixel dimensions.
-func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType][]int, durations map[AnimationType]time.Duration) (*Sprite, error) {
+// AnimationSpec describes one animation's geometry within an image: where its
+// frames are, where its anchor sits inside them, and how long it runs. It is the
+// load-time description of an animation, where Animation is the loaded form; the
+// two differ in that a spec names frames as rectangles into a source image while
+// an Animation holds uploaded textures.
+//
+// Frames need not be the same size as each other or as another animation's,
+// which is what lets a sheet be packed with one crop box per animation.
+type AnimationSpec struct {
+	// Frames are the source rectangles of this animation's frames, in order.
+	Frames []image.Rectangle
+
+	// Anchor is the pixel inside this animation's frames that sits on the drawn
+	// world position, in frame-local pixels.
+	Anchor geometry.Vector2
+
+	// Duration is how long the whole animation runs. Zero means one second.
+	Duration time.Duration
+}
+
+// sortedAnimationTypes returns m's keys in ascending order, so anything built
+// from a map of animations is reproducible rather than depending on Go's map
+// iteration order.
+func sortedAnimationTypes[V any](m map[AnimationType]V) []AnimationType {
+	types := make([]AnimationType, 0, len(m))
+	for a := range m {
+		types = append(types, a)
+	}
+	slices.Sort(types)
+	return types
+}
+
+// LoadSpriteAnimations builds a sprite whose animations each carry their own
+// frame rectangles, anchor and duration. Frames are sub-images of img, so the
+// whole sprite costs one texture however many animations it has.
+//
+// Use it when a sheet is not a uniform grid, or when animations need different
+// anchors. LoadSprite is the convenience for the uniform case and is built on
+// this.
+func LoadSpriteAnimations(img *ebiten.Image, specs map[AnimationType]AnimationSpec) (*Sprite, error) {
 	sprite := NewSprite()
-	// Get the size of each tile
-	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	tileWidth := w / width
-	tileHeight := h / height
+	bounds := img.Bounds()
 
-	for animationType, animationIndexes := range indexes {
-		for _, index := range animationIndexes {
-			// Calculate the position of the tile in the sprite sheet
-			x := (index % width) * tileWidth
-			y := (index / width) * tileHeight
-
-			// Create a sub-image of the tile
-			rect := image.Rect(x, y, x+tileWidth, y+tileHeight)
-			subImg := img.SubImage(rect).(*ebiten.Image)
-
-			// Add the tile to the animation
-			sprite.AddImage(animationType, subImg)
+	for _, a := range sortedAnimationTypes(specs) {
+		spec := specs[a]
+		if len(spec.Frames) == 0 {
+			return nil, fmt.Errorf("animation %s: no frames", a)
+		}
+		for i, rect := range spec.Frames {
+			if rect.Empty() {
+				return nil, fmt.Errorf("animation %s frame %d: empty rectangle %v", a, i, rect)
+			}
+			if !rect.In(bounds) {
+				return nil, fmt.Errorf("animation %s frame %d: rectangle %v is outside the image bounds %v", a, i, rect, bounds)
+			}
+			sprite.AddImage(a, img.SubImage(rect).(*ebiten.Image))
 		}
 
-		// Set the animation duration if it exists. An empty index list means no
-		// animation entry was created above, so there is nothing to set.
-		duration, ok := durations[animationType]
-		if !ok {
-			duration = time.Second
-		}
-		if animation, ok := sprite.Animations[animationType]; ok {
-			animation.Duration = duration
+		animation := sprite.Animations[a]
+		animation.ZeroPosition = spec.Anchor
+		animation.Duration = spec.Duration
+		if animation.Duration == 0 {
+			animation.Duration = time.Second
 		}
 	}
 
 	return sprite, nil
+}
+
+// MustLoadSpriteAnimations is like LoadSpriteAnimations but panics on error.
+func MustLoadSpriteAnimations(img *ebiten.Image, specs map[AnimationType]AnimationSpec) *Sprite {
+	sprite, err := LoadSpriteAnimations(img, specs)
+	if err != nil {
+		panic(fmt.Sprintf("loading sprite animations: %v", err))
+	}
+	return sprite
+}
+
+// LoadSprite slices img into a grid of width columns by height rows, assigns the
+// frame indexes in indexes to each AnimationType, and sets per-animation
+// durations (defaulting to one second when unspecified). Note: width and height
+// are column/row counts, not pixel dimensions.
+//
+// It is the convenience for a uniform sheet, expressed on top of
+// LoadSpriteAnimations. Anchors are left at zero, since a uniform sheet's anchor
+// is normally set once for the whole sprite with SetZeroPosition.
+func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType][]int, durations map[AnimationType]time.Duration) (*Sprite, error) {
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	tileWidth := w / width
+	tileHeight := h / height
+
+	specs := make(map[AnimationType]AnimationSpec, len(indexes))
+	for animationType, animationIndexes := range indexes {
+		// An empty index list creates no animation at all, so it must not reach
+		// LoadSpriteAnimations, which rejects a spec with no frames.
+		if len(animationIndexes) == 0 {
+			continue
+		}
+		frames := make([]image.Rectangle, 0, len(animationIndexes))
+		for _, index := range animationIndexes {
+			x := (index % width) * tileWidth
+			y := (index / width) * tileHeight
+			frames = append(frames, image.Rect(x, y, x+tileWidth, y+tileHeight))
+		}
+		specs[animationType] = AnimationSpec{Frames: frames, Duration: durations[animationType]}
+	}
+
+	return LoadSpriteAnimations(img, specs)
 }
 
 // MustLoadSprite is like LoadSprite but panics on error.
