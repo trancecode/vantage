@@ -161,3 +161,77 @@ func TestAutoCropRejectsABadGrid(t *testing.T) {
 		}
 	}
 }
+
+// TestAutoCropUnionsFramesOfOneAnimation covers the central semantic of this
+// task: an animation's box is the union across all of its frames, not any one
+// frame's own box. Frame 0's content sits at cell-local (4,4)-(12,12) and frame
+// 1's sits at cell-local (2,2)-(6,6), so the union is (2,2)-(12,12): both frames
+// must come out at that shared 10x10 size, and the anchor rebases against the
+// union's origin rather than either frame's own.
+func TestAutoCropUnionsFramesOfOneAnimation(t *testing.T) {
+	_, specs, err := autoCropAtlas(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
+		AnimationIdleDown: {0, 1},
+	}, nil, geometry.NewVector2(8, 16))
+	if err != nil {
+		t.Fatalf("autoCropAtlas returned error: %v", err)
+	}
+
+	down := specs[AnimationIdleDown]
+	for i, frame := range down.Frames {
+		if got := frame.Dx(); got != 10 {
+			t.Fatalf("frame %d width = %d, want the union width 10", i, got)
+		}
+		if got := frame.Dy(); got != 10 {
+			t.Fatalf("frame %d height = %d, want the union height 10", i, got)
+		}
+	}
+	// The union starts at cell-local (2,2), so the anchor moves by that much,
+	// not by frame 0's own (4,4) origin.
+	if got, want := down.Anchor, geometry.NewVector2(6, 14); got != want {
+		t.Fatalf("IdleDown anchor = %v, want %v", got, want)
+	}
+}
+
+// autoCropColorTestSheet builds a 2x2 grid of 16 pixel cells where cell 0 and
+// cell 1 each carry an 8x8 block at the same cell-local offset (4,4), but in
+// different colors: cell 0 is red, cell 1 is green. Same-sized, differently
+// colored content lets a test tell whether the wrong animation's pixels landed
+// in a rectangle, which same-colored fixtures cannot.
+func autoCropColorTestSheet() *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	fill := func(x0, y0, x1, y1 int, c color.RGBA) {
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				img.Set(x, y, c)
+			}
+		}
+	}
+	fill(4, 4, 12, 12, color.RGBA{R: 255, A: 255})       // cell 0, red block at cell-local (4,4)-(12,12)
+	fill(16+4, 4, 16+12, 12, color.RGBA{G: 255, A: 255}) // cell 1, green block at the same cell-local offset
+	return img
+}
+
+// TestAutoCropDoesNotSwapAnimationsPixels covers the exact failure mode of the
+// two sorted traversals diverging: if the placement built for one animation
+// were matched to another, the copied pixels would still be correctly sized
+// and non-transparent but would be the wrong animation's content. Same-sized
+// but differently colored crop boxes catch that, where same-colored fixtures
+// cannot.
+func TestAutoCropDoesNotSwapAnimationsPixels(t *testing.T) {
+	atlas, specs, err := autoCropAtlas(autoCropColorTestSheet(), 2, 2, map[AnimationType][]int{
+		AnimationIdleDown:  {0},
+		AnimationIdleRight: {1},
+	}, nil, geometry.Zero2D())
+	if err != nil {
+		t.Fatalf("autoCropAtlas returned error: %v", err)
+	}
+
+	downMin := specs[AnimationIdleDown].Frames[0].Min
+	if r, g, b, _ := atlas.At(downMin.X, downMin.Y).RGBA(); r == 0 || g != 0 || b != 0 {
+		t.Fatalf("IdleDown pixel at %v is not red: r=%d g=%d b=%d", downMin, r, g, b)
+	}
+	rightMin := specs[AnimationIdleRight].Frames[0].Min
+	if r, g, b, _ := atlas.At(rightMin.X, rightMin.Y).RGBA(); g == 0 || r != 0 || b != 0 {
+		t.Fatalf("IdleRight pixel at %v is not green: r=%d g=%d b=%d", rightMin, r, g, b)
+	}
+}
