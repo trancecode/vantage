@@ -9,6 +9,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/trancecode/vantage/geometry"
 )
 
@@ -202,4 +204,45 @@ func shelfPack(frames []placement) (*image.RGBA, []placement) {
 	}
 
 	return image.NewRGBA(image.Rect(0, 0, atlasWidth, penY+shelfHeight)), placed
+}
+
+// LoadSpriteAutoCropped builds a sprite from a uniform sheet, cropping each
+// animation to its own content and repacking the frames into a smaller texture
+// before upload. anchor is the sheet-wide anchor in cell-local pixels; each
+// animation's anchor is derived from it and its own crop box, so no per-animation
+// anchor has to be supplied.
+//
+// It takes an image.Image, not an *ebiten.Image, because the crop must happen
+// before the sheet is uploaded: a sheet is mostly transparent padding, and
+// padding costs nothing on disk but a full texture in video memory.
+//
+// As in LoadSprite, width and height are column and row counts, not pixel
+// dimensions.
+func LoadSpriteAutoCropped(
+	src image.Image,
+	width, height int,
+	indexes map[AnimationType][]int,
+	durations map[AnimationType]time.Duration,
+	anchor geometry.Vector2,
+) (*Sprite, error) {
+	atlas, specs, err := autoCropAtlas(src, width, height, indexes, durations, anchor)
+	if err != nil {
+		return nil, fmt.Errorf("cropping sprite sheet: %w", err)
+	}
+	return LoadSpriteAnimations(ebiten.NewImageFromImage(atlas), specs)
+}
+
+// MustLoadSpriteAutoCropped is like LoadSpriteAutoCropped but panics on error.
+func MustLoadSpriteAutoCropped(
+	src image.Image,
+	width, height int,
+	indexes map[AnimationType][]int,
+	durations map[AnimationType]time.Duration,
+	anchor geometry.Vector2,
+) *Sprite {
+	sprite, err := LoadSpriteAutoCropped(src, width, height, indexes, durations, anchor)
+	if err != nil {
+		panic(fmt.Sprintf("loading auto-cropped sprite: %v", err))
+	}
+	return sprite
 }

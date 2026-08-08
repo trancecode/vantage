@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/trancecode/vantage/geometry"
 )
 
@@ -233,5 +235,63 @@ func TestAutoCropDoesNotSwapAnimationsPixels(t *testing.T) {
 	rightMin := specs[AnimationIdleRight].Frames[0].Min
 	if r, g, b, _ := atlas.At(rightMin.X, rightMin.Y).RGBA(); g == 0 || r != 0 || b != 0 {
 		t.Fatalf("IdleRight pixel at %v is not green: r=%d g=%d b=%d", rightMin, r, g, b)
+	}
+}
+
+// TestAutoCroppedDrawsWhereTheUncroppedSpriteWould is the property the whole
+// change has to preserve. The same sheet loaded uniformly and auto-cropped must
+// put the anchor pixel on the same screen point for every animation, so the
+// repack is invisible in the game.
+func TestAutoCroppedDrawsWhereTheUncroppedSpriteWould(t *testing.T) {
+	sheet := autoCropTestSheet()
+	indexes := map[AnimationType][]int{
+		AnimationIdleDown:  {0},
+		AnimationIdleRight: {1},
+	}
+	anchor := geometry.NewVector2(8, 16)
+
+	uniform, err := LoadSprite(ebiten.NewImageFromImage(sheet), 2, 2, indexes, nil)
+	if err != nil {
+		t.Fatalf("LoadSprite returned error: %v", err)
+	}
+	uniform.SetZeroPosition(anchor)
+
+	cropped, err := LoadSpriteAutoCropped(sheet, 2, 2, indexes, nil, anchor)
+	if err != nil {
+		t.Fatalf("LoadSpriteAutoCropped returned error: %v", err)
+	}
+
+	c := drawOpTestCamera()
+	p := geometry.NewVector2(3, 5)
+	const eps = 1e-9
+	for _, a := range []AnimationType{AnimationIdleDown, AnimationIdleRight} {
+		wantAnchor := uniform.Anchor(a)
+		wantOp := uniform.buildDrawOp(p, a, false, c, 1.0)
+		wantX, wantY := wantOp.GeoM.Apply(wantAnchor.X(), wantAnchor.Y())
+
+		gotAnchor := cropped.Anchor(a)
+		gotOp := cropped.buildDrawOp(p, a, false, c, 1.0)
+		gotX, gotY := gotOp.GeoM.Apply(gotAnchor.X(), gotAnchor.Y())
+
+		if diff := gotX - wantX; diff > eps || diff < -eps {
+			t.Errorf("animation %s: anchor X = %v, want %v", a, gotX, wantX)
+		}
+		if diff := gotY - wantY; diff > eps || diff < -eps {
+			t.Errorf("animation %s: anchor Y = %v, want %v", a, gotY, wantY)
+		}
+	}
+}
+
+// TestLoadSpriteAutoCroppedShrinksTheFrames covers that the loaded sprite really
+// carries the tight frames rather than the padded cells.
+func TestLoadSpriteAutoCroppedShrinksTheFrames(t *testing.T) {
+	s, err := LoadSpriteAutoCropped(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
+		AnimationIdleDown: {0},
+	}, nil, geometry.Zero2D())
+	if err != nil {
+		t.Fatalf("LoadSpriteAutoCropped returned error: %v", err)
+	}
+	if got := s.Animations[AnimationIdleDown].Images[0].Bounds().Dx(); got != 8 {
+		t.Fatalf("frame width = %d, want the cropped 8 rather than the 16 pixel cell", got)
 	}
 }
