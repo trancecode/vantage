@@ -65,12 +65,12 @@ func showcaseAnimationLabelY() float64 { return ShowcaseSlotTiles + 0.8 }
 // dimension across its animations, measured at the size the engine actually
 // draws it, divided into the slot's pixel size.
 //
-// The drawn size is the raw frame dimension multiplied by the sprite's own
-// Scale and by its render.Sprite.TileRatio. The ratio matters because the
-// engine has already applied it by the time this scene's display scale reaches
-// the draw: a 64 pixel frame declaring a SourceTileSize of 64 is drawn at one
-// 16 pixel tile, so it needs no correction at all, and measuring the raw 64
-// pixels would shrink it to a quarter of its slot.
+// The drawn size is the raw frame dimension multiplied by its
+// render.Sprite.TileRatio. The ratio matters because the engine has already
+// applied it by the time this scene's display scale reaches the draw: a 64
+// pixel frame declaring a SourceTileSize of 64 is drawn at one 16 pixel tile,
+// so it needs no correction at all, and measuring the raw 64 pixels would
+// shrink it to a quarter of its slot.
 //
 // The result is capped at 1, so oversized art shrinks but art at or below a
 // slot is left at its natural size rather than blown up. Magnifying it would
@@ -82,11 +82,11 @@ func showcaseAnimationLabelY() float64 { return ShowcaseSlotTiles + 0.8 }
 // would be a tighter measurement but scans pixels, which is not.
 //
 // The scale is a property of this view, never of the sprite. It is passed to
-// render.Sprite.DrawAnimationScaled per draw rather than set with SetScale,
-// because a library hands the same pointer to the game and setting it here
-// would rescale that sprite everywhere.
+// render.Sprite.DrawAnimationScaled per draw rather than stored on the sprite,
+// because a library hands the same pointer to the game and mutating the sprite
+// here would change it everywhere else it is drawn.
 func showcaseFitScale(sprite *render.Sprite) float64 {
-	drawnScale := sprite.Scale * sprite.TileRatio()
+	drawnScale := sprite.TileRatio()
 	artPixels := 0.0
 	for _, animation := range sprite.Animations {
 		for _, image := range animation.Images {

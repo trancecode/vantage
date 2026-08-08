@@ -3,14 +3,15 @@
 // a game and without any asset files.
 //
 // The generated sprites deliberately differ in size, from 8 to 64 pixels, and
-// one uses Sprite.Scale rather than large frames, which is what makes the
-// showcase's fixed slots and its scale-down-to-fit behavior visible. Another
-// declares a SourceTileSize larger than a single tile and carries four
-// directional animations registered through render.RegisterAnimationName, so
-// both the tile ratio and the animation naming path have visual coverage here
-// too: raising --scene_showcase_slot_tiles shows its art at its true size
-// instead of shrunk to fit a one tile slot, and its labels read "S", "E", "N",
-// "W" rather than the generated AnimationType(64) placeholder.
+// one declares a source tile size smaller than a tile rather than using large
+// frames, which is what makes the showcase's fixed slots and its
+// scale-down-to-fit behavior visible. Another declares a SourceTileSize larger
+// than a single tile and carries four directional animations registered
+// through render.RegisterAnimationName, so both the tile ratio and the
+// animation naming path have visual coverage here too: raising
+// --scene_showcase_slot_tiles shows its art at its true size instead of
+// shrunk to fit a one tile slot, and its labels read "S", "E", "N", "W"
+// rather than the generated AnimationType(64) placeholder.
 //
 // Usage:
 //
@@ -102,16 +103,16 @@ func shaded(c color.RGBA, factor float64) color.RGBA {
 	}
 }
 
-// demoSprite builds a sprite whose frames are all size pixels square, drawn at
-// the given Sprite.Scale, with one animation per requested type.
-func demoSprite(size int, spriteScale float64, fill color.RGBA, animations ...render.AnimationType) *render.Sprite {
+// demoSprite builds a sprite whose frames are all size pixels square, with one
+// animation per requested type.
+func demoSprite(size int, fill color.RGBA, animations ...render.AnimationType) *render.Sprite {
 	s := render.NewSprite()
 	for i, a := range animations {
 		for f := range framesPerAnimation {
 			s.AddImage(a, frame(size, shaded(fill, 0.45+0.15*float64((i+f)%framesPerAnimation))))
 		}
 	}
-	return s.SetScale(spriteScale)
+	return s
 }
 
 // registerSprites fills the default sprite library with placeholder art chosen
@@ -125,18 +126,19 @@ func registerSprites() {
 	purple := color.RGBA{R: 160, G: 90, B: 200, A: 255}
 
 	// Several animations each: one row per sprite, one column per animation.
-	render.Sprites.Add("HeroNormal16", demoSprite(16, 1, red,
+	render.Sprites.Add("HeroNormal16", demoSprite(16, red,
 		render.AnimationIdleDown, render.AnimationIdleRight,
 		render.AnimationMoveDown, render.AnimationMoveRight))
-	render.Sprites.Add("BossHuge64", demoSprite(64, 1, blue,
+	render.Sprites.Add("BossHuge64", demoSprite(64, blue,
 		render.AnimationIdleDown, render.AnimationMoveDown, render.AnimationAttackDown))
-	render.Sprites.Add("GiantScaled16x4", demoSprite(16, 4, amber,
-		render.AnimationIdleDown, render.AnimationMoveDown))
+	// 16 pixel art drawn for 4 pixel tiles, so it covers four tiles.
+	render.Sprites.Add("GiantSourceTile16x4", demoSprite(16, amber,
+		render.AnimationIdleDown, render.AnimationMoveDown).SetSourceTileSize(4))
 
 	// A 64 pixel frame declaring the tile size it was drawn for, so it is two
 	// tiles at the default tile size, with directional animations carrying
 	// registered names instead of the generated AnimationType placeholder.
-	render.Sprites.Add("DirectionalTiles64x2", demoSprite(64, 1, purple,
+	render.Sprites.Add("DirectionalTiles64x2", demoSprite(64, purple,
 		animationSouth, animationEast, animationNorth, animationWest,
 	).SetSourceTileSize(32))
 
@@ -144,7 +146,7 @@ func registerSprites() {
 	for i, size := range []int{16, 16, 32, 8, 16, 64, 16, 24, 16, 48, 16, 16} {
 		render.Sprites.Add(
 			fmt.Sprintf("Tile%02d_%dpx", i+1, size),
-			demoSprite(size, 1, green, render.AnimationDefault),
+			demoSprite(size, green, render.AnimationDefault),
 		)
 	}
 }

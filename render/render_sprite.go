@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"image"
+	"slices"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -15,10 +16,8 @@ var UsePlaceholderSpriteImages bool
 
 // Sprite represents a game sprite with animations.
 type Sprite struct {
-	Animations   map[AnimationType]*Animation
-	ZeroPosition geometry.Vector2
-	Scale        float64
-	Type         SpriteType
+	Animations map[AnimationType]*Animation
+	Type       SpriteType
 
 	// SourceTileSize is the tile size this sprite's art was drawn for. Zero
 	// means it was drawn for whatever the game's tile size is, so no correction
@@ -27,25 +26,32 @@ type Sprite struct {
 	// pixel tiles are different sprites that happen to share a file size.
 	SourceTileSize float64
 
-	// cachedVisibleTopAboveZero caches the result of VisibleTopAboveZero.
-	cachedVisibleTopAboveZero *float64
+	// cachedVisibleTopAboveZero caches VisibleTopAboveZero per animation, holding
+	// the pre-ratio value so a tile size changed later still takes effect.
+	cachedVisibleTopAboveZero map[AnimationType]float64
 
-	// cachedVisibleBounds caches the result of VisibleBounds.
-	cachedVisibleBounds *image.Rectangle
+	// cachedVisibleBounds caches VisibleBounds per animation.
+	cachedVisibleBounds map[AnimationType]image.Rectangle
 }
 
 // Animation represents a sequence of images forming an animation.
 type Animation struct {
 	Images   []*ebiten.Image
 	Duration time.Duration
+
+	// ZeroPosition is this animation's anchor: the pixel inside its frames that
+	// sits on the drawn world position, in its own frames' local pixels. Frames
+	// of different animations need not share a size or an anchor, which is what
+	// lets a sheet be cropped per animation.
+	ZeroPosition geometry.Vector2
 }
 
 // NewSprite creates and returns a new Sprite with default values.
 func NewSprite() *Sprite {
 	return &Sprite{
-		Animations:   make(map[AnimationType]*Animation),
-		ZeroPosition: geometry.Zero2D(),
-		Scale:        1.0,
+		Animations:                make(map[AnimationType]*Animation),
+		cachedVisibleTopAboveZero: make(map[AnimationType]float64),
+		cachedVisibleBounds:       make(map[AnimationType]image.Rectangle),
 	}
 }
 
@@ -125,32 +131,25 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 		return
 	}
 
-	op := s.buildDrawOp(p, requiresFlip, c, 1.0)
+	op := s.buildDrawOp(p, a, requiresFlip, c, 1.0)
 	screen.DrawImage(img, op)
 }
 
 // buildDrawOp builds the draw options for the sprite at world-tile position p:
-// sprite scale combined with the tile ratio and displayScale, zero-position
-// offset, optional horizontal flip, then the camera transform.
+// the tile ratio combined with displayScale, the zero-position offset, an
+// optional horizontal flip, then the camera transform.
 //
-// displayScale multiplies s.Scale instead of replacing it, and the
-// zero-position offset is multiplied by it as well. Because that offset is
-// applied in post-scale space, scaling both by the same factor makes
-// displayScale a uniform shrink about the zero position: the pixel anchored at
-// the world position p stays at p, and only the drawn extent changes. A
-// displayScale of 1 reproduces the unscaled transform exactly.
-func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
+// The scale and the anchor offset use the same factor, so the transform is a
+// uniform scale about the zero position: the pixel anchored at the world
+// position p stays at p, and only the drawn extent changes. A displayScale of 1
+// draws the sprite at the size the game draws it.
+func (s *Sprite) buildDrawOp(p geometry.Vector2, a AnimationType, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.Filter = SpriteFilter
-	// The tile ratio is an engine-applied uniform scale about the anchor, so it
-	// multiplies in exactly where displayScale does. ZeroPosition keeps its
-	// existing meaning, in Scale-applied pixels, which is why the translate does
-	// not include Scale.
-	ratio := s.TileRatio()
-	scale := s.Scale * ratio * displayScale
+	scale := s.TileRatio() * displayScale
 	op.GeoM.Scale(scale, scale)
-	anchor := ratio * displayScale
-	op.GeoM.Translate(-s.ZeroPosition.X()*anchor, -s.ZeroPosition.Y()*anchor)
+	anchor := s.Anchor(a)
+	op.GeoM.Translate(-anchor.X()*scale, -anchor.Y()*scale)
 	if requiresFlip {
 		op.GeoM.Scale(-1, 1)
 	}
@@ -165,9 +164,7 @@ func (s *Sprite) DrawAnimation(screen *ebiten.Image, c *Camera, p geometry.Vecto
 
 // DrawAnimationScaled is DrawAnimation with an extra per-draw display scale,
 // for views that need a sprite drawn smaller or larger than the game draws it
-// without mutating the sprite. displayScale multiplies Sprite.Scale for this
-// call only; SetScale would change the sprite everywhere it is drawn, since a
-// sprite library hands out the same pointer to every caller.
+// without mutating the sprite.
 //
 // The scale is uniform about the sprite's zero position, so the anchor point
 // stays on p at any display scale and only the drawn extent changes. A
@@ -202,24 +199,23 @@ func (s *Sprite) DrawAnimationScaled(screen *ebiten.Image, c *Camera, p geometry
 		return
 	}
 
-	op := s.buildDrawOp(p, requiresFlip, c, displayScale)
+	op := s.buildDrawOp(p, a, requiresFlip, c, displayScale)
 	screen.DrawImage(img, op)
 }
 
 // VisibleBounds returns the bounding rectangle of non-transparent pixels in
-// one frame, expressed in frame-local pixel coordinates. Cached after first
-// call. Returns an empty rectangle if no visible content is found.
-func (s *Sprite) VisibleBounds() image.Rectangle {
-	if s.cachedVisibleBounds != nil {
-		return *s.cachedVisibleBounds
+// the first frame of the given animation, expressed in frame-local pixel
+// coordinates. Cached per animation after first call. Returns an empty
+// rectangle if no visible content is found.
+//
+// The rectangle is in the source animation's own coordinates and is not
+// mirrored, so a hit test against a flipped sprite is reflected about the
+// anchor.
+func (s *Sprite) VisibleBounds(a AnimationType) image.Rectangle {
+	if cached, ok := s.cachedVisibleBounds[a]; ok {
+		return cached
 	}
-	var img *ebiten.Image
-	for _, anim := range s.Animations {
-		if len(anim.Images) > 0 {
-			img = anim.Images[0]
-			break
-		}
-	}
+	img := s.animationFrame(a)
 	var result image.Rectangle
 	if img != nil {
 		frame := img.Bounds()
@@ -227,8 +223,8 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 		maxX, maxY := frame.Min.X-1, frame.Min.Y-1
 		for y := frame.Min.Y; y < frame.Max.Y; y++ {
 			for x := frame.Min.X; x < frame.Max.X; x++ {
-				_, _, _, a := img.At(x, y).RGBA()
-				if a == 0 {
+				_, _, _, alpha := img.At(x, y).RGBA()
+				if alpha == 0 {
 					continue
 				}
 				if x < minX {
@@ -253,19 +249,18 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 			)
 		}
 	}
-	s.cachedVisibleBounds = &result
+	s.cachedVisibleBounds[a] = result
 	return result
 }
 
 // VisibleTopAboveZero returns how far the visible sprite content
-// (non-transparent pixels) extends above ZeroPosition in one frame, measured in
-// drawn pixels including the tile ratio: the frame is scaled by Scale before
-// the zero-position offset is applied (see buildDrawOp), so the row offset is
-// multiplied by Scale to match what ends up on screen. Frames across
-// animations share the same size and layout, so the result is computed once
-// from any available frame and cached; the cache holds the pre-ratio value, so
-// the ratio is applied fresh on every call and a tile size changed after the
-// first call still takes effect.
+// (non-transparent pixels) extends above ZeroPosition, measured for the given
+// animation, since animations may have different crop sizes and anchors,
+// measured in drawn pixels including the tile ratio: the row offset and
+// ZeroPosition are both in source pixels, and the tile ratio maps them to
+// what ends up on screen. The result is cached per animation; the cache holds
+// the pre-ratio value, so the ratio is applied fresh on every call and a tile
+// size changed after the first call still takes effect.
 //
 // Use this instead of the raw frame height when placing UI elements (like
 // nameplates) above a sprite: transparent padding at the top of the frame is
@@ -276,49 +271,38 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 // DrawAnimation uses. DrawAnimationScaled scales uniformly about the zero
 // position, so a caller placing UI above a sprite drawn at a display scale
 // multiplies this result by that same scale.
-func (s *Sprite) VisibleTopAboveZero() float64 {
-	if s.cachedVisibleTopAboveZero != nil {
-		return *s.cachedVisibleTopAboveZero * s.TileRatio()
+func (s *Sprite) VisibleTopAboveZero(a AnimationType) float64 {
+	if cached, ok := s.cachedVisibleTopAboveZero[a]; ok {
+		return cached * s.TileRatio()
 	}
 
-	var img *ebiten.Image
-	for _, anim := range s.Animations {
-		if len(anim.Images) > 0 {
-			img = anim.Images[0]
-			break
-		}
-	}
+	img := s.animationFrame(a)
 	result := 0.0
 	if img != nil {
+		anchorY := s.Anchor(a).Y()
 		bounds := img.Bounds()
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			rowHasPixel := false
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				_, _, _, a := img.At(x, y).RGBA()
-				if a > 0 {
+				_, _, _, alpha := img.At(x, y).RGBA()
+				if alpha > 0 {
 					rowHasPixel = true
 					break
 				}
 			}
 			if rowHasPixel {
-				// (y - bounds.Min.Y) is the row index within the frame. The
-				// frame is drawn scaled by Scale, so the first visible pixel
-				// sits ZeroPosition.Y() - rowIndex*Scale drawn pixels above
+				// (y - bounds.Min.Y) is the row index within the frame. Both it
+				// and ZeroPosition are in source pixels, so the first visible
+				// pixel sits ZeroPosition.Y() - rowIndex source pixels above
 				// ZeroPosition.
-				result = s.ZeroPosition.Y() - float64(y-bounds.Min.Y)*s.Scale
+				result = anchorY - float64(y-bounds.Min.Y)
 				break
 			}
 		}
 	}
 
-	s.cachedVisibleTopAboveZero = &result
+	s.cachedVisibleTopAboveZero[a] = result
 	return result * s.TileRatio()
-}
-
-// SetScale sets the scale of the sprite.
-func (s *Sprite) SetScale(scale float64) *Sprite {
-	s.Scale = scale
-	return s
 }
 
 // SetSourceTileSize sets the tile size this sprite's art was drawn for and
@@ -345,9 +329,53 @@ func (s *Sprite) TileRatio() float64 {
 	return TileSize / s.SourceTileSize
 }
 
-// SetZeroPosition sets the zero position of the sprite.
+// Anchor returns the anchor of the given animation, resolving a mirrored
+// animation to the animation it is drawn from, since those are the frames that
+// end up on screen. An animation the sprite does not have returns the zero
+// vector: this is a query, not a draw.
+func (s *Sprite) Anchor(a AnimationType) geometry.Vector2 {
+	if animation, ok := s.Animations[a]; ok {
+		return animation.ZeroPosition
+	}
+	if other, mirrored := MirroredAnimations[a]; mirrored {
+		if animation, ok := s.Animations[other]; ok {
+			return animation.ZeroPosition
+		}
+	}
+	return geometry.Zero2D()
+}
+
+// animationFrame returns the first frame of a, resolving a mirrored animation
+// to the animation it is drawn from, and nil when neither exists or has
+// frames.
+func (s *Sprite) animationFrame(a AnimationType) *ebiten.Image {
+	animation, ok := s.Animations[a]
+	if !ok {
+		other, mirrored := MirroredAnimations[a]
+		if !mirrored {
+			return nil
+		}
+		if animation, ok = s.Animations[other]; !ok {
+			return nil
+		}
+	}
+	if len(animation.Images) == 0 {
+		return nil
+	}
+	return animation.Images[0]
+}
+
+// SetZeroPosition sets one anchor on every animation the sprite currently has,
+// which is the right thing for a uniform sheet where every frame shares an
+// anchor. Animations added afterwards do not get it, so it panics on a sprite
+// with no animations: that call is misordered rather than merely early.
 func (s *Sprite) SetZeroPosition(pos geometry.Vector2) *Sprite {
-	s.ZeroPosition = pos
+	if len(s.Animations) == 0 {
+		panic("SetZeroPosition on a sprite with no animations: add frames first")
+	}
+	for _, animation := range s.Animations {
+		animation.ZeroPosition = pos
+	}
 	return s
 }
 
@@ -368,42 +396,114 @@ var (
 	}
 )
 
-// LoadSprite slices img into a grid of width columns by height rows, assigns the frame indexes in indexes to each
-// AnimationType, and sets per-animation durations (defaulting to one second when unspecified). Note: width and height
-// are column/row counts, not pixel dimensions.
-func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType][]int, durations map[AnimationType]time.Duration) (*Sprite, error) {
+// AnimationSpec describes one animation's geometry within an image: where its
+// frames are, where its anchor sits inside them, and how long it runs. It is the
+// load-time description of an animation, where Animation is the loaded form; the
+// two differ in that a spec names frames as rectangles into a source image while
+// an Animation holds uploaded textures.
+//
+// Frames need not be the same size as each other or as another animation's,
+// which is what lets a sheet be packed with one crop box per animation.
+type AnimationSpec struct {
+	// Frames are the source rectangles of this animation's frames, in order.
+	Frames []image.Rectangle
+
+	// Anchor is the pixel inside this animation's frames that sits on the drawn
+	// world position, in frame-local pixels.
+	Anchor geometry.Vector2
+
+	// Duration is how long the whole animation runs. Zero means one second.
+	Duration time.Duration
+}
+
+// sortedAnimationTypes returns m's keys in ascending order, so anything built
+// from a map of animations is reproducible rather than depending on Go's map
+// iteration order.
+func sortedAnimationTypes[V any](m map[AnimationType]V) []AnimationType {
+	types := make([]AnimationType, 0, len(m))
+	for a := range m {
+		types = append(types, a)
+	}
+	slices.Sort(types)
+	return types
+}
+
+// LoadSpriteAnimations builds a sprite whose animations each carry their own
+// frame rectangles, anchor and duration. Frames are sub-images of img, so the
+// whole sprite costs one texture however many animations it has.
+//
+// Use it when a sheet is not a uniform grid, or when animations need different
+// anchors. LoadSprite is the convenience for the uniform case and is built on
+// this.
+func LoadSpriteAnimations(img *ebiten.Image, specs map[AnimationType]AnimationSpec) (*Sprite, error) {
 	sprite := NewSprite()
-	// Get the size of each tile
-	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	tileWidth := w / width
-	tileHeight := h / height
+	bounds := img.Bounds()
 
-	for animationType, animationIndexes := range indexes {
-		for _, index := range animationIndexes {
-			// Calculate the position of the tile in the sprite sheet
-			x := (index % width) * tileWidth
-			y := (index / width) * tileHeight
-
-			// Create a sub-image of the tile
-			rect := image.Rect(x, y, x+tileWidth, y+tileHeight)
-			subImg := img.SubImage(rect).(*ebiten.Image)
-
-			// Add the tile to the animation
-			sprite.AddImage(animationType, subImg)
+	for _, a := range sortedAnimationTypes(specs) {
+		spec := specs[a]
+		if len(spec.Frames) == 0 {
+			return nil, fmt.Errorf("animation %s: no frames", a)
+		}
+		for i, rect := range spec.Frames {
+			if rect.Empty() {
+				return nil, fmt.Errorf("animation %s frame %d: empty rectangle %v", a, i, rect)
+			}
+			if !rect.In(bounds) {
+				return nil, fmt.Errorf("animation %s frame %d: rectangle %v is outside the image bounds %v", a, i, rect, bounds)
+			}
+			sprite.AddImage(a, img.SubImage(rect).(*ebiten.Image))
 		}
 
-		// Set the animation duration if it exists. An empty index list means no
-		// animation entry was created above, so there is nothing to set.
-		duration, ok := durations[animationType]
-		if !ok {
-			duration = time.Second
-		}
-		if animation, ok := sprite.Animations[animationType]; ok {
-			animation.Duration = duration
+		animation := sprite.Animations[a]
+		animation.ZeroPosition = spec.Anchor
+		animation.Duration = spec.Duration
+		if animation.Duration == 0 {
+			animation.Duration = time.Second
 		}
 	}
 
 	return sprite, nil
+}
+
+// MustLoadSpriteAnimations is like LoadSpriteAnimations but panics on error.
+func MustLoadSpriteAnimations(img *ebiten.Image, specs map[AnimationType]AnimationSpec) *Sprite {
+	sprite, err := LoadSpriteAnimations(img, specs)
+	if err != nil {
+		panic(fmt.Sprintf("loading sprite animations: %v", err))
+	}
+	return sprite
+}
+
+// LoadSprite slices img into a grid of width columns by height rows, assigns the
+// frame indexes in indexes to each AnimationType, and sets per-animation
+// durations (defaulting to one second when unspecified). Note: width and height
+// are column/row counts, not pixel dimensions.
+//
+// It is the convenience for a uniform sheet, expressed on top of
+// LoadSpriteAnimations. Anchors are left at zero, since a uniform sheet's anchor
+// is normally set once for the whole sprite with SetZeroPosition.
+func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType][]int, durations map[AnimationType]time.Duration) (*Sprite, error) {
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	tileWidth := w / width
+	tileHeight := h / height
+
+	specs := make(map[AnimationType]AnimationSpec, len(indexes))
+	for animationType, animationIndexes := range indexes {
+		// An empty index list creates no animation at all, so it must not reach
+		// LoadSpriteAnimations, which rejects a spec with no frames.
+		if len(animationIndexes) == 0 {
+			continue
+		}
+		frames := make([]image.Rectangle, 0, len(animationIndexes))
+		for _, index := range animationIndexes {
+			x := (index % width) * tileWidth
+			y := (index / width) * tileHeight
+			frames = append(frames, image.Rect(x, y, x+tileWidth, y+tileHeight))
+		}
+		specs[animationType] = AnimationSpec{Frames: frames, Duration: durations[animationType]}
+	}
+
+	return LoadSpriteAnimations(img, specs)
 }
 
 // MustLoadSprite is like LoadSprite but panics on error.
