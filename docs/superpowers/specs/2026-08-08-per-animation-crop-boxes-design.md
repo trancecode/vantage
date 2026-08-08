@@ -263,8 +263,12 @@ Four properties worth stating:
   matters at roughly 77 million pixels per sheet.
 
 The packer is unexported and tested from inside the package. Keeping it separate
-from the loader keeps it free of any Ebitengine dependency, so its tests run
-without a virtual display.
+from the loader means it reads a CPU-side `image.Image`, so its tests can assert
+real pixel values. That matters more than it sounds: `*ebiten.Image` pixels
+cannot be read back outside a running `ebiten.RunGame` loop, which is why the
+existing visible-extent test seeds its cache instead of measuring
+(`render/render_sprite_test.go:322`). The packer is the one part of this change
+whose output can be checked directly rather than inferred.
 
 ## The atlas question, settled
 
@@ -336,8 +340,8 @@ cached value leaks into another's, alongside the existing property that
 The packer is tested as pure CPU code with no Ebitengine involved: a synthetic
 sheet with known padding, asserting the per-animation boxes, the derived
 anchors, a byte-identical atlas across runs, that cells no animation references
-never appear, and the all-transparent-animation fallback. These run without a
-virtual display.
+never appear, and the all-transparent-animation fallback. Because it reads an
+`image.Image`, these assert real pixel values rather than seeding a cache.
 
 The saving is measured, not asserted. A test comparing packed against padded
 pixel counts on a synthetic sheet proves the mechanism. The 310 MB to 47 MB
