@@ -160,10 +160,21 @@ func autoCropAtlas(
 // Shelf packing is deliberately simple. Frames of one animation all share a size,
 // so they shelf neatly, and the win being chased here is dropping transparent
 // padding rather than the last few percent of packing efficiency.
+//
+// Every pair of placements leaves a one pixel gutter between them, along a
+// shelf and between shelves alike. Ebitengine's builtin shader picks the
+// AddressUnsafe sampling mode for the linear filter, which reads up to half a
+// texel past a frame's edge without clamping to its sub-image. Packed edge to
+// edge, that overshoot would sample a neighbouring animation's opaque pixels
+// and fringe with its color; the gutter gives it only dead, transparent space
+// to land in instead. Frame rectangles are unaffected by this: each still
+// describes only its own pixels, and only the space between placements grows.
 func shelfPack(frames []placement) (*image.RGBA, []placement) {
 	if len(frames) == 0 {
 		return image.NewRGBA(image.Rect(0, 0, 1, 1)), nil
 	}
+
+	const gutter = 1
 
 	// A roughly square atlas, never narrower than the widest frame.
 	area, widest := 0, 0
@@ -190,9 +201,15 @@ func shelfPack(frames []placement) (*image.RGBA, []placement) {
 	penX, penY, shelfHeight, atlasWidth := 0, 0, 0, 0
 	for _, i := range order {
 		w, h := frames[i].source.Dx(), frames[i].source.Dy()
-		if penX > 0 && penX+w > targetWidth {
-			penX, penY = 0, penY+shelfHeight
+		switch {
+		case penX > 0 && penX+gutter+w > targetWidth:
+			// No room left on this shelf, even with a leading gutter: start a
+			// new one, itself separated from this one by a gutter row.
+			penX, penY = 0, penY+shelfHeight+gutter
 			shelfHeight = 0
+		case penX > 0:
+			// Not the first frame on this shelf: leave a gutter before it.
+			penX += gutter
 		}
 		placed[i] = placement{
 			source: frames[i].source,
