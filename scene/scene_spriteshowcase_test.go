@@ -243,7 +243,10 @@ func TestShowcaseLayoutTileSizedArtUsesTheFixedPitches(t *testing.T) {
 
 // TestShowcaseFitScaleShrinksOversizedArtOnly is the core of the contact-sheet
 // layout: art bigger than a slot is scaled down into it, and art at or below a
-// slot is left at its natural size rather than magnified.
+// slot is left at its natural size rather than magnified. A source tile size
+// smaller than the game's tile size has the same effect as oversized art,
+// since TileRatio() > 1 magnifies the drawn size the same way a bigger frame
+// would.
 func TestShowcaseFitScaleShrinksOversizedArtOnly(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -253,6 +256,16 @@ func TestShowcaseFitScaleShrinksOversizedArtOnly(t *testing.T) {
 		{"16x16 art fills a slot exactly", showcaseTestSpriteSized(16, render.AnimationDefault), 1.0},
 		{"64x64 art shrinks to a quarter", showcaseTestSpriteSized(64, render.AnimationDefault), 0.25},
 		{"8x8 art is not blown up", showcaseTestSpriteSized(8, render.AnimationDefault), 1.0},
+		{
+			"16x16 art with a source tile size of 4 (ratio 4) fits like 64x64",
+			showcaseTestSpriteSized(16, render.AnimationDefault).SetSourceTileSize(4),
+			0.25,
+		},
+		{
+			"16x16 art with a source tile size of 32 (ratio 0.5) is not blown up",
+			showcaseTestSpriteSized(16, render.AnimationDefault).SetSourceTileSize(32),
+			1.0,
+		},
 		{"a sprite with no animations", render.NewSprite(), 1.0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
