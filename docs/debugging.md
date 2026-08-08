@@ -430,3 +430,31 @@ visualdiff golden.png candidate.png
 
 It prints the first difference and exits non-zero on any mismatch, so it drops
 straight into a test or CI step.
+
+### A/B rendered comparison (`render/pixeltest`)
+
+The workflow above diffs a captured sequence against a golden set committed to
+the repository. `render/pixeltest` is a different job: a live A/B comparison
+between two renders in the same process, with no golden files and nothing
+committed.
+
+Its one test, `TestAutoCroppedSpriteRendersIdenticallyToUniform`, proves that
+`render.LoadSpriteAutoCropped`'s cropping and repacking is invisible in the
+rendered output. It builds a synthetic sprite sheet, loads it once with
+`render.LoadSprite` (the uniform, uncropped path) and once with
+`render.LoadSpriteAutoCropped` (the cropped, repacked path), draws both to
+offscreen images at a scale that genuinely resamples, reads the pixels back
+with `ebiten.Image.ReadPixels`, and compares them with
+`visualtest.CompareImages`.
+
+This is the one level none of the package's other tests reach: the packer's
+own unit tests read the CPU-side atlas before it ever reaches the GPU, and
+`render`'s draw-geometry tests compare a draw op's matrix, never a drawn
+color. Only an actual rendered frame can show the fringing bug the packer's
+one-pixel gutter guards against, where Ebitengine's linear filter samples half
+a texel past a packed frame's edge into a neighboring frame's pixels.
+
+Because `ebiten.RunGame` can be called at most once per process and a Go test
+binary is one process per package, this lives in its own package (containing
+only test files) so it does not force every future test in `render` to share
+its one game loop.
