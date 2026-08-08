@@ -239,9 +239,19 @@ func TestAutoCropDoesNotSwapAnimationsPixels(t *testing.T) {
 }
 
 // TestAutoCroppedDrawsWhereTheUncroppedSpriteWould is the property the whole
-// change has to preserve. The same sheet loaded uniformly and auto-cropped must
-// put the anchor pixel on the same screen point for every animation, so the
+// change has to preserve: a given pixel of the source sheet lands on the same
+// screen point whether the sprite was loaded uniformly or auto-cropped, so the
 // repack is invisible in the game.
+//
+// This tracks a sheet pixel through both load paths rather than comparing an
+// anchor to itself. In the uniform sprite, an animation's frame is the whole
+// cell, so a pixel at cell-local (qx, qy) is at frame-local (qx, qy). In the
+// cropped sprite, that same pixel is at frame-local (qx-originX, qy-originY),
+// where origin is that animation's crop box top-left in cell-local
+// coordinates. origin is hardcoded from autoCropTestSheet's fixture, not read
+// back from autoCropAtlas, so a wrong rebase cannot cancel itself out of the
+// comparison: cell 0's content is an 8x8 block at cell-local (4,4), cell 1's
+// is a 4x4 block at cell-local (2,2).
 func TestAutoCroppedDrawsWhereTheUncroppedSpriteWould(t *testing.T) {
 	sheet := autoCropTestSheet()
 	indexes := map[AnimationType][]int{
@@ -264,20 +274,37 @@ func TestAutoCroppedDrawsWhereTheUncroppedSpriteWould(t *testing.T) {
 	c := drawOpTestCamera()
 	p := geometry.NewVector2(3, 5)
 	const eps = 1e-9
-	for _, a := range []AnimationType{AnimationIdleDown, AnimationIdleRight} {
-		wantAnchor := uniform.Anchor(a)
-		wantOp := uniform.buildDrawOp(p, a, false, c, 1.0)
-		wantX, wantY := wantOp.GeoM.Apply(wantAnchor.X(), wantAnchor.Y())
 
-		gotAnchor := cropped.Anchor(a)
-		gotOp := cropped.buildDrawOp(p, a, false, c, 1.0)
-		gotX, gotY := gotOp.GeoM.Apply(gotAnchor.X(), gotAnchor.Y())
+	// origin is each animation's crop box top-left in cell-local coordinates.
+	// probes are cell-local points inside that box: the top-left corner itself,
+	// so an offset error shows up, and a second point elsewhere in the box, so
+	// a scale error shows up too.
+	cases := []struct {
+		a       AnimationType
+		originX float64
+		originY float64
+		probeX  []float64
+		probeY  []float64
+	}{
+		{AnimationIdleDown, 4, 4, []float64{4, 11}, []float64{4, 11}},
+		{AnimationIdleRight, 2, 2, []float64{2, 5}, []float64{2, 5}},
+	}
 
-		if diff := gotX - wantX; diff > eps || diff < -eps {
-			t.Errorf("animation %s: anchor X = %v, want %v", a, gotX, wantX)
-		}
-		if diff := gotY - wantY; diff > eps || diff < -eps {
-			t.Errorf("animation %s: anchor Y = %v, want %v", a, gotY, wantY)
+	for _, tc := range cases {
+		uniformOp := uniform.buildDrawOp(p, tc.a, false, c, 1.0)
+		croppedOp := cropped.buildDrawOp(p, tc.a, false, c, 1.0)
+
+		for i := range tc.probeX {
+			qx, qy := tc.probeX[i], tc.probeY[i]
+			wantX, wantY := uniformOp.GeoM.Apply(qx, qy)
+			gotX, gotY := croppedOp.GeoM.Apply(qx-tc.originX, qy-tc.originY)
+
+			if diff := gotX - wantX; diff > eps || diff < -eps {
+				t.Errorf("animation %s: sheet pixel (%v,%v) X = %v, want %v", tc.a, qx, qy, gotX, wantX)
+			}
+			if diff := gotY - wantY; diff > eps || diff < -eps {
+				t.Errorf("animation %s: sheet pixel (%v,%v) Y = %v, want %v", tc.a, qx, qy, gotY, wantY)
+			}
 		}
 	}
 }
