@@ -129,6 +129,33 @@ draw call; revisit only if profiling shows either division hot, and only with
 an invalidation scheme that still reacts to a `TileSize` change after
 construction.
 
+## Auto-crop startup scan cost (render/render_spriteautocrop.go)
+
+`autoCropAtlas`, used by `LoadSpriteAutoCropped`, scans a sprite sheet's full
+alpha channel at load time to find a tight crop box per animation, then
+repacks the referenced frames into a smaller atlas. The design assumed this
+startup cost was acceptable by analogy with a full-image CPU pass a consuming
+game already makes per sheet; that was an inference, not a measurement.
+
+Benchmarks (`render/render_spriteautocrop_test.go`, `BenchmarkAutoCropAtlas`)
+measure the scan and repack on a sheet shaped like the real ones (a 38x6 grid
+of 192px cells, 8,404,992 pixels, with roughly 4% of each cell opaque) at
+~33 ms/op. The published sheets are 7296x10624 (a 38x64 grid), 77,512,704
+pixels each, about 9.22x the benchmark's pixel count
+(77,512,704 / 8,404,992). Scaling linearly with pixel count gives roughly
+304 ms per real sheet, and roughly 1.8 seconds total for all six sheets
+scanned at startup.
+
+That sits under the roughly two-second threshold where a visible startup
+delay would make precomputed crop boxes the better default, so the
+scan-at-load design stands as specified. The margin is not large (measured
+runs varied between about 32 ms/op and 36 ms/op depending on repetition
+count), so this is worth re-measuring if more sheets are added or if startup
+time becomes a complaint. The escape hatch needs no further engine work:
+precompute the crop boxes offline and call `LoadSpriteAnimations` directly
+with the resulting `AnimationSpec` map, skipping `LoadSpriteAutoCropped`'s
+scan entirely.
+
 ## Sprite showcase per-frame redraw cost
 
 `scene.SpriteShowcaseScene.Draw` rebuilds the whole cell list every frame

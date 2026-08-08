@@ -322,3 +322,40 @@ func TestLoadSpriteAutoCroppedShrinksTheFrames(t *testing.T) {
 		t.Fatalf("frame width = %d, want the cropped 8 rather than the 16 pixel cell", got)
 	}
 }
+
+// BenchmarkAutoCropAtlas measures the scan and repack on a sheet shaped like the
+// real ones: a large grid where most of each cell is transparent. The published
+// sheets are 7296x10624 with a 38x64 grid, which is too large to allocate in a
+// benchmark loop, so this uses the same cell size and sparsity at a tenth of the
+// area and the result scales linearly with pixel count.
+func BenchmarkAutoCropAtlas(b *testing.B) {
+	const columns, rows, cell = 38, 6, 192
+	src := image.NewRGBA(image.Rect(0, 0, columns*cell, rows*cell))
+	// A block covering roughly 4% of each cell, matching the measured fill.
+	for row := range rows {
+		for col := range columns {
+			x0 := col*cell + cell/2
+			y0 := row*cell + cell/2
+			for y := y0; y < y0+cell*2/10; y++ {
+				for x := x0; x < x0+cell*2/10; x++ {
+					src.Set(x, y, color.RGBA{R: 200, G: 100, B: 50, A: 255})
+				}
+			}
+		}
+	}
+	indexes := map[AnimationType][]int{}
+	for row := range rows {
+		frames := make([]int, columns)
+		for col := range columns {
+			frames[col] = row*columns + col
+		}
+		indexes[AnimationGameBase+AnimationType(row)] = frames
+	}
+
+	b.ResetTimer()
+	for b.Loop() {
+		if _, _, err := autoCropAtlas(src, columns, rows, indexes, nil, geometry.Zero2D()); err != nil {
+			b.Fatalf("autoCropAtlas returned error: %v", err)
+		}
+	}
+}
