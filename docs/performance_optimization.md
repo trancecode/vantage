@@ -139,22 +139,41 @@ game already makes per sheet; that was an inference, not a measurement.
 
 Benchmarks (`render/render_spriteautocrop_test.go`, `BenchmarkAutoCropAtlas`)
 measure the scan and repack on a sheet shaped like the real ones (a 38x6 grid
-of 192px cells, 8,404,992 pixels, with roughly 4% of each cell opaque) at
-~33 ms/op. The published sheets are 7296x10624 (a 38x64 grid), 77,512,704
-pixels each, about 9.22x the benchmark's pixel count
-(77,512,704 / 8,404,992). Scaling linearly with pixel count gives roughly
-304 ms per real sheet, and roughly 1.8 seconds total for all six sheets
-scanned at startup.
+of 192px cells, 8,404,992 pixels, with roughly 4% of each cell opaque). All
+figures below were measured on a 4-core machine; a different core count or a
+noisier host can shift them.
 
-That sits under the roughly two-second threshold where a visible startup
-delay would make precomputed crop boxes the better default, so the
-scan-at-load design stands as specified. The margin is not large (measured
-runs varied between about 32 ms/op and 36 ms/op depending on repetition
-count), so this is worth re-measuring if more sheets are added or if startup
-time becomes a complaint. The escape hatch needs no further engine work:
-precompute the crop boxes offline and call `LoadSpriteAnimations` directly
-with the resulting `AnimationSpec` map, skipping `LoadSpriteAutoCropped`'s
-scan entirely.
+The headline figure is **32.97 ms/op**, the average of four runs at
+`-benchtime 5s` (178-186 reps each, `xvfb-run -a go test ./render/ -run '^$'
+-bench AutoCropAtlas -benchtime 5s`). Reproduce it with that command, run a
+few times and averaged; that many reps is what makes the number steady.
+**Do not use `-benchtime 3x`** (three reps) to reproduce this: it reads
+systematically high, because a couple of cold-start iterations dominate a
+three-sample average. A literal `-benchtime 3x` run measured 44.26 ms/op, and
+a slightly larger but still short `-benchtime 2s` run (60 reps) measured
+36.38 ms/op; both are noise from too few samples, not the honest number, but
+both are real, reproducible readings a maintainer running the obvious short
+command will see.
+
+The published sheets are 7296x10624 (a 38x64 grid), 77,512,704 pixels each,
+about 9.22x the benchmark's pixel count (77,512,704 / 8,404,992). Scaling
+linearly with pixel count and totaling six sheets:
+
+* Headline (32.97 ms/op): ~304.1 ms/sheet, **~1.82 s total**. Under the
+  roughly two-second threshold where a visible startup delay would make
+  precomputed crop boxes the better default.
+* Short-run readings a maintainer might reproduce by accident: 36.38 ms/op
+  extrapolates to ~335.5 ms/sheet, **~2.01 s total**, over the threshold.
+  44.26 ms/op (the literal `-benchtime 3x`) extrapolates to ~408.2 ms/sheet,
+  **~2.45 s total**, well over.
+
+So the "under threshold" verdict is a close call, not a comfortable one: the
+headline figure clears it by under 10%, and some legitimately-measured short
+runs cross it. This is worth re-measuring, with the multi-rep methodology
+above, if more sheets are added or if startup time becomes a complaint. The
+escape hatch needs no further engine work: precompute the crop boxes offline
+and call `LoadSpriteAnimations` directly with the resulting `AnimationSpec`
+map, skipping `LoadSpriteAutoCropped`'s scan entirely.
 
 ## Sprite showcase per-frame redraw cost
 
