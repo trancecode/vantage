@@ -194,6 +194,57 @@ func TestAutoCropUnionsFramesOfOneAnimation(t *testing.T) {
 	}
 }
 
+// autoCropAsymmetricTestSheet builds a 2x2 grid of 16 pixel cells where cell 0
+// carries a non-square 8x2 opaque block at a non-square, off-diagonal cell-local
+// origin of (3,7). autoCropTestSheet's blocks all sit on the diagonal with equal
+// width and height, so swapping X and Y anywhere in the crop or rebase math
+// produces the same result and is invisible to tests built on it. This fixture's
+// block tells X and Y apart in both its origin and its shape, so a transposed
+// rebase lands on a different, wrong anchor.
+func autoCropAsymmetricTestSheet() *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	fill := func(x0, y0, x1, y1 int) {
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				img.Set(x, y, color.RGBA{R: 200, G: 100, B: 50, A: 255})
+			}
+		}
+	}
+	fill(3, 7, 3+8, 7+2) // cell 0, cell-local (3,7)-(11,9)
+	return img
+}
+
+// TestAutoCropAnchorRebaseResistsTransposition covers the anchor rebase at
+// render_spriteautocrop.go's `anchor.Sub(geometry.NewVector2(box.Min.X,
+// box.Min.Y))`. A fixture where a crop box's width equals its height and its
+// origin sits on the diagonal cannot distinguish that rebase from one that
+// swaps box.Min.X and box.Min.Y: the wrong computation reads back the same
+// numbers. This fixture's box is 8x2 and starts off the diagonal at (3,7), so
+// the two computations disagree, and the test would fail if they were swapped.
+func TestAutoCropAnchorRebaseResistsTransposition(t *testing.T) {
+	_, specs, err := autoCropAtlas(autoCropAsymmetricTestSheet(), 2, 2, map[AnimationType][]int{
+		AnimationIdleDown: {0},
+	}, nil, geometry.NewVector2(20, 30))
+	if err != nil {
+		t.Fatalf("autoCropAtlas returned error: %v", err)
+	}
+
+	down := specs[AnimationIdleDown]
+	if got := down.Frames[0].Dx(); got != 8 {
+		t.Fatalf("crop width = %d, want 8", got)
+	}
+	if got := down.Frames[0].Dy(); got != 2 {
+		t.Fatalf("crop height = %d, want 2", got)
+	}
+	// The box starts at cell-local (3,7), so the correct rebase is
+	// (20,30) - (3,7) = (17,23). A rebase that swapped X and Y would instead
+	// subtract (7,3), giving (13,27): a different point, not just a
+	// coincidentally equal one.
+	if got, want := down.Anchor, geometry.NewVector2(17, 23); got != want {
+		t.Fatalf("anchor = %v, want %v", got, want)
+	}
+}
+
 // autoCropColorTestSheet builds a 2x2 grid of 16 pixel cells where cell 0 and
 // cell 1 each carry an 8x8 block at the same cell-local offset (4,4), but in
 // different colors: cell 0 is red, cell 1 is green. Same-sized, differently
@@ -320,6 +371,40 @@ func TestLoadSpriteAutoCroppedShrinksTheFrames(t *testing.T) {
 	}
 	if got := s.Animations[AnimationIdleDown].Images[0].Bounds().Dx(); got != 8 {
 		t.Fatalf("frame width = %d, want the cropped 8 rather than the 16 pixel cell", got)
+	}
+}
+
+// TestShelfPackLeavesAGutterBetweenFrames covers that no two placed frames ever
+// touch, along a shelf or across shelves. Ebitengine's builtin linear-filter
+// shader samples up to half a texel past a frame's edge without clamping to the
+// sub-image (AddressUnsafe), so packing edge to edge would let a frame's linear
+// sampling pick up a neighbouring animation's opaque pixels. Six 5x5 frames on a
+// 13 pixel wide atlas force both a horizontal neighbor within a shelf and a
+// second shelf directly below the first, so both adjacency directions are
+// exercised.
+func TestShelfPackLeavesAGutterBetweenFrames(t *testing.T) {
+	frames := make([]placement, 6)
+	for i := range frames {
+		frames[i] = placement{source: image.Rect(0, 0, 5, 5)}
+	}
+
+	_, placed := shelfPack(frames)
+	if len(placed) != len(frames) {
+		t.Fatalf("shelfPack placed %d frames, want %d", len(placed), len(frames))
+	}
+
+	for i := range placed {
+		for j := i + 1; j < len(placed); j++ {
+			a, b := placed[i].dest, placed[j].dest
+			// image.Rectangle.Overlaps alone would miss mere adjacency (a
+			// shared edge or corner with no interior overlap), so inflate one
+			// rectangle by a pixel on every side first: a touching pair then
+			// overlaps, a properly gapped pair still does not.
+			inflatedA := image.Rect(a.Min.X-1, a.Min.Y-1, a.Max.X+1, a.Max.Y+1)
+			if inflatedA.Overlaps(b) {
+				t.Fatalf("frame %d %v and frame %d %v are adjacent or overlapping", i, a, j, b)
+			}
+		}
 	}
 }
 
