@@ -15,9 +15,8 @@ var UsePlaceholderSpriteImages bool
 
 // Sprite represents a game sprite with animations.
 type Sprite struct {
-	Animations   map[AnimationType]*Animation
-	ZeroPosition geometry.Vector2
-	Type         SpriteType
+	Animations map[AnimationType]*Animation
+	Type       SpriteType
 
 	// SourceTileSize is the tile size this sprite's art was drawn for. Zero
 	// means it was drawn for whatever the game's tile size is, so no correction
@@ -37,13 +36,18 @@ type Sprite struct {
 type Animation struct {
 	Images   []*ebiten.Image
 	Duration time.Duration
+
+	// ZeroPosition is this animation's anchor: the pixel inside its frames that
+	// sits on the drawn world position, in its own frames' local pixels. Frames
+	// of different animations need not share a size or an anchor, which is what
+	// lets a sheet be cropped per animation.
+	ZeroPosition geometry.Vector2
 }
 
 // NewSprite creates and returns a new Sprite with default values.
 func NewSprite() *Sprite {
 	return &Sprite{
-		Animations:   make(map[AnimationType]*Animation),
-		ZeroPosition: geometry.Zero2D(),
+		Animations: make(map[AnimationType]*Animation),
 	}
 }
 
@@ -123,7 +127,7 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 		return
 	}
 
-	op := s.buildDrawOp(p, requiresFlip, c, 1.0)
+	op := s.buildDrawOp(p, a, requiresFlip, c, 1.0)
 	screen.DrawImage(img, op)
 }
 
@@ -135,12 +139,13 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 // uniform scale about the zero position: the pixel anchored at the world
 // position p stays at p, and only the drawn extent changes. A displayScale of 1
 // draws the sprite at the size the game draws it.
-func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
+func (s *Sprite) buildDrawOp(p geometry.Vector2, a AnimationType, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.Filter = SpriteFilter
 	scale := s.TileRatio() * displayScale
 	op.GeoM.Scale(scale, scale)
-	op.GeoM.Translate(-s.ZeroPosition.X()*scale, -s.ZeroPosition.Y()*scale)
+	anchor := s.Anchor(a)
+	op.GeoM.Translate(-anchor.X()*scale, -anchor.Y()*scale)
 	if requiresFlip {
 		op.GeoM.Scale(-1, 1)
 	}
@@ -190,7 +195,7 @@ func (s *Sprite) DrawAnimationScaled(screen *ebiten.Image, c *Camera, p geometry
 		return
 	}
 
-	op := s.buildDrawOp(p, requiresFlip, c, displayScale)
+	op := s.buildDrawOp(p, a, requiresFlip, c, displayScale)
 	screen.DrawImage(img, op)
 }
 
@@ -270,9 +275,11 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 	}
 
 	var img *ebiten.Image
-	for _, anim := range s.Animations {
+	anchorY := 0.0
+	for a, anim := range s.Animations {
 		if len(anim.Images) > 0 {
 			img = anim.Images[0]
+			anchorY = s.Anchor(a).Y()
 			break
 		}
 	}
@@ -293,7 +300,7 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 				// and ZeroPosition are in source pixels, so the first visible
 				// pixel sits ZeroPosition.Y() - rowIndex source pixels above
 				// ZeroPosition.
-				result = s.ZeroPosition.Y() - float64(y-bounds.Min.Y)
+				result = anchorY - float64(y-bounds.Min.Y)
 				break
 			}
 		}
@@ -327,9 +334,33 @@ func (s *Sprite) TileRatio() float64 {
 	return TileSize / s.SourceTileSize
 }
 
-// SetZeroPosition sets the zero position of the sprite.
+// Anchor returns the anchor of the given animation, resolving a mirrored
+// animation to the animation it is drawn from, since those are the frames that
+// end up on screen. An animation the sprite does not have returns the zero
+// vector: this is a query, not a draw.
+func (s *Sprite) Anchor(a AnimationType) geometry.Vector2 {
+	if animation, ok := s.Animations[a]; ok {
+		return animation.ZeroPosition
+	}
+	if other, mirrored := MirroredAnimations[a]; mirrored {
+		if animation, ok := s.Animations[other]; ok {
+			return animation.ZeroPosition
+		}
+	}
+	return geometry.Zero2D()
+}
+
+// SetZeroPosition sets one anchor on every animation the sprite currently has,
+// which is the right thing for a uniform sheet where every frame shares an
+// anchor. Animations added afterwards do not get it, so it panics on a sprite
+// with no animations: that call is misordered rather than merely early.
 func (s *Sprite) SetZeroPosition(pos geometry.Vector2) *Sprite {
-	s.ZeroPosition = pos
+	if len(s.Animations) == 0 {
+		panic("SetZeroPosition on a sprite with no animations: add frames first")
+	}
+	for _, animation := range s.Animations {
+		animation.ZeroPosition = pos
+	}
 	return s
 }
 

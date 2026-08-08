@@ -59,18 +59,21 @@ func geoMEquals(a, b *ebiten.DrawImageOptions) bool {
 func TestDrawAnimationGeometryIsUnchangedByTheDisplayScale(t *testing.T) {
 	c := drawOpTestCamera()
 	p := geometry.NewVector2(3, 5)
-	s := NewSprite().SetZeroPosition(geometry.NewVector2(8, 24))
+	zero := geometry.NewVector2(8, 24)
+	s := NewSprite()
+	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+	s.SetZeroPosition(zero)
 
 	for _, requiresFlip := range []bool{false, true} {
 		// The pre-display-scale transform, rebuilt here independently.
 		want := &ebiten.DrawImageOptions{}
-		want.GeoM.Translate(-s.ZeroPosition.X(), -s.ZeroPosition.Y())
+		want.GeoM.Translate(-zero.X(), -zero.Y())
 		if requiresFlip {
 			want.GeoM.Scale(-1, 1)
 		}
 		c.Adjust(want, p)
 
-		got := s.buildDrawOp(p, requiresFlip, c, 1.0)
+		got := s.buildDrawOp(p, AnimationDefault, requiresFlip, c, 1.0)
 		if !geoMEquals(got, want) {
 			t.Fatalf("flip=%v: buildDrawOp at display scale 1 = %v, want %v", requiresFlip, got.GeoM, want.GeoM)
 		}
@@ -96,17 +99,23 @@ func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
 
 	zero := geometry.NewVector2(8, 24)
 
+	newAnchoredSprite := func() *Sprite {
+		s := NewSprite()
+		s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+		return s
+	}
+
 	for _, tc := range []struct {
 		name   string
 		sprite *Sprite
 	}{
 		{
 			"no source tile size",
-			NewSprite().SetZeroPosition(zero),
+			newAnchoredSprite().SetZeroPosition(zero),
 		},
 		{
 			"source tile size 64 at tile size 32, ratio 0.5",
-			NewSprite().SetZeroPosition(zero).SetSourceTileSize(64),
+			newAnchoredSprite().SetZeroPosition(zero).SetSourceTileSize(64),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -120,11 +129,11 @@ func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
 
 			// The frame's top-left corner, whose distance from the anchor is
 			// the drawn extent the display scale is supposed to shrink.
-			cornerX, cornerY := s.buildDrawOp(p, false, c, 1.0).GeoM.Apply(0, 0)
+			cornerX, cornerY := s.buildDrawOp(p, AnimationDefault, false, c, 1.0).GeoM.Apply(0, 0)
 
 			const eps = 1e-9
 			for _, displayScale := range []float64{1.0, 0.5, 0.25} {
-				op := s.buildDrawOp(p, false, c, displayScale)
+				op := s.buildDrawOp(p, AnimationDefault, false, c, displayScale)
 
 				gotX, gotY := op.GeoM.Apply(anchorSourceX, anchorSourceY)
 				if diff := gotX - wantAnchor.X(); diff > eps || diff < -eps {
@@ -218,9 +227,11 @@ func TestSetSourceTileSizeChains(t *testing.T) {
 // source tile sizes existed.
 func TestBuildDrawOpUnchangedWithoutASourceTileSize(t *testing.T) {
 	c := drawOpTestCamera()
-	s := NewSprite().SetZeroPosition(geometry.NewVector2(8, 24))
+	s := NewSprite()
+	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+	s.SetZeroPosition(geometry.NewVector2(8, 24))
 
-	got := s.buildDrawOp(geometry.NewVector2(3, 4), false, c, 1.0)
+	got := s.buildDrawOp(geometry.NewVector2(3, 4), AnimationDefault, false, c, 1.0)
 
 	want := &ebiten.DrawImageOptions{}
 	want.GeoM.Translate(-8, -24)
@@ -241,7 +252,7 @@ func TestBuildDrawOpAppliesTheTileRatio(t *testing.T) {
 	c := drawOpTestCamera()
 	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
 
-	got := s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 1.0)
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 1.0)
 
 	want := &ebiten.DrawImageOptions{}
 	want.GeoM.Scale(0.5, 0.5)
@@ -263,7 +274,7 @@ func TestBuildDrawOpComposesRatioAndDisplayScale(t *testing.T) {
 	c := drawOpTestCamera()
 	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
 
-	got := s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 2.0)
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 2.0)
 
 	// 0.5 * 2 = 1
 	want := &ebiten.DrawImageOptions{}
@@ -286,7 +297,7 @@ func TestTileRatioScalesTheAnchor(t *testing.T) {
 	c := drawOpTestCamera()
 	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
 
-	got := s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 1.0)
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 1.0)
 
 	want := &ebiten.DrawImageOptions{}
 	want.GeoM.Scale(0.5, 0.5)
@@ -298,8 +309,10 @@ func TestTileRatioScalesTheAnchor(t *testing.T) {
 	}
 
 	// With a real anchor, the translate is the anchor times the ratio.
-	s = NewSprite().SetSourceTileSize(64).SetZeroPosition(geometry.NewVector2(10, 20))
-	got = s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 1.0)
+	s = NewSprite().SetSourceTileSize(64)
+	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+	s.SetZeroPosition(geometry.NewVector2(10, 20))
+	got = s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 1.0)
 
 	want = &ebiten.DrawImageOptions{}
 	want.GeoM.Scale(0.5, 0.5)
@@ -336,5 +349,104 @@ func TestVisibleTopAboveZeroScalesWithTheTileRatio(t *testing.T) {
 
 	if got, want := s.VisibleTopAboveZero(), cached/2; got != want {
 		t.Fatalf("VisibleTopAboveZero = %v at ratio 0.5, want %v", got, want)
+	}
+}
+
+// TestAnchorIsPerAnimation covers the core of per-animation geometry: two
+// animations on one sprite carry different anchors, and each is used for its
+// own animation rather than one of them winning for both.
+func TestAnchorIsPerAnimation(t *testing.T) {
+	s := NewSprite()
+	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
+	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+	s.Animations[AnimationIdleDown].ZeroPosition = geometry.NewVector2(4, 8)
+	s.Animations[AnimationIdleRight].ZeroPosition = geometry.NewVector2(10, 2)
+
+	if got, want := s.Anchor(AnimationIdleDown), geometry.NewVector2(4, 8); got != want {
+		t.Fatalf("Anchor(IdleDown) = %v, want %v", got, want)
+	}
+	if got, want := s.Anchor(AnimationIdleRight), geometry.NewVector2(10, 2); got != want {
+		t.Fatalf("Anchor(IdleRight) = %v, want %v", got, want)
+	}
+}
+
+// TestAnchorResolvesAMirroredAnimation covers that a left-facing animation drawn
+// by flipping its right-facing mirror uses the mirror's anchor, since those are
+// the frames on screen.
+func TestAnchorResolvesAMirroredAnimation(t *testing.T) {
+	s := NewSprite()
+	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+	s.Animations[AnimationIdleRight].ZeroPosition = geometry.NewVector2(10, 2)
+
+	if got, want := s.Anchor(AnimationIdleLeft), geometry.NewVector2(10, 2); got != want {
+		t.Fatalf("Anchor(IdleLeft) = %v, want %v", got, want)
+	}
+}
+
+// TestAnchorOfAnUnknownAnimationIsZero covers that Anchor is a query and returns
+// the zero vector rather than panicking, unlike the draw path.
+func TestAnchorOfAnUnknownAnimationIsZero(t *testing.T) {
+	if got := NewSprite().Anchor(AnimationIdleDown); !got.IsZero() {
+		t.Fatalf("Anchor of an unknown animation = %v, want the zero vector", got)
+	}
+}
+
+// TestSetZeroPositionWritesEveryAnimation covers the uniform-sheet convenience:
+// one call sets the anchor on all animations currently on the sprite.
+func TestSetZeroPositionWritesEveryAnimation(t *testing.T) {
+	s := NewSprite()
+	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
+	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+
+	zero := geometry.NewVector2(8, 24)
+	if got := s.SetZeroPosition(zero); got != s {
+		t.Fatal("SetZeroPosition did not return the sprite")
+	}
+	for _, a := range []AnimationType{AnimationIdleDown, AnimationIdleRight} {
+		if got := s.Anchor(a); got != zero {
+			t.Fatalf("Anchor(%v) = %v, want %v", a, got, zero)
+		}
+	}
+}
+
+// TestSetZeroPositionPanicsWithoutAnimations covers the ordering hazard left by
+// deleting the sprite-level anchor: a misordered call is loud rather than
+// silently writing the anchor to nothing.
+func TestSetZeroPositionPanicsWithoutAnimations(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("SetZeroPosition on a sprite with no animations did not panic")
+		}
+	}()
+	NewSprite().SetZeroPosition(geometry.NewVector2(1, 2))
+}
+
+// TestBuildDrawOpUsesTheAnimationAnchor covers that the draw path reads the
+// anchor of the animation being drawn. Two animations with different anchors,
+// drawn at one world position, must both land their own anchor pixel on that
+// position: this is the regression that would otherwise appear in game as a
+// character bobbing between the ground and mid-air as its animation changes.
+func TestBuildDrawOpUsesTheAnimationAnchor(t *testing.T) {
+	c := drawOpTestCamera()
+	p := geometry.NewVector2(3, 5)
+
+	s := NewSprite()
+	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
+	s.AddImage(AnimationIdleRight, ebiten.NewImage(64, 64))
+	s.Animations[AnimationIdleDown].ZeroPosition = geometry.NewVector2(8, 16)
+	s.Animations[AnimationIdleRight].ZeroPosition = geometry.NewVector2(32, 60)
+
+	want := c.WorldToScreen(p)
+	const eps = 1e-9
+	for _, a := range []AnimationType{AnimationIdleDown, AnimationIdleRight} {
+		anchor := s.Anchor(a)
+		op := s.buildDrawOp(p, a, false, c, 1.0)
+		gotX, gotY := op.GeoM.Apply(anchor.X(), anchor.Y())
+		if diff := gotX - want.X(); diff > eps || diff < -eps {
+			t.Errorf("animation %v: anchor X = %v, want %v", a, gotX, want.X())
+		}
+		if diff := gotY - want.Y(); diff > eps || diff < -eps {
+			t.Errorf("animation %v: anchor Y = %v, want %v", a, gotY, want.Y())
+		}
 	}
 }
