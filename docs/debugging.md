@@ -72,14 +72,13 @@ The grid is a contact sheet: every cell is the same fixed size, whatever the
 art in it measures, so sprites stay comparable side by side and one outsized
 sprite cannot spread the whole grid. Each cell gives its art a slot, one tile
 square by default and configurable through `[scene] showcase_slot_tiles` (see
-below). A sprite whose largest frame, multiplied by its own `Scale` and its
-tile ratio, is bigger than that slot is scaled down to fit it; art at or below
-the slot is left at its natural size rather than blown up, so it stays pixel
-honest.
+below). A sprite whose largest frame, multiplied by its tile ratio, is bigger
+than that slot is scaled down to fit it; art at or below the slot is left at
+its natural size rather than blown up, so it stays pixel honest.
 
-The scaling is per draw. The showcase never changes a sprite's `Scale`, since
-the library hands the game the same sprite pointer, and rescaling it here would
-rescale it everywhere.
+The scaling is per draw. The showcase never changes a sprite's `SourceTileSize`,
+since the library hands the game the same sprite pointer, and rescaling it here
+would rescale it everywhere.
 
 ```bash
 ./game --scene sprite_showcase
@@ -276,13 +275,14 @@ Pass `--width` and `--height` for a different size. Unlike the engine default,
 this command does not go fullscreen when they are unset.
 
 The generated sprites deliberately differ in size, from 8 to 64 pixels, and one
-uses `Sprite.Scale` rather than large frames. That is what makes the fixed slots
-and the scale-down-to-fit behavior visible: the 24, 32, 48 and 64 pixel tiles
-all render at the size of the 16 pixel ones, while the 8 pixel tile stays small.
-One further sprite, `DirectionalTiles64x2`, declares a `SourceTileSize` of 32
-on a 64 pixel frame and carries four animations registered through
-`render.RegisterAnimationName`, so both the slot size and the animation naming
-paths have visual coverage here too, alongside their unit test coverage.
+declares a source tile size smaller than a tile rather than using large frames.
+That is what makes the fixed slots and the scale-down-to-fit behavior visible:
+the 24, 32, 48 and 64 pixel tiles all render at the size of the 16 pixel ones,
+while the 8 pixel tile stays small. One further sprite, `DirectionalTiles64x2`,
+declares a `SourceTileSize` of 32 on a 64 pixel frame and carries four
+animations registered through `render.RegisterAnimationName`, so both the slot
+size and the animation naming paths have visual coverage here too, alongside
+their unit test coverage.
 
 Every engine flag applies, so the same command also exercises scene selection
 and screenshot capture. To capture a frame without a display:
