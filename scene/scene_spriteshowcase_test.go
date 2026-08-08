@@ -21,9 +21,9 @@ func showcaseTestSprite(animations ...render.AnimationType) *render.Sprite {
 }
 
 // showcaseTestSpriteSized returns a sprite with one frame of the given pixel
-// size per requested animation, drawn at the given scale.
-func showcaseTestSpriteSized(size int, scale float64, animations ...render.AnimationType) *render.Sprite {
-	s := render.NewSprite().SetScale(scale)
+// size per requested animation.
+func showcaseTestSpriteSized(size int, animations ...render.AnimationType) *render.Sprite {
+	s := render.NewSprite()
 	for _, a := range animations {
 		s.AddImage(a, ebiten.NewImage(size, size))
 	}
@@ -243,19 +243,16 @@ func TestShowcaseLayoutTileSizedArtUsesTheFixedPitches(t *testing.T) {
 
 // TestShowcaseFitScaleShrinksOversizedArtOnly is the core of the contact-sheet
 // layout: art bigger than a slot is scaled down into it, and art at or below a
-// slot is left at its natural size rather than magnified. A sprite's own Scale
-// counts towards its size, since that is the size the game draws it at.
+// slot is left at its natural size rather than magnified.
 func TestShowcaseFitScaleShrinksOversizedArtOnly(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		sprite *render.Sprite
 		want   float64
 	}{
-		{"16x16 art fills a slot exactly", showcaseTestSpriteSized(16, 1.0, render.AnimationDefault), 1.0},
-		{"64x64 art shrinks to a quarter", showcaseTestSpriteSized(64, 1.0, render.AnimationDefault), 0.25},
-		{"8x8 art is not blown up", showcaseTestSpriteSized(8, 1.0, render.AnimationDefault), 1.0},
-		{"16x16 art at scale 4 fits like 64x64", showcaseTestSpriteSized(16, 4.0, render.AnimationDefault), 0.25},
-		{"16x16 art at scale 0.5 is not blown up", showcaseTestSpriteSized(16, 0.5, render.AnimationDefault), 1.0},
+		{"16x16 art fills a slot exactly", showcaseTestSpriteSized(16, render.AnimationDefault), 1.0},
+		{"64x64 art shrinks to a quarter", showcaseTestSpriteSized(64, render.AnimationDefault), 0.25},
+		{"8x8 art is not blown up", showcaseTestSpriteSized(8, render.AnimationDefault), 1.0},
 		{"a sprite with no animations", render.NewSprite(), 1.0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -277,8 +274,8 @@ func TestShowcaseFitScaleShrinksOversizedArtOnly(t *testing.T) {
 // SourceTileSize, and the showcase is what it inspects them with.
 func TestShowcaseFitScaleMeasuresTheArtAtItsDrawnSize(t *testing.T) {
 	// render.TileSize is 16, so a SourceTileSize of 64 is a ratio of 0.25.
-	sourceSized := func(size int, sourceTileSize float64, scale float64) *render.Sprite {
-		return showcaseTestSpriteSized(size, scale, render.AnimationDefault).
+	sourceSized := func(size int, sourceTileSize float64) *render.Sprite {
+		return showcaseTestSpriteSized(size, render.AnimationDefault).
 			SetSourceTileSize(sourceTileSize)
 	}
 
@@ -289,27 +286,22 @@ func TestShowcaseFitScaleMeasuresTheArtAtItsDrawnSize(t *testing.T) {
 	}{
 		{
 			"64x64 art drawn for 64 pixel tiles already fills one slot",
-			sourceSized(64, 64, 1.0),
+			sourceSized(64, 64),
 			1.0,
 		},
 		{
 			"64x64 art drawn for 32 pixel tiles is drawn at 32 and halves",
-			sourceSized(64, 32, 1.0),
+			sourceSized(64, 32),
 			0.5,
 		},
 		{
 			"128x128 art drawn for 64 pixel tiles is drawn at 32 and halves",
-			sourceSized(128, 64, 1.0),
+			sourceSized(128, 64),
 			0.5,
 		},
 		{
-			"a sprite's own Scale still counts on top of the ratio",
-			sourceSized(64, 64, 4.0),
-			0.25,
-		},
-		{
 			"art corrected below a slot is not blown up",
-			sourceSized(32, 64, 1.0),
+			sourceSized(32, 64),
 			1.0,
 		},
 		// The compatibility guarantee: without a SourceTileSize the ratio is 1
@@ -317,12 +309,12 @@ func TestShowcaseFitScaleMeasuresTheArtAtItsDrawnSize(t *testing.T) {
 		// full set is pinned by TestShowcaseFitScaleShrinksOversizedArtOnly.
 		{
 			"16x16 art without a source tile size fills a slot exactly",
-			showcaseTestSpriteSized(16, 1.0, render.AnimationDefault),
+			showcaseTestSpriteSized(16, render.AnimationDefault),
 			1.0,
 		},
 		{
 			"64x64 art without a source tile size still shrinks to a quarter",
-			showcaseTestSpriteSized(64, 1.0, render.AnimationDefault),
+			showcaseTestSpriteSized(64, render.AnimationDefault),
 			0.25,
 		},
 	} {
@@ -353,12 +345,12 @@ func TestShowcaseFitScaleMeasuresTheLargestFrameOfTheSprite(t *testing.T) {
 // it, instead of pushing the grid apart.
 func TestShowcaseLayoutLargeArtKeepsTheSameCellPositions(t *testing.T) {
 	small := render.NewSpriteLibrary()
-	small.Add("Boss", showcaseTestSpriteSized(16, 1.0, render.AnimationIdleDown, render.AnimationMoveDown))
-	small.Add("Minion", showcaseTestSpriteSized(16, 1.0, render.AnimationDefault))
+	small.Add("Boss", showcaseTestSpriteSized(16, render.AnimationIdleDown, render.AnimationMoveDown))
+	small.Add("Minion", showcaseTestSpriteSized(16, render.AnimationDefault))
 
 	large := render.NewSpriteLibrary()
-	large.Add("Boss", showcaseTestSpriteSized(64, 1.0, render.AnimationIdleDown, render.AnimationMoveDown))
-	large.Add("Minion", showcaseTestSpriteSized(64, 1.0, render.AnimationDefault))
+	large.Add("Boss", showcaseTestSpriteSized(64, render.AnimationIdleDown, render.AnimationMoveDown))
+	large.Add("Minion", showcaseTestSpriteSized(64, render.AnimationDefault))
 
 	smallCells, largeCells := showcaseLayout(small), showcaseLayout(large)
 	if len(smallCells) != 3 || len(largeCells) != 3 {
@@ -383,9 +375,9 @@ func TestShowcaseLayoutLargeArtKeepsTheSameCellPositions(t *testing.T) {
 // and moves nothing, which is what the derived spacing it replaced got wrong.
 func TestShowcaseLayoutFitScaleIsPerCell(t *testing.T) {
 	l := render.NewSpriteLibrary()
-	l.Add("Grass", showcaseTestSpriteSized(16, 1.0, render.AnimationDefault))
-	l.Add("Huge", showcaseTestSpriteSized(512, 1.0, render.AnimationDefault))
-	l.Add("Pebble", showcaseTestSpriteSized(8, 1.0, render.AnimationDefault))
+	l.Add("Grass", showcaseTestSpriteSized(16, render.AnimationDefault))
+	l.Add("Huge", showcaseTestSpriteSized(512, render.AnimationDefault))
+	l.Add("Pebble", showcaseTestSpriteSized(8, render.AnimationDefault))
 
 	cells := showcaseLayout(l)
 	if len(cells) != 3 {
@@ -417,7 +409,7 @@ func TestShowcaseLayoutWrapsAtTheSameColumnCountForLargeArt(t *testing.T) {
 		"T07", "T08", "T09", "T10", "T11", "T12",
 	}
 	for _, name := range names {
-		l.Add(name, showcaseTestSpriteSized(64, 1.0, render.AnimationDefault))
+		l.Add(name, showcaseTestSpriteSized(64, render.AnimationDefault))
 	}
 
 	cells := showcaseLayout(l)
@@ -563,7 +555,7 @@ func TestShowcaseFitScaleUsesTheSlotSize(t *testing.T) {
 
 	// Art two tiles tall: shrunk by half into a one tile slot, left alone in a
 	// three tile slot.
-	sprite := showcaseTestSpriteSized(32, 1.0, render.AnimationDefault)
+	sprite := showcaseTestSpriteSized(32, render.AnimationDefault)
 
 	ShowcaseSlotTiles = 1
 	if got := showcaseFitScale(sprite); got != 0.5 {

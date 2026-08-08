@@ -59,12 +59,11 @@ func geoMEquals(a, b *ebiten.DrawImageOptions) bool {
 func TestDrawAnimationGeometryIsUnchangedByTheDisplayScale(t *testing.T) {
 	c := drawOpTestCamera()
 	p := geometry.NewVector2(3, 5)
-	s := NewSprite().SetScale(2).SetZeroPosition(geometry.NewVector2(8, 24))
+	s := NewSprite().SetZeroPosition(geometry.NewVector2(8, 24))
 
 	for _, requiresFlip := range []bool{false, true} {
 		// The pre-display-scale transform, rebuilt here independently.
 		want := &ebiten.DrawImageOptions{}
-		want.GeoM.Scale(s.Scale, s.Scale)
 		want.GeoM.Translate(-s.ZeroPosition.X(), -s.ZeroPosition.Y())
 		if requiresFlip {
 			want.GeoM.Scale(-1, 1)
@@ -85,17 +84,16 @@ func TestDrawAnimationGeometryIsUnchangedByTheDisplayScale(t *testing.T) {
 //
 // The second case adds a source tile size on top, so the tile ratio, a display
 // scale other than 1 and a non-zero ZeroPosition are all exercised together.
-// The anchored source pixel is ZeroPosition divided by Scale whatever the
-// ratio is, because ratio and display scale multiply into both the scale and
-// the anchor offset: that is the invariant, and asserting where the pixel
-// lands catches the two being confused in a way that recomputing the expected
-// GeoM from the same expression cannot.
+// The anchored source pixel is ZeroPosition itself whatever the ratio is,
+// because ratio and display scale multiply into both the scale and the anchor
+// offset: that is the invariant, and asserting where the pixel lands catches
+// the two being confused in a way that recomputing the expected GeoM from the
+// same expression cannot.
 func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
 	original := TileSize
 	t.Cleanup(func() { TileSize = original })
 	TileSize = 32
 
-	const scale = 2.0
 	zero := geometry.NewVector2(8, 24)
 
 	for _, tc := range []struct {
@@ -104,11 +102,11 @@ func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
 	}{
 		{
 			"no source tile size",
-			NewSprite().SetScale(scale).SetZeroPosition(zero),
+			NewSprite().SetZeroPosition(zero),
 		},
 		{
 			"source tile size 64 at tile size 32, ratio 0.5",
-			NewSprite().SetScale(scale).SetZeroPosition(zero).SetSourceTileSize(64),
+			NewSprite().SetZeroPosition(zero).SetSourceTileSize(64),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -116,9 +114,8 @@ func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
 			p := geometry.NewVector2(3, 5)
 			s := tc.sprite
 
-			// ZeroPosition is expressed in post-Scale pixels, so the source
-			// pixel it anchors is ZeroPosition divided by Scale.
-			anchorSourceX, anchorSourceY := zero.X()/scale, zero.Y()/scale
+			// ZeroPosition is in source pixels, so it is the anchored pixel.
+			anchorSourceX, anchorSourceY := zero.X(), zero.Y()
 			wantAnchor := c.WorldToScreen(p)
 
 			// The frame's top-left corner, whose distance from the anchor is
@@ -221,12 +218,11 @@ func TestSetSourceTileSizeChains(t *testing.T) {
 // source tile sizes existed.
 func TestBuildDrawOpUnchangedWithoutASourceTileSize(t *testing.T) {
 	c := drawOpTestCamera()
-	s := NewSprite().SetScale(2).SetZeroPosition(geometry.NewVector2(8, 24))
+	s := NewSprite().SetZeroPosition(geometry.NewVector2(8, 24))
 
 	got := s.buildDrawOp(geometry.NewVector2(3, 4), false, c, 1.0)
 
 	want := &ebiten.DrawImageOptions{}
-	want.GeoM.Scale(2, 2)
 	want.GeoM.Translate(-8, -24)
 	c.Adjust(want, geometry.NewVector2(3, 4))
 
@@ -256,22 +252,22 @@ func TestBuildDrawOpAppliesTheTileRatio(t *testing.T) {
 	}
 }
 
-// TestBuildDrawOpComposesScaleRatioAndDisplayScale covers that the sprite
-// scale, the tile ratio and the display scale all multiply into one uniform
-// scale rather than only one of them taking effect.
-func TestBuildDrawOpComposesScaleRatioAndDisplayScale(t *testing.T) {
+// TestBuildDrawOpComposesRatioAndDisplayScale covers that the tile ratio and the
+// display scale multiply into one uniform scale rather than only one of them
+// taking effect.
+func TestBuildDrawOpComposesRatioAndDisplayScale(t *testing.T) {
 	original := TileSize
 	t.Cleanup(func() { TileSize = original })
 	TileSize = 32
 
 	c := drawOpTestCamera()
-	s := NewSprite().SetScale(3).SetSourceTileSize(64) // ratio 0.5
+	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
 
 	got := s.buildDrawOp(geometry.NewVector2(0, 0), false, c, 2.0)
 
-	// 3 * 0.5 * 2 = 3
+	// 0.5 * 2 = 1
 	want := &ebiten.DrawImageOptions{}
-	want.GeoM.Scale(3, 3)
+	want.GeoM.Scale(1, 1)
 	c.Adjust(want, geometry.NewVector2(0, 0))
 
 	if !geoMEquals(got, want) {

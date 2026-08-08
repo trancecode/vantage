@@ -17,7 +17,6 @@ var UsePlaceholderSpriteImages bool
 type Sprite struct {
 	Animations   map[AnimationType]*Animation
 	ZeroPosition geometry.Vector2
-	Scale        float64
 	Type         SpriteType
 
 	// SourceTileSize is the tile size this sprite's art was drawn for. Zero
@@ -45,7 +44,6 @@ func NewSprite() *Sprite {
 	return &Sprite{
 		Animations:   make(map[AnimationType]*Animation),
 		ZeroPosition: geometry.Zero2D(),
-		Scale:        1.0,
 	}
 }
 
@@ -130,27 +128,19 @@ func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a Ani
 }
 
 // buildDrawOp builds the draw options for the sprite at world-tile position p:
-// sprite scale combined with the tile ratio and displayScale, zero-position
-// offset, optional horizontal flip, then the camera transform.
+// the tile ratio combined with displayScale, the zero-position offset, an
+// optional horizontal flip, then the camera transform.
 //
-// displayScale multiplies s.Scale instead of replacing it, and the
-// zero-position offset is multiplied by it as well. Because that offset is
-// applied in post-scale space, scaling both by the same factor makes
-// displayScale a uniform shrink about the zero position: the pixel anchored at
-// the world position p stays at p, and only the drawn extent changes. A
-// displayScale of 1 reproduces the unscaled transform exactly.
+// The scale and the anchor offset use the same factor, so the transform is a
+// uniform scale about the zero position: the pixel anchored at the world
+// position p stays at p, and only the drawn extent changes. A displayScale of 1
+// draws the sprite at the size the game draws it.
 func (s *Sprite) buildDrawOp(p geometry.Vector2, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.Filter = SpriteFilter
-	// The tile ratio is an engine-applied uniform scale about the anchor, so it
-	// multiplies in exactly where displayScale does. ZeroPosition keeps its
-	// existing meaning, in Scale-applied pixels, which is why the translate does
-	// not include Scale.
-	ratio := s.TileRatio()
-	scale := s.Scale * ratio * displayScale
+	scale := s.TileRatio() * displayScale
 	op.GeoM.Scale(scale, scale)
-	anchor := ratio * displayScale
-	op.GeoM.Translate(-s.ZeroPosition.X()*anchor, -s.ZeroPosition.Y()*anchor)
+	op.GeoM.Translate(-s.ZeroPosition.X()*scale, -s.ZeroPosition.Y()*scale)
 	if requiresFlip {
 		op.GeoM.Scale(-1, 1)
 	}
@@ -165,9 +155,7 @@ func (s *Sprite) DrawAnimation(screen *ebiten.Image, c *Camera, p geometry.Vecto
 
 // DrawAnimationScaled is DrawAnimation with an extra per-draw display scale,
 // for views that need a sprite drawn smaller or larger than the game draws it
-// without mutating the sprite. displayScale multiplies Sprite.Scale for this
-// call only; SetScale would change the sprite everywhere it is drawn, since a
-// sprite library hands out the same pointer to every caller.
+// without mutating the sprite.
 //
 // The scale is uniform about the sprite's zero position, so the anchor point
 // stays on p at any display scale and only the drawn extent changes. A
@@ -259,9 +247,9 @@ func (s *Sprite) VisibleBounds() image.Rectangle {
 
 // VisibleTopAboveZero returns how far the visible sprite content
 // (non-transparent pixels) extends above ZeroPosition in one frame, measured in
-// drawn pixels including the tile ratio: the frame is scaled by Scale before
-// the zero-position offset is applied (see buildDrawOp), so the row offset is
-// multiplied by Scale to match what ends up on screen. Frames across
+// drawn pixels including the tile ratio: the row offset and ZeroPosition are
+// both in source pixels, and the tile ratio maps them to what ends up on
+// screen. Frames across
 // animations share the same size and layout, so the result is computed once
 // from any available frame and cached; the cache holds the pre-ratio value, so
 // the ratio is applied fresh on every call and a tile size changed after the
@@ -301,11 +289,11 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 				}
 			}
 			if rowHasPixel {
-				// (y - bounds.Min.Y) is the row index within the frame. The
-				// frame is drawn scaled by Scale, so the first visible pixel
-				// sits ZeroPosition.Y() - rowIndex*Scale drawn pixels above
+				// (y - bounds.Min.Y) is the row index within the frame. Both it
+				// and ZeroPosition are in source pixels, so the first visible
+				// pixel sits ZeroPosition.Y() - rowIndex source pixels above
 				// ZeroPosition.
-				result = s.ZeroPosition.Y() - float64(y-bounds.Min.Y)*s.Scale
+				result = s.ZeroPosition.Y() - float64(y-bounds.Min.Y)
 				break
 			}
 		}
@@ -313,12 +301,6 @@ func (s *Sprite) VisibleTopAboveZero() float64 {
 
 	s.cachedVisibleTopAboveZero = &result
 	return result * s.TileRatio()
-}
-
-// SetScale sets the scale of the sprite.
-func (s *Sprite) SetScale(scale float64) *Sprite {
-	s.Scale = scale
-	return s
 }
 
 // SetSourceTileSize sets the tile size this sprite's art was drawn for and
