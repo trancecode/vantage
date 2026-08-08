@@ -72,6 +72,28 @@ This section contains guidelines specific to this repository that extend the uni
 
 Vantage is a reusable 2D game engine built on [Ebitengine](https://ebitengine.org/) and the entity-component-system module [`github.com/trancecode/ecs`](https://github.com/trancecode/ecs). Games consume it as a Go module. Keep the engine free of any single game's content or rules: game-specific assets, catalogs, and logic belong in the consuming game, not here.
 
+### API Compatibility Is Not a Constraint
+
+The exported API is not a stability commitment. Every consumer is a repository the
+same author owns, each pinned to a released tag, so a breaking change is migrated
+deliberately at the version bump rather than absorbed by unknown third parties. The
+repository is public for convenience, not because it targets outside consumers.
+
+Do not shape a design around preserving call signatures. Specifically, never keep a
+deprecated field alive, add a parallel accessor, or leave two ways to express one
+concept purely so that a consumer compiles unchanged. Those choices buy nothing here
+and leave a footgun reachable. Prefer the cleaner model and migrate the consumers.
+
+Two things this does not license:
+
+* Judge every exported symbol on whether it earns its place for convenience or
+  clarity. "Removing it would break a caller" is not a reason to keep it; "it is the
+  clearest way to express this" is.
+* This covers source compatibility, not behaviour. Silently changing what an
+  existing call *does*, while it still compiles, is a bug rather than a migration.
+  Check who calls a symbol before changing it, and carry out the migration rather
+  than assuming it.
+
 ### Code Style and Documentation
 
 * Follow the style guide from [docs/styleguide.md](docs/styleguide.md)
