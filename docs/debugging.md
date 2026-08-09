@@ -430,3 +430,54 @@ visualdiff golden.png candidate.png
 
 It prints the first difference and exits non-zero on any mismatch, so it drops
 straight into a test or CI step.
+
+### A/B rendered comparison (`render/pixeltest`)
+
+The workflow above diffs a captured sequence against a golden set committed to
+the repository. `render/pixeltest` is a different job: a live A/B comparison
+between two renders in the same process, with no golden files and nothing
+committed.
+
+Its one test, `TestAutoCroppedSpriteRendersIdenticallyToUniform`, proves that
+`render.LoadSpriteAutoCropped`'s cropping and repacking is invisible in the
+rendered output. It builds a synthetic sprite sheet, loads it once with
+`render.LoadSprite` (the uniform, uncropped path) and once with
+`render.LoadSpriteAutoCropped` (the cropped, repacked path), draws both to
+offscreen images at a scale that genuinely resamples, reads the pixels back
+with `ebiten.Image.ReadPixels`, and compares them with
+`visualtest.CompareImages`.
+
+This is the one level none of the package's other tests reach: the packer's
+own unit tests read the CPU-side atlas before it ever reaches the GPU, and
+`render`'s draw-geometry tests compare a draw op's matrix, never a drawn
+color. Only an actual rendered frame can show the fringing bug the packer's
+one-pixel gutter guards against, where Ebitengine's linear filter samples half
+a texel past a packed frame's edge into a neighboring frame's pixels.
+
+Because `ebiten.RunGame` can be called at most once per process and a Go test
+binary is one process per package, this lives in its own package (containing
+only test files) so it does not force every future test in `render` to share
+its one game loop.
+
+#### Two things this uncovered about `FilterLinear`, worth knowing when consuming auto-cropped sprites
+
+Neither of these is a defect; both are Ebitengine rendering behavior a game
+using `LoadSpriteAutoCropped` with `FilterLinear` should be aware of,
+especially for non-pixel-art sheets where linear filtering is the natural
+choice:
+
+* **A cropped frame loses its uncropped edge feather.** Linear filtering
+  spreads a frame's content up to half a source texel past its true edge,
+  and that feather only gets drawn where the drawn quad still covers it. An
+  uncropped frame's quad is the whole padded cell, so the feather around real
+  content is covered and rendered; a cropped frame's quad is the tight crop
+  itself, so the same feather falls just outside it and is never drawn at
+  all. For antialiased art whose edge texels are already close to
+  transparent this is subtle; for hard-edged art it is visible.
+* **Sub-texel phase can shift slightly at a non-integer effective scale.**
+  Ebitengine quantizes each drawn quad's destination corners to sixteenths of
+  a pixel without adjusting the source texture coordinates the same way.
+  Cropping shifts a frame's quad by its crop box's origin, so at a
+  non-integer scale the cropped and uncropped quads can snap differently and
+  land a fraction of a pixel apart in their source sampling. It vanishes at
+  an integer scale.
