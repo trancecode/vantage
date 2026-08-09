@@ -72,9 +72,16 @@ func (g *comparisonGame) Draw(screen *ebiten.Image) {
 		want := drawToImage(g.uniform, camera, pos, sc)
 		got := drawToImage(g.cropped, camera, pos, sc)
 
+		var mismatch *visualtest.Mismatch
+		if sc.masked {
+			mismatch = compareMasked(g.cropped, camera, pos, sc, want, got)
+		} else {
+			mismatch = visualtest.CompareImages(want, got)
+		}
+
 		g.results = append(g.results, scenarioResult{
 			name:     sc.name,
-			mismatch: visualtest.CompareImages(want, got),
+			mismatch: mismatch,
 		})
 	}
 
@@ -90,8 +97,28 @@ func (g *comparisonGame) Layout(outsideWidth, outsideHeight int) (int, int) {
 // canvasSize offscreen image and reads the result back as an *image.RGBA.
 func drawToImage(sprite *render.Sprite, camera *render.Camera, pos geometry.Vector2, sc scenario) *image.RGBA {
 	img := ebiten.NewImage(canvasSize, canvasSize)
-	sprite.DrawAnimationScaled(img, camera, pos, sc.animation, sc.elapsed, displayScale)
+	sprite.DrawAnimationScaled(img, camera, pos, sc.animation, sc.elapsed, sc.scale)
 	return readPixels(img)
+}
+
+// compareMasked compares want and got the way a masked scenario needs: it
+// excludes the ring between the cropped frame's on-screen quad and that quad
+// expanded by featherMargin (the band FilterLinear legitimately feathers past
+// a tight crop but not past a padded cell, per buildScenarios), and requires
+// an exact match everywhere else, both inside the quad and beyond the
+// feather. That is stricter than only checking the quad's interior: it also
+// pins down that the padded side's feather does not reach any further than
+// expected.
+func compareMasked(cropped *render.Sprite, camera *render.Camera, pos geometry.Vector2, sc scenario, want, got *image.RGBA) *visualtest.Mismatch {
+	quad := croppedQuadOnScreen(cropped, camera, pos, sc.animation, sc.scale)
+	expanded := quad.Inset(-featherMargin(sc.scale))
+
+	wantMasked := cloneRGBA(want)
+	gotMasked := cloneRGBA(got)
+	blankAnnulus(wantMasked, expanded, quad)
+	blankAnnulus(gotMasked, expanded, quad)
+
+	return visualtest.CompareImages(wantMasked, gotMasked)
 }
 
 // readPixels copies img's pixels into an *image.RGBA, the pattern

@@ -35,12 +35,20 @@ const (
 	// which stays well inside this margin on every side.
 	canvasSize = 96
 
-	// displayScale is the per-draw scale every scenario in this package uses.
+	// displayScale is the per-draw scale most scenarios in this package use.
 	// It is deliberately non-integer: at an integer position and a scale of
 	// exactly 1, linear filtering samples texel centres and degenerates to
 	// nearest, so the packing gutter's fringing bug would not appear. This
 	// value forces linear filtering to genuinely resample between texels.
 	displayScale = 2.5
+
+	// maskedLinearScale is the scale the padded-versus-cropped FilterLinear
+	// scenarios use instead of displayScale. It still genuinely resamples
+	// (fixtureAnchor's fractional part keeps sample positions off texel
+	// centres even at a whole-number scale), but being an integer removes
+	// Ebitengine's destination-vertex snapping from the comparison: see
+	// buildScenarios.
+	maskedLinearScale = 2.0
 
 	// frameCap backstops ebiten.RunGame: if the comparisons never complete,
 	// Update returns an error instead of letting the loop hang forever, which
@@ -60,15 +68,19 @@ const (
 //     anchor rebase, so this shape can. All three cells carry real cell
 //     padding around their content, which is what a real sprite sheet looks
 //     like, and what proves the crop and rebase math correct; they are
-//     compared under FilterNearest, the one filter a padded-versus-cropped
-//     pixel comparison can be made bit-exact under (see buildScenarios).
+//     compared under FilterNearest unmasked, and under FilterLinear with the
+//     comparison masked to the cropped frame's own quad (see buildScenarios
+//     for why: a real, gutter-independent difference otherwise appears
+//     outside that quad, from cropping removing padding a full-cell quad
+//     legitimately still shows).
 //   - Cells 6 and 8 (row 2, columns 0 and 2) are AnimationAttackDown and
 //     AnimationAttackRight, each filling its whole cell with no padding at
 //     all, in a third and fourth color. A cell with no padding crops to
 //     exactly its own size, so [render.LoadSprite]'s frame and
 //     [render.LoadSpriteAutoCropped]'s tight frame are then the same size
-//     for these two, which is what makes an exact comparison achievable
-//     under FilterLinear too (again, see buildScenarios). Row 1 and cell 7
+//     for these two: cropping removes nothing, so nothing needs masking, and
+//     an unmasked exact comparison is achievable under both filters (again,
+//     see buildScenarios). Row 1 and cell 7
 //     are left untouched (transparent) precisely so that neither of these
 //     two cells has any opaque neighbor within the sheet itself: without
 //     that gap, LoadSprite's own rendering would bleed the adjacent cell's
@@ -157,12 +169,17 @@ var fixtureDurations = map[render.AnimationType]time.Duration{
 var fixtureAnchor = geometry.NewVector2(10.1, 10.3)
 
 // scenario is one comparison: draw a single animation, at a single point in
-// its timeline, under a single filter, from both sprites, and diff the result.
+// its timeline and a single scale, under a single filter, from both sprites,
+// and diff the result. masked selects the two special FilterLinear scenarios
+// that need the comparison restricted to the cropped frame's own on-screen
+// quad, rather than the whole canvas: see buildScenarios.
 type scenario struct {
 	name      string
 	animation render.AnimationType
 	elapsed   time.Duration
 	filter    ebiten.Filter
+	scale     float64
+	masked    bool
 }
 
 // buildScenarios returns every comparison this package runs, split into the
@@ -170,26 +187,47 @@ type scenario struct {
 //
 // AnimationIdleDown (both frames), AnimationIdleRight and AnimationIdleLeft
 // exercise the crop and anchor-rebase math: an off-diagonal box, a union of
-// two frames, and a mirrored flip. They are compared under FilterNearest
-// only. Under FilterLinear, Ebitengine's built-in shader blends an edge pixel
-// with whatever true neighboring texels exist within a frame's own declared
-// bounds; [render.LoadSprite]'s frame is the whole padded cell and
-// [render.LoadSpriteAutoCropped]'s is the tight crop, so even with the
-// packing gutter correctly in place the two frames are different sizes and
-// blend their edges differently. That is not the bug this package exists to
-// catch, so pinning it down needs frames of equal size, which is what the
-// second group provides.
+// two frames, and a mirrored flip. Under FilterNearest the comparison is
+// exact and unmasked, over the whole canvas. Under FilterLinear it needs
+// masking, for a reason that has nothing to do with the packing gutter:
+// Ebitengine's built-in shader (AddressUnsafe addressing) spreads content
+// about half a source texel past its true edge, and that feather is
+// rasterized wherever the drawn quad still covers it. [render.LoadSprite]'s
+// quad is the whole padded cell, so the feather around real content is
+// covered and shows up; [render.LoadSpriteAutoCropped]'s quad is the tight
+// crop itself, so the same feather falls just outside it and is never
+// rasterized at all. That gap is not a sampling difference (both read the
+// exact same neighboring pixels; a same-size control taken from the padded
+// sheet, sized like the cropped frame, matches the cropped render exactly
+// under FilterLinear) and not the fringing bug this package exists to catch;
+// it is a legitimate consequence of the crop making the quad smaller. Masking
+// both renders down to the cropped quad, computed with croppedQuadOnScreen,
+// excludes exactly that feather and leaves everything else, including any
+// real fringing from a missing gutter, checked.
+//
+// FilterLinear at a non-integer scale adds a second, independent effect:
+// Ebitengine's destination-vertex snapping (internal/graphics/vertex.go's
+// adjustDestinationPixel) quantizes each drawn quad's screen corners to
+// sixteenths of a pixel without adjusting source coordinates, so a quad
+// shifted by the crop box's origin (as the cropped path's is, whenever that
+// origin is not a whole number of scaled pixels) can snap differently from
+// the uncropped quad and shift the whole sub-texel sampling phase by a
+// fraction of a pixel. It vanishes at an integer scale, which is why the
+// masked scenarios use maskedLinearScale (2.0) rather than displayScale
+// (2.5): fixtureAnchor's fractional part already keeps every sample off a
+// texel centre, so genuine resampling does not depend on a fractional scale
+// too.
 //
 // AnimationAttackDown and AnimationAttackRight (and its mirror,
 // AnimationAttackLeft) fill their cells edge to edge, so their crop box is
-// the whole cell: [render.LoadSprite]'s frame and
-// [render.LoadSpriteAutoCropped]'s tight frame are then the same size, and an
-// exact comparison is achievable under both filters. They are packed
-// adjacent to each other in the atlas (verified in the package's report), so
-// the only thing standing between AnimationAttackDown's opaque edge and
-// AnimationAttackRight's different color is the one-pixel packing gutter,
-// exactly what buildFixtureSheet's second group exists to exercise under
-// resampling.
+// the whole cell: cropping removes no padding, [render.LoadSprite]'s quad and
+// [render.LoadSpriteAutoCropped]'s are the same size, and there is no feather
+// gap to mask around. That makes an exact, unmasked comparison achievable
+// under both filters, and it is what actually regression-tests the packing
+// gutter under resampling: autoCropAtlas packs the two animations onto
+// adjacent atlas shelves one pixel apart (verified in the package's report),
+// so the only thing standing between AnimationAttackDown's opaque edge and
+// AnimationAttackRight's different color is that one-pixel gutter.
 //
 // AnimationIdleDown's two frames are drawn separately rather than as one
 // scenario, because they are not interchangeable: autoCropAtlas packs frame
@@ -215,6 +253,15 @@ func buildScenarios() []scenario {
 				animation: ga.animation,
 				elapsed:   elapsed,
 				filter:    ebiten.FilterNearest,
+				scale:     displayScale,
+			})
+			scenarios = append(scenarios, scenario{
+				name:      fmt.Sprintf("%s/elapsed=%s/filter=%s/masked", ga.animation, elapsed, render.FilterName(ebiten.FilterLinear)),
+				animation: ga.animation,
+				elapsed:   elapsed,
+				filter:    ebiten.FilterLinear,
+				scale:     maskedLinearScale,
+				masked:    true,
 			})
 		}
 	}
@@ -226,6 +273,7 @@ func buildScenarios() []scenario {
 				animation: a,
 				elapsed:   0,
 				filter:    filter,
+				scale:     displayScale,
 			})
 		}
 	}
