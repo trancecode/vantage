@@ -22,9 +22,9 @@ func TestWatchdogExpired(t *testing.T) {
 }
 
 func TestWatchdogReset(t *testing.T) {
-	var expired int32
+	var expired atomic.Int32
 	done := newWatchdog(100*time.Millisecond, func() {
-		atomic.StoreInt32(&expired, 1)
+		expired.Store(1)
 	})
 	time.Sleep(50 * time.Millisecond)
 
@@ -34,7 +34,7 @@ func TestWatchdogReset(t *testing.T) {
 	// No deterministic event to wait on here: we are asserting an absence of
 	// expiration, so a bounded sleep past the original timeout is unavoidable.
 	time.Sleep(200 * time.Millisecond)
-	if atomic.LoadInt32(&expired) != 0 {
+	if expired.Load() != 0 {
 		t.Errorf("Watchdog expired when it should not have")
 	}
 }
