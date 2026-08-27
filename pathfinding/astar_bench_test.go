@@ -54,6 +54,11 @@ var benchDistances = []int{2, 8, 32, 64, 128, 256}
 // room for the longest journey in benchDistances.
 const benchMargin = 16
 
+// benchMaxExpansions exceeds the tile count of a benchMapSize map, so a search
+// on the finite benchmark maps always runs to its natural end and the budget
+// only ever stops the edgeless case that measures it.
+const benchMaxExpansions = 100_000
+
 // Expectations for runFindPath, named so that call sites read clearly.
 const (
 	wantPath   = true
@@ -69,7 +74,7 @@ const (
 func runFindPath(b *testing.B, terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, wantPath bool) {
 	b.Helper()
 
-	path, expanded := findPath(terrain, start, goal, isOccupied)
+	path, expanded := findPath(terrain, start, goal, isOccupied, benchMaxExpansions)
 	if gotPath := path != nil; gotPath != wantPath {
 		b.Fatalf("path from %v to %v: got path %t, want %t", start, goal, gotPath, wantPath)
 	}
@@ -77,7 +82,7 @@ func runFindPath(b *testing.B, terrain TerrainProvider, start, goal Coord, isOcc
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		FindPath(terrain, start, goal, isOccupied)
+		FindPath(terrain, start, goal, isOccupied, benchMaxExpansions)
 	}
 	b.ReportMetric(float64(expanded), "expansions/op")
 }
@@ -152,6 +157,19 @@ func BenchmarkFindPathWalledGoal(b *testing.B) {
 			}
 		}
 	}
+
+	runFindPath(b, terrain, origin, goal, nil, wantNoPath)
+}
+
+// BenchmarkFindPathBudgetExhausted measures a goal sealed inside a pocket of an
+// edgeless map, the case only the expansion budget can terminate. The cost
+// reported here is the worst case a single failed request can cost a caller
+// under benchMaxExpansions, and dividing it by the expansion count gives the
+// per-expansion figure for sizing a budget of one's own.
+func BenchmarkFindPathBudgetExhausted(b *testing.B) {
+	goal := Coord{X: 0, Y: 0}
+	terrain := unboundedTerrain{pocketCenter: goal, ringRadius: 2}
+	origin := Coord{X: 128, Y: 0}
 
 	runFindPath(b, terrain, origin, goal, nil, wantNoPath)
 }

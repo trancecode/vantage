@@ -10,6 +10,9 @@
 // expand every reachable tile to establish that, so the two ways a goal is
 // commonly unenterable — its own tile occupied, or every tile next to it
 // unenterable — are answered without searching at all. Any other unreachable
-// goal still costs a full flood. See docs/pathfinding_performance.md for the
+// goal costs a flood, bounded by the expansion budget the caller passes to
+// FindPath. The budget is also what makes a search return at all on a terrain
+// with no edge, where IsInBounds is always true and a flood would otherwise
+// never run out of tiles. See docs/pathfinding_performance.md for the
 // measurements behind this.
 package pathfinding

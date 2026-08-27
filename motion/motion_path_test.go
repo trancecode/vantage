@@ -8,6 +8,10 @@ import (
 	"github.com/trancecode/vantage/tilemap"
 )
 
+// testMaxPathExpansions exceeds the tile count of the 10x10 test maps, so the
+// budget never decides a search on them.
+const testMaxPathExpansions = 1000
+
 // testTerrain is a rectangular map with optional blocked tiles.
 type testTerrain struct {
 	width, height int
@@ -33,6 +37,7 @@ func TestCanReach_ChecksTerrainAndOccupancy(t *testing.T) {
 	s, w := newTestSystem()
 	s.Occupancy = tilemap.NewTileOccupancyManager()
 	s.Terrain = &testTerrain{width: 10, height: 10, blocked: map[tilemap.TileCoord]bool{{X: 3, Y: 3}: true}}
+	s.MaxPathExpansions = testMaxPathExpansions
 	id := w.NewEntity()
 	other := w.NewEntity()
 	s.Occupancy.SetOccupant(tilemap.TileCoord{X: 5, Y: 5}, other)
@@ -69,6 +74,7 @@ func TestCanReach_NilTerrainIsAllWalkable(t *testing.T) {
 func TestFindTilePath_StraightLine(t *testing.T) {
 	s, _ := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
 
 	path := s.FindTilePath(tilemap.TileCoord{X: 0, Y: 0}, tilemap.TileCoord{X: 3, Y: 0})
 
@@ -84,6 +90,7 @@ func TestFindTilePath_StraightLine(t *testing.T) {
 func TestFindTilePath_AvoidsOccupiedTiles(t *testing.T) {
 	s, w := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
 	s.Occupancy = tilemap.NewTileOccupancyManager()
 	blocker := w.NewEntity()
 	s.Occupancy.SetOccupant(tilemap.TileCoord{X: 1, Y: 0}, blocker)
@@ -100,6 +107,7 @@ func TestFindTilePath_AvoidsOccupiedTiles(t *testing.T) {
 func TestFindPathBetween_EndsAtTileCenter(t *testing.T) {
 	s, _ := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
 	origin := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 0, Y: 0})
 	destination := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 4, Y: 2})
 
@@ -119,6 +127,7 @@ func TestFindPathBetween_EndsAtTileCenter(t *testing.T) {
 func TestFindPathBetween_RecordsPhase(t *testing.T) {
 	s, _ := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
 	var phases []string
 	s.RecordPhase = func(name string, _ time.Duration) { phases = append(phases, name) }
 
@@ -132,6 +141,7 @@ func TestFindPathBetween_RecordsPhase(t *testing.T) {
 func TestFindPathBetween_SameTileReturnsTileCenter(t *testing.T) {
 	s, _ := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
 	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 2, Y: 2})
 	origin := center.Add(geometry.NewVector2(0.2, 0.1))
 
@@ -145,6 +155,7 @@ func TestFindPathBetween_SameTileReturnsTileCenter(t *testing.T) {
 func TestFindPathBetween_SameTileAtCenterReturnsEmpty(t *testing.T) {
 	s, _ := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
 	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 2, Y: 2})
 	destination := center.Add(geometry.NewVector2(0.2, 0.1))
 
@@ -153,4 +164,20 @@ func TestFindPathBetween_SameTileAtCenterReturnsEmpty(t *testing.T) {
 	if len(path) != 0 {
 		t.Errorf("expected empty path when already at the tile center, got %v", path)
 	}
+}
+
+// TestFindTilePath_RequiresMaxPathExpansions checks that a System whose
+// search budget was never set refuses to search rather than risk a search
+// that never returns on an edgeless map.
+func TestFindTilePath_RequiresMaxPathExpansions(t *testing.T) {
+	s, _ := newTestSystem()
+	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = 0
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected FindTilePath to panic when MaxPathExpansions is not set")
+		}
+	}()
+	s.FindTilePath(tilemap.TileCoord{X: 0, Y: 0}, tilemap.TileCoord{X: 5, Y: 5})
 }

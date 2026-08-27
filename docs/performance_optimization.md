@@ -80,10 +80,13 @@ would also make path caching with explicit invalidation worth having.
 without searching, which covers agents converging on one destination. A goal cut
 off by a barrier further away is still established as unreachable the only way
 A* can: by expanding every reachable tile, ~92k expansions and ~130 ms on a
-304x304 map. Ruling it out cheaply needs connectivity components (a per-tile
-region id, recomputed or repaired when terrain changes), which is a design
-decision about terrain-change notification rather than a local optimization.
-Left undone until a workload actually routes toward walled-off goals; see
+304x304 map, or by spending the caller's expansion budget, 100,000 expansions
+and ~77 ms at the budget `motion.System` documents. The budget keeps the cost
+finite on an edgeless map but does not make it small. Ruling such goals out
+cheaply needs connectivity components (a per-tile region id, recomputed or
+repaired when terrain changes), which is a design decision about terrain-change
+notification rather than a local optimization. Left undone until a workload
+actually routes toward walled-off goals often enough to matter; see
 [pathfinding_performance.md](pathfinding_performance.md).
 
 ## Path-following search costs (motion/motion_towards.go)

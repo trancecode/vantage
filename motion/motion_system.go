@@ -52,6 +52,19 @@ type System struct {
 	// (<= 0).
 	MaxMoveActionDistance float64
 
+	// MaxPathExpansions bounds every A* search the System runs, as the number
+	// of nodes the search may expand before giving up and reporting no path.
+	// It is what makes a search for a sealed-off goal return on a Terrain
+	// with no edge, where the search would otherwise never run out of tiles.
+	// On a finite map a budget at or above the map's tile count leaves every
+	// result unchanged, since a search never expands a tile twice; 100,000
+	// covers the largest map measured so far (304x304, see
+	// docs/pathfinding_performance.md). On an edgeless map the budget is a
+	// latency cap: the cost of an exhausted search is the budget times the
+	// per-expansion cost reported by the pathfinding benchmarks. FindTilePath
+	// and everything built on it panic when it is not set (<= 0).
+	MaxPathExpansions int
+
 	// OnArrival, when non-nil, is called for each entity that reaches its
 	// destination during a Tick, after its Movement has been removed.
 	OnArrival func(MovementResult)

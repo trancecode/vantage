@@ -86,7 +86,7 @@ func TestTerrainPathfindsAroundWalls(t *testing.T) {
 	g.Set(1, 1, 0)
 	terrain := Terrain[int]{Tiles: g, Speed: terrainSpeed}
 
-	path := pathfinding.FindPath(terrain, pathfinding.Coord{X: 0, Y: 0}, pathfinding.Coord{X: 2, Y: 0}, nil)
+	path := pathfinding.FindPath(terrain, pathfinding.Coord{X: 0, Y: 0}, pathfinding.Coord{X: 2, Y: 0}, nil, 100)
 	require.NotEmpty(t, path, "a path around the wall must exist")
 	for _, c := range path {
 		assert.True(t, terrain.IsWalkable(c.X, c.Y), "path must avoid the wall: %v", c)

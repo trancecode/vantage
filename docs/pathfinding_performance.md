@@ -22,11 +22,14 @@ seconds. Short two-tile paths cost about 2 µs regardless of map size, so the
 cost had to be specific to long paths, to the convergence on one destination, or
 to both.
 
-The benchmark measures four things: cost against journey length, cost against
-map size, cost when the destination is occupied, and cost when the destination
-is sealed off by terrain. Each case also reports **node expansions** — how many
-nodes the search popped from the open set — which is what separates a search
-that walked a corridor to the goal from one that flooded the map.
+The benchmark measures five things: cost against journey length, cost against
+map size, cost when the destination is occupied, cost when the destination is
+sealed off by terrain, and cost when the search runs out of budget on a map
+with no edge. Each case also reports **node expansions** — how many nodes the
+search popped from the open set — which is what separates a search that walked
+a corridor to the goal from one that flooded the map. A count equal to the
+budget passed to `FindPath` (100,000 in the benchmarks) with no path returned
+means the budget stopped the search, not an emptied open set.
 
 ## Conclusion: it is not path length, it is unreachable goals
 
@@ -86,12 +89,40 @@ Successful searches are about 16% faster from the map merge. The convergence
 case, which is what made long-distance routing unusable, is no longer a search
 at all.
 
+## Search budget: maps with no edge
+
+A procedurally generated world with no edge (`IsInBounds` true everywhere) has
+no natural end to a flood: a goal sealed inside a pocket of impassable terrain
+leaves the open set growing forever, and the caller hangs. `FindPath` therefore
+takes an expansion budget, `maxExpansions`, and returns no path once the search
+has expanded that many nodes. The budget must be positive; a zero budget would
+silently mean an unbounded search, which is the hang the parameter exists to
+rule out, so `FindPath` panics on it instead.
+
+On a finite map the budget never changes a result as long as it is at or above
+the map's tile count, because a flood expands each tile at most once: the
+304x304 map's worst case is 92,415 expansions. `motion.System` carries the
+budget as `MaxPathExpansions`; 100,000 covers every map measured so far.
+
+On an edgeless map the budget is the latency cap on a failed request:
+
+| Case | Cost |
+| --- | --- |
+| Budget of 100,000 exhausted on an edgeless map | 77 ms, 100,000 expansions, 13.5 MB, 101,992 allocs |
+
+That is about 0.8 µs and 135 bytes per expansion, so a game picks its budget by
+how long a failed request may stall it and how far a sealed pocket can be from
+the searcher: a budget of N expansions explores roughly the N tiles closest to
+the straight line toward the goal. The successful-search figures above are
+unchanged by the budget.
+
 ## What is left
 
 A goal walled off at a distance — not by its immediate neighbours, but by a
-barrier somewhere between it and the searcher — still costs a full flood. Ruling
-that out needs connectivity components maintained across terrain changes, which
-is a design decision rather than a local fix. See
+barrier somewhere between it and the searcher — still costs a flood, now capped
+at the budget rather than at the map. Ruling it out up front needs connectivity
+components maintained across terrain changes, which is a design decision rather
+than a local fix. See
 [performance_optimization.md](performance_optimization.md) for that and for the
 remaining per-search costs (the per-node allocations and the two-map-free but
 still map-based node store), none of which is currently the binding constraint.

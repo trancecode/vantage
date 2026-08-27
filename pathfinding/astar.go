@@ -2,6 +2,7 @@ package pathfinding
 
 import (
 	"container/heap"
+	"fmt"
 	"math"
 	"slices"
 )
@@ -178,16 +179,33 @@ func isGoalApproachable(terrain TerrainProvider, start, goal Coord, isOccupied O
 // unwalkable, occupied or has no enterable tile next to it — the last three
 // being answered without searching, since a search would have to flood the map
 // to reach them.
-func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker) []Coord {
-	path, _ := findPath(terrain, start, goal, isOccupied)
+//
+// maxExpansions bounds the search: once that many nodes have been expanded
+// (popped from the open set) without reaching the goal, FindPath gives up and
+// returns nil, exactly as it does when the open set empties. On a finite map
+// the open set empties by itself after at most one expansion per tile, so a
+// budget at or above the map's tile count never changes the result; on a map
+// with no edge (IsInBounds always true) the budget is the only thing that makes
+// a search for a sealed-off goal return. A successful search expands roughly
+// one node per tile of the path it returns, so the budget also caps path
+// length. It must be positive; FindPath panics otherwise, because a zero
+// budget would silently mean an unbounded search, which is the hang this
+// parameter exists to rule out.
+func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int) []Coord {
+	path, _ := findPath(terrain, start, goal, isOccupied, maxExpansions)
 	return path
 }
 
 // findPath implements FindPath and additionally reports how many nodes the
 // search expanded (popped from the open set). The count is what tells apart a
 // search that walked a narrow corridor to the goal from one that flooded the
-// map, so the benchmarks measure it alongside wall-clock cost.
-func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker) (path []Coord, expanded int) {
+// map, so the benchmarks measure it alongside wall-clock cost. A count equal
+// to maxExpansions with no path means the budget stopped the search.
+func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int) (path []Coord, expanded int) {
+	if maxExpansions <= 0 {
+		panic(fmt.Sprintf("finding path from %v to %v: maxExpansions must be positive, got %d", start, goal, maxExpansions))
+	}
+
 	// Quick checks
 	if start == goal {
 		return nil, 0 // No path needed when already at destination
@@ -244,6 +262,13 @@ func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 			}
 			slices.Reverse(path)
 			return path, expanded
+		}
+
+		// Give up once the budget is spent. This is what terminates a search
+		// for a sealed-off goal on a map with no edge, where the open set
+		// never empties.
+		if expanded >= maxExpansions {
+			return nil, expanded
 		}
 
 		current.closed = true

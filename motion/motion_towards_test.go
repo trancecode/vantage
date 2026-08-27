@@ -24,6 +24,7 @@ func newPathTestSystem(t *testing.T, at tilemap.TileCoord) (*System, ecsEntity) 
 	t.Helper()
 	s, w := newTestSystem()
 	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
 	s.Occupancy = tilemap.NewTileOccupancyManager()
 	s.MaxMoveActionDistance = testMaxMoveActionDistance
 	id := w.NewEntity()

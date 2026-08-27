@@ -1,6 +1,7 @@
 package motion
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/trancecode/ecs/ecs"
@@ -33,10 +34,15 @@ func (s *System) CanReach(entityId ecs.EntityId, destination geometry.Vector2) b
 
 // FindTilePath finds a tile path from start to goal using A* over the
 // System's Terrain, routing around tiles reserved in Occupancy. It returns
-// nil when no path exists. Terrain must be set; FindTilePath panics otherwise.
+// nil when no path exists or when the search exhausts MaxPathExpansions
+// first. Terrain and MaxPathExpansions must be set; FindTilePath panics
+// otherwise.
 func (s *System) FindTilePath(start, goal tilemap.TileCoord) []tilemap.TileCoord {
 	if s.Terrain == nil {
 		panic("finding tile path: System.Terrain is nil")
+	}
+	if s.MaxPathExpansions <= 0 {
+		panic(fmt.Sprintf("finding tile path from %v to %v: MaxPathExpansions not configured", start, goal))
 	}
 
 	startCoord := pathfinding.Coord{X: start.X, Y: start.Y}
@@ -50,7 +56,7 @@ func (s *System) FindTilePath(start, goal tilemap.TileCoord) []tilemap.TileCoord
 		return occupied
 	}
 
-	path := pathfinding.FindPath(s.Terrain, startCoord, goalCoord, isOccupied)
+	path := pathfinding.FindPath(s.Terrain, startCoord, goalCoord, isOccupied, s.MaxPathExpansions)
 	if path == nil {
 		return nil
 	}
