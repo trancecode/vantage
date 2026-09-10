@@ -116,6 +116,81 @@ the searcher: a budget of N expansions explores roughly the N tiles closest to
 the straight line toward the goal. The successful-search figures above are
 unchanged by the budget.
 
+## Terrain faster than 1.0: scaling the heuristic
+
+A step costs its distance divided by the terrain speed, and the heuristic is
+plain octile distance, which assumes no step costs less than its distance. Road
+at speed 2.0 breaks that assumption: near a road the heuristic overestimates,
+so a search can finish on the direct route over grass without ever expanding
+the tiles that lead onto a quicker road detour. A terrain that implements
+`MaxSpeedProvider` has the heuristic divided by its fastest speed, which never
+overestimates and so returns optimal routes, but weakens the estimate
+everywhere. Nothing implements it by default, so every existing search is
+unchanged.
+
+`BenchmarkFindPathRoads` in `pathfinding/astar_roads_bench_test.go` measures
+both sides of that trade on edgeless maps, so that a wide search is never cut
+short by a map edge:
+
+* **grass**: grass everywhere, with the terrain still declaring 2.0 because
+  roads exist elsewhere. This is the cost of scaling where no road helps.
+* **offset road**: grass with one 3-tile-wide road at 2.0 parallel to the
+  journey, a tenth of the journey's length off to one side.
+* **grid**: roads 200 tiles apart in both directions, with forest at 0.5 in
+  16-tile blocks covering about 30% of the ground between them. Journeys start
+  in the middle of a cell, 100 tiles from the nearest road, and run either
+  along the grid (cardinal) or at a 2:1 slope across it (oblique).
+
+```bash
+go test ./pathfinding/ -run '^$' -bench BenchmarkFindPathRoads -benchtime 1x
+```
+
+Expansions are counted with no budget in the way, so the count is what a search
+needs to reach the goal. The budget check follows the goal check, so a search
+fits the 100,000 budget the other benchmarks use exactly when that count is at
+most 100,000. The percentage is how far the unscaled route lies above the scaled
+one, which is the optimum; for the one unscaled search that needs more than the
+budget, it is the route that search reaches without a budget.
+
+| Map | Length | Unscaled expansions | Fits 100k | Above optimal | Scaled expansions | Fits 100k |
+| --- | ---: | ---: | :---: | ---: | ---: | :---: |
+| grass | 250 | 251 | yes | 0.0% | 50,428 | yes |
+| grass | 500 | 501 | yes | 0.0% | 201,707 | no |
+| grass | 1,000 | 1,001 | yes | 0.0% | 806,802 | no |
+| grass | 2,000 | 2,001 | yes | 0.0% | 3,227,199 | no |
+| offset road | 250 | 251 | yes | 48.9% | 13,841 | yes |
+| offset road | 500 | 501 | yes | 47.7% | 56,367 | yes |
+| offset road | 1,000 | 1,001 | yes | 47.0% | 226,824 | no |
+| offset road | 2,000 | 2,001 | yes | 46.7% | 910,657 | no |
+| grid, cardinal | 250 | 4,024 | yes | 0.2% | 62,178 | yes |
+| grid, cardinal | 500 | 7,360 | yes | 31.7% | 96,233 | yes |
+| grid, cardinal | 1,000 | 35,433 | yes | 49.9% | 339,306 | no |
+| grid, cardinal | 2,000 | 141,042 | no | 72.9% | 679,882 | no |
+| grid, oblique | 250 | 3,012 | yes | 19.8% | 26,406 | yes |
+| grid, oblique | 500 | 23,471 | yes | 10.2% | 191,393 | no |
+| grid, oblique | 1,000 | 13,024 | yes | 38.5% | 392,916 | no |
+| grid, oblique | 2,000 | 71,926 | yes | 33.4% | 1,859,478 | no |
+
+What the table shows:
+
+* **Scaling turns a corridor into a region.** On grass the scaled search expands
+  about 0.8 x length² tiles instead of one per tile of the route, so a budget of
+  100,000 covers roughly 350 tiles of open ground instead of every journey on
+  the map. With roads nearby the optimum is cheaper and the region smaller, but
+  of the 16 journeys only the 250-tile ones and two of the 500-tile ones fit.
+* **Leaving it unscaled costs a lot wherever a road is worth taking.** A parallel
+  road a tenth of the journey away makes the unscaled route 47% to 49% dearer at
+  every length, and on the grid 10% to 73% for journeys of 500 tiles and more.
+  Where no road is worth the detour, as on the 250-tile cardinal grid journey
+  with the nearest road 100 tiles off, the difference is 0.2%.
+* **Forest already widens unscaled searches.** Slow terrain makes octile distance
+  an underestimate, so the unscaled search on the grid spreads around forest
+  blocks: the 2,000-tile cardinal journey needs 141,042 expansions and does not
+  fit the budget even without scaling.
+* **A search the budget stops is expensive.** Under a budget of 100,000 each
+  scaled journey that does not fit costs about 98 to 126 ms per call here, in
+  one-shot timings, and returns no path.
+
 ## What is left
 
 A goal walled off at a distance — not by its immediate neighbours, but by a

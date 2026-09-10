@@ -89,6 +89,21 @@ notification rather than a local optimization. Left undone until a workload
 actually routes toward walled-off goals often enough to matter; see
 [pathfinding_performance.md](pathfinding_performance.md).
 
+## Weak heuristic on terrain faster than 1.0 (pathfinding/astar.go)
+
+A terrain that implements `MaxSpeedProvider` has octile distance divided by its
+fastest speed, which keeps routes optimal onto roads but makes a search expand a
+region rather than a corridor: about 0.8 x length² tiles on open grass at a
+declared speed of 2.0, so 3.2 million expansions for a 2,000-tile journey where
+the undivided heuristic expands 2,001 (`BenchmarkFindPathRoads`). A stronger
+heuristic that still never overestimates would recover most of that: landmark
+distances (precomputed shortest-path costs from a few chosen tiles, compared
+through the triangle inequality), or a two-level search that routes over a road
+graph and plans only the legs onto and off it with A*. Both need precomputed
+data invalidated when terrain changes, which is a design decision rather than a
+local optimization. Left undone because scaling is opt-in and no consumer uses it
+yet; see [pathfinding_performance.md](pathfinding_performance.md).
+
 ## Path-following search costs (motion/motion_towards.go)
 
 `findAreaTarget` discards candidate tiles that no path can end on by tile

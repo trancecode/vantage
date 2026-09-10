@@ -1,6 +1,7 @@
 package pathfinding
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -539,5 +540,74 @@ func TestFindPathRequiresPositiveBudget(t *testing.T) {
 
 	for _, budget := range []int{0, -1} {
 		assert.Panics(t, func() { FindPath(terrain, Coord{0, 0}, Coord{2, 2}, nil, budget) }, "budget %d", budget)
+	}
+}
+
+// speedBoundedTerrain declares a fastest speed multiplier on top of any
+// TerrainProvider, which is what makes FindPath divide its heuristic by it.
+type speedBoundedTerrain struct {
+	TerrainProvider
+	maxSpeed float64
+}
+
+func (t speedBoundedTerrain) MaxSpeedMultiplier() float64 { return t.maxSpeed }
+
+// pathCost returns the movement cost the search assigns to path.
+func pathCost(terrain TerrainProvider, path []Coord) float64 {
+	cost := 0.0
+	for i := 1; i < len(path); i++ {
+		from, to := path[i-1], path[i]
+		distance := cardinalCost
+		if !isCardinalDirection(to.X-from.X, to.Y-from.Y) {
+			distance = diagonalCost
+		}
+		cost += calculateMovementCost(terrain, from, to, distance)
+	}
+	return cost
+}
+
+// TestFindPathMaxSpeedTakesRoadDetour tests that a terrain declaring its
+// fastest speed gets the optimal route when that route detours onto a road off
+// the straight line, and that the undivided heuristic misses the detour.
+func TestFindPathMaxSpeedTakesRoadDetour(t *testing.T) {
+	terrain := newMockTerrain(40, 12)
+	for y := range 12 {
+		for x := range 40 {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+	for x := range 40 {
+		terrain.setSpeed(x, 1, 2.0)
+	}
+	start := Coord{0, 8}
+	goal := Coord{39, 8}
+
+	direct := FindPath(terrain, start, goal, nil, testMaxExpansions)
+	scaled := FindPath(speedBoundedTerrain{TerrainProvider: terrain, maxSpeed: 2.0}, start, goal, nil, testMaxExpansions)
+	// Dividing by an enormous speed leaves no heuristic to speak of, which
+	// turns the search into Dijkstra's: exhaustive and certainly optimal.
+	exhaustive := FindPath(speedBoundedTerrain{TerrainProvider: terrain, maxSpeed: 1e12}, start, goal, nil, testMaxExpansions)
+	require.NotNil(t, direct)
+	require.NotNil(t, scaled)
+	require.NotNil(t, exhaustive)
+
+	assert.InDelta(t, 39.0, pathCost(terrain, direct), 1e-9, "The undivided heuristic should walk the straight line")
+	assert.InDelta(t, pathCost(terrain, exhaustive), pathCost(terrain, scaled), 1e-9, "The divided heuristic should find the optimal route")
+	assert.Less(t, pathCost(terrain, scaled), pathCost(terrain, direct), "The optimal route should use the road")
+}
+
+// TestFindPathRequiresPositiveMaxSpeed tests that a declared fastest speed that
+// is not positive is a programming error rather than a heuristic to divide by.
+func TestFindPathRequiresPositiveMaxSpeed(t *testing.T) {
+	terrain := newMockTerrain(3, 3)
+	for y := range 3 {
+		for x := range 3 {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+
+	for _, maxSpeed := range []float64{0, -1, math.NaN()} {
+		bounded := speedBoundedTerrain{TerrainProvider: terrain, maxSpeed: maxSpeed}
+		assert.Panics(t, func() { FindPath(bounded, Coord{0, 0}, Coord{2, 2}, nil, testMaxExpansions) }, "max speed %v", maxSpeed)
 	}
 }
