@@ -212,7 +212,7 @@ func BenchmarkFindPathHeuristics(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/length=%d", m.name, length), func(b *testing.B) {
 				terrain := m.terrain(length)
 				start, goal := benchJourney(terrain, m, length)
-				optimalPath, _ := findPath(terrain, start, goal, nil, uncappedExpansions, ScaledOctile{MaxSpeed: m.fastestSpeed})
+				optimalPath, _ := FindPath(terrain, start, goal, nil, uncappedExpansions, ScaledOctile{MaxSpeed: m.fastestSpeed})
 				if optimalPath == nil {
 					b.Fatalf("path from %v to %v: no optimal route", start, goal)
 				}
@@ -237,7 +237,7 @@ func BenchmarkFindPathHeuristics(b *testing.B) {
 func runHeuristicJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, heuristic Heuristic, optimalCost float64) {
 	b.Helper()
 
-	path, expanded := findPath(terrain, start, goal, nil, uncappedExpansions, heuristic)
+	path, expanded := FindPath(terrain, start, goal, nil, uncappedExpansions, heuristic)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -285,7 +285,7 @@ func runCoarseJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, 
 	extraChunks := coarseExtraChunks(terrain, start, goal)
 
 	field := NewCoarseCost(terrain, coarseBenchConfig())
-	path, expanded := findPath(terrain, start, goal, nil, uncappedExpansions, field)
+	path, expanded := FindPath(terrain, start, goal, nil, uncappedExpansions, field)
 
 	b.ReportAllocs()
 	b.ResetTimer()

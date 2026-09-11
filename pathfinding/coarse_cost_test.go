@@ -190,9 +190,9 @@ func TestCoarseCostRouteNearOptimalOnRoad(t *testing.T) {
 	start, goal := Coord{0, 0}, Coord{200, 0}
 	const budget = 1_000_000
 
-	optimal := FindPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 2})
-	coarse := FindPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
-	direct := FindPath(terrain, start, goal, nil, budget, nil)
+	optimal, _ := FindPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 2})
+	coarse, _ := FindPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
+	direct, _ := FindPath(terrain, start, goal, nil, budget, nil)
 	require.NotNil(t, optimal)
 	require.NotNil(t, coarse)
 	require.NotNil(t, direct)
@@ -211,9 +211,9 @@ func TestCoarseCostStaysACorridorThroughForest(t *testing.T) {
 	start, goal := Coord{0, 0}, Coord{200, 0}
 	const budget = 1_000_000
 
-	optimal, _ := findPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 0.5})
-	_, octileExpanded := findPath(terrain, start, goal, nil, budget, nil)
-	coarse, coarseExpanded := findPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
+	optimal, _ := FindPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 0.5})
+	_, octileExpanded := FindPath(terrain, start, goal, nil, budget, nil)
+	coarse, coarseExpanded := FindPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
 	require.NotNil(t, optimal)
 	require.NotNil(t, coarse)
 
@@ -238,9 +238,9 @@ func TestCoarseCostReachesGoalPastPartialEdgeCell(t *testing.T) {
 	start, goal := Coord{0, 48}, Coord{115, 48}
 	const budget = 1_000_000
 
-	optimal, _ := findPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 0.5})
-	_, octileExpanded := findPath(terrain, start, goal, nil, budget, nil)
-	coarse, coarseExpanded := findPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
+	optimal, _ := FindPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 0.5})
+	_, octileExpanded := FindPath(terrain, start, goal, nil, budget, nil)
+	coarse, coarseExpanded := FindPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
 	require.NotNil(t, optimal)
 	require.NotNil(t, coarse)
 
@@ -257,7 +257,7 @@ func TestCoarseCostFallsBackPastCellBudget(t *testing.T) {
 	config := testCoarseConfig(2)
 	config.CellBudget = 1
 
-	path := FindPath(terrain, Coord{0, 0}, Coord{200, 0}, nil, 1_000_000, NewCoarseCost(terrain, config))
+	path, _ := FindPath(terrain, Coord{0, 0}, Coord{200, 0}, nil, 1_000_000, NewCoarseCost(terrain, config))
 
 	require.NotNil(t, path)
 	assert.Equal(t, Coord{200, 0}, path[len(path)-1])
@@ -273,7 +273,7 @@ func TestCoarseCostSealedGoalReturnsNoPath(t *testing.T) {
 	goal := Coord{0, 0}
 	terrain := unboundedTerrain{pocketCenter: goal, ringRadius: 2}
 
-	path := FindPath(terrain, Coord{10, 10}, goal, nil, 1000, NewCoarseCost(terrain, testCoarseConfig(1)))
+	path, _ := FindPath(terrain, Coord{10, 10}, goal, nil, 1000, NewCoarseCost(terrain, testCoarseConfig(1)))
 
 	assert.Nil(t, path)
 }
@@ -286,10 +286,11 @@ func TestCoarseCostStaleCellsStillReturnWalkablePaths(t *testing.T) {
 	terrain := roadTestTerrain(20, &blocked)
 	field := NewCoarseCost(terrain, testCoarseConfig(2))
 	start, goal := Coord{0, 0}, Coord{200, 0}
-	require.NotNil(t, FindPath(terrain, start, goal, nil, 1_000_000, field))
+	firstPath, _ := FindPath(terrain, start, goal, nil, 1_000_000, field)
+	require.NotNil(t, firstPath)
 
 	blocked = true
-	path := FindPath(terrain, start, goal, nil, 1_000_000, field)
+	path, _ := FindPath(terrain, start, goal, nil, 1_000_000, field)
 
 	require.NotNil(t, path)
 	assert.Equal(t, goal, path[len(path)-1])
@@ -305,11 +306,13 @@ func TestCoarseCostIsDeterministic(t *testing.T) {
 	start, goal := Coord{0, 0}, Coord{150, 90}
 	field := NewCoarseCost(terrain, testCoarseConfig(2))
 
-	want := FindPath(terrain, start, goal, nil, 1_000_000, field)
+	want, _ := FindPath(terrain, start, goal, nil, 1_000_000, field)
 	require.NotNil(t, want)
 
-	assert.Equal(t, want, FindPath(terrain, start, goal, nil, 1_000_000, field), "warm field")
-	assert.Equal(t, want, FindPath(terrain, start, goal, nil, 1_000_000, NewCoarseCost(terrain, testCoarseConfig(2))), "fresh field")
+	gotWarm, _ := FindPath(terrain, start, goal, nil, 1_000_000, field)
+	assert.Equal(t, want, gotWarm, "warm field")
+	gotFresh, _ := FindPath(terrain, start, goal, nil, 1_000_000, NewCoarseCost(terrain, testCoarseConfig(2)))
+	assert.Equal(t, want, gotFresh, "fresh field")
 }
 
 // TestCoarseCostOnFiniteMap tests that the field works over a finite map, where
@@ -328,7 +331,7 @@ func TestCoarseCostOnFiniteMap(t *testing.T) {
 	config.CellSize = 8
 	start, goal := Coord{0, 8}, Coord{39, 8}
 
-	path := FindPath(terrain, start, goal, nil, testMaxExpansions, NewCoarseCost(terrain, config))
+	path, _ := FindPath(terrain, start, goal, nil, testMaxExpansions, NewCoarseCost(terrain, config))
 
 	require.NotNil(t, path)
 	assert.Less(t, pathCost(terrain, path), 39.0, "The route should use the road")
