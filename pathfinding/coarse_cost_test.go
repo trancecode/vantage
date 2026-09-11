@@ -190,6 +190,34 @@ func TestCoarseCostStaysACorridorThroughForest(t *testing.T) {
 	assert.LessOrEqual(t, pathCost(terrain, coarse), pathCost(terrain, optimal)*1.02)
 }
 
+// TestCoarseCostReachesGoalPastPartialEdgeCell tests that on a finite forest
+// map whose width leaves a partial last cell, a goal past that cell's center
+// keeps the search close to its route: the partial cell must be crossable, or
+// the coarse search empties at once and every estimate falls back to octile.
+func TestCoarseCostReachesGoalPastPartialEdgeCell(t *testing.T) {
+	const width, height = 120, 96 // the last cell covers x 96 to 119, centered on 111.5
+	terrain := newMockTerrain(width, height)
+	for y := range height {
+		for x := range width {
+			terrain.setWalkable(x, y, true)
+			terrain.setSpeed(x, y, 0.5)
+		}
+	}
+	start, goal := Coord{0, 48}, Coord{115, 48}
+	const budget = 1_000_000
+
+	optimal, _ := findPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 0.5})
+	_, octileExpanded := findPath(terrain, start, goal, nil, budget, nil)
+	coarse, coarseExpanded := findPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
+	require.NotNil(t, optimal)
+	require.NotNil(t, coarse)
+
+	assert.Equal(t, goal, coarse[len(coarse)-1])
+	assert.Less(t, coarseExpanded, 5*len(coarse), "The search should stay a corridor")
+	assert.Less(t, coarseExpanded*5, octileExpanded, "The field should expand far less than octile distance")
+	assert.LessOrEqual(t, pathCost(terrain, coarse), pathCost(terrain, optimal)*1.02)
+}
+
 // TestCoarseCostFallsBackPastCellBudget tests that a search whose cell budget
 // runs out still reaches the goal, through the octile fallback.
 func TestCoarseCostFallsBackPastCellBudget(t *testing.T) {

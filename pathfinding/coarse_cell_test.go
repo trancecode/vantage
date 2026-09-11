@@ -83,6 +83,44 @@ func TestBuildCellRatesPoolAcrossCell(t *testing.T) {
 	assert.True(t, buildCellRates(uniformTerrain(0), Coord{0, 0}, 32).uncrossable())
 }
 
+// openFiniteTerrain is a finite map of the given size, walkable everywhere at
+// speed 1.0.
+func openFiniteTerrain(width, height int) *mockTerrain {
+	terrain := newMockTerrain(width, height)
+	for y := range height {
+		for x := range width {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+	return terrain
+}
+
+// TestBuildCellRatesStraddlingMapEdge tests that a cell straddling a finite
+// map's east or south edge is measured over its in-bounds part, so its
+// out-of-bounds tiles do not make it uncrossable.
+func TestBuildCellRatesStraddlingMapEdge(t *testing.T) {
+	terrain := openFiniteTerrain(40, 40)
+
+	east := buildCellRates(terrain, Coord{1, 0}, 32)
+	south := buildCellRates(terrain, Coord{0, 1}, 32)
+
+	assert.InDelta(t, 1.0, east.westEast, 1e-9, "Crossing the eight in-bounds columns")
+	assert.InDelta(t, 1.0, east.northSouth, 1e-9)
+	assert.InDelta(t, 1.0, south.northSouth, 1e-9, "Crossing the eight in-bounds rows")
+	assert.InDelta(t, 1.0, south.westEast, 1e-9)
+}
+
+// TestBuildCellRatesSingleInBoundsColumn tests that a cell whose in-bounds part
+// is a single column crosses west to east at the inverse of its fastest
+// walkable tile's speed, and not at all when none of its tiles is walkable.
+func TestBuildCellRatesSingleInBoundsColumn(t *testing.T) {
+	terrain := openFiniteTerrain(33, 32)
+
+	assert.InDelta(t, 1.0, buildCellRates(terrain, Coord{1, 0}, 32).westEast, 1e-9)
+	assert.True(t, buildCellRates(newMockTerrain(33, 32), Coord{1, 0}, 32).uncrossable())
+	assert.True(t, buildCellRates(terrain, Coord{2, 0}, 32).uncrossable(), "A cell entirely out of bounds")
+}
+
 // TestBuildCellRatesReadsEachTileOnce tests that building a cell reads each of
 // its tiles' speed exactly once.
 func TestBuildCellRatesReadsEachTileOnce(t *testing.T) {
