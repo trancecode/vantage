@@ -40,6 +40,17 @@ const (
 	poolPercent = 60
 )
 
+// The shore map's journeys end in the cell holding benchOrigin, whose top row
+// is shoreCellTop. Water covers that cell's top eighth and everything north of
+// it, and the goal sits on row shoreGoalY, in the upper half of the cell, so
+// every coarse center a search starts from is water or shore; shoreGoalSealed
+// checks that before a case runs.
+const (
+	shoreCellTop = benchOrigin / DefaultCoarseCellSize * DefaultCoarseCellSize
+	shoreY       = shoreCellTop + DefaultCoarseCellSize/8
+	shoreGoalY   = shoreCellTop + DefaultCoarseCellSize*5/16
+)
+
 // benchOrigin places every journey far from zero, so the widest search stays on
 // positive coordinates. It is a multiple of gridSpacing, which puts the grid
 // map's roads through it.
@@ -148,6 +159,33 @@ func reachesBenchTerrain(int) speedFuncTerrain {
 	}}
 }
 
+// shoreBenchTerrain is half-speed forest south of a straight shoreline with
+// open water north of it, standing in for a pool shore in nrg's Blighted
+// Reaches: the goal's row of cells has water along its northern edge, so none
+// of them can be crossed north to south.
+func shoreBenchTerrain(int) speedFuncTerrain {
+	return speedFuncTerrain{speed: func(x, y int) float64 {
+		if y < shoreY {
+			return 0
+		}
+		return forestSpeed
+	}}
+}
+
+// shoreGoalSealed reports an error unless every center a coarse search from
+// goal starts from lies in a cell nothing crosses north to south: the shape
+// that sealed CoarseCost's coarse search inside the goal's row before its edges
+// used movement rates.
+func shoreGoalSealed(field *CoarseCost, start, goal Coord) error {
+	search := field.newSearch(start, goal)
+	for _, cell := range search.surrounding(goal) {
+		if !math.IsInf(field.rates(cell).northSouth, 1) {
+			return fmt.Errorf("goal %v: seed cell %v can be crossed north to south", goal, cell)
+		}
+	}
+	return nil
+}
+
 // benchMap is one map family and journey direction.
 type benchMap struct {
 	name    string
@@ -158,6 +196,13 @@ type benchMap struct {
 	// fastestSpeed is the highest speed any tile of the map reports, which
 	// makes ScaledOctile at that speed the optimal reference.
 	fastestSpeed float64
+	// towardOrigin makes the journey end at the origin rather than start there,
+	// so its goal sits on whatever the map places at the origin.
+	towardOrigin bool
+	// premise, when set, reports an error when a journey has lost the shape the
+	// map exists to measure, so a change elsewhere cannot quietly turn it into
+	// an easier case.
+	premise func(field *CoarseCost, start, goal Coord) error
 }
 
 var benchMaps = []benchMap{
@@ -167,11 +212,13 @@ var benchMaps = []benchMap{
 	{name: "grid/oblique", terrain: gridBenchTerrain, origin: Coord{X: benchOrigin + gridSpacing/2, Y: benchOrigin + gridSpacing/2}, dx: 2 / math.Sqrt(5), dy: 1 / math.Sqrt(5), fastestSpeed: roadSpeed},
 	{name: "reaches/cardinal", terrain: reachesBenchTerrain, origin: Coord{X: benchOrigin, Y: benchOrigin}, dx: 1, fastestSpeed: forestSpeed},
 	{name: "reaches/oblique", terrain: reachesBenchTerrain, origin: Coord{X: benchOrigin, Y: benchOrigin}, dx: 2 / math.Sqrt(5), dy: 1 / math.Sqrt(5), fastestSpeed: forestSpeed},
+	{name: "shore/cardinal", terrain: shoreBenchTerrain, origin: Coord{X: benchOrigin, Y: shoreGoalY}, dy: 1, fastestSpeed: forestSpeed, towardOrigin: true, premise: shoreGoalSealed},
+	{name: "shore/oblique", terrain: shoreBenchTerrain, origin: Coord{X: benchOrigin, Y: shoreGoalY}, dx: 2 / math.Sqrt(5), dy: 1 / math.Sqrt(5), fastestSpeed: forestSpeed, towardOrigin: true, premise: shoreGoalSealed},
 }
 
 // benchJourney returns the start and goal of a journey of length tiles on a map:
 // from the map's origin along its direction, each moved off a pool when one
-// sits on it.
+// sits on it, and swapped when the map's journeys run toward its origin.
 func benchJourney(terrain TerrainProvider, m benchMap, length int) (start, goal Coord) {
 	start = m.origin
 	for !terrain.IsWalkable(start.X, start.Y) {
@@ -183,6 +230,9 @@ func benchJourney(terrain TerrainProvider, m benchMap, length int) (start, goal 
 	}
 	for !terrain.IsWalkable(goal.X, goal.Y) {
 		goal.X++
+	}
+	if m.towardOrigin {
+		return goal, start
 	}
 	return start, goal
 }
@@ -203,16 +253,23 @@ func benchJourney(terrain TerrainProvider, m benchMap, length int) (start, goal 
 // those cells read that the tile search did not, which is what a lazily
 // generated world pays to materialize.
 //
-// The longest Reaches journeys take seconds per search. Run it on its own, with
-// -benchtime 1x when only the counts are wanted, or narrow it with a pattern
-// such as 'BenchmarkFindPathHeuristics/reaches/cardinal/length=1000'.
+// The longest Reaches and shore journeys take seconds per search, and their
+// uncapped 2,000-tile searches ran a 16 GB machine out of memory when every case
+// shared one process. Run it on its own, with -benchtime 1x when only the counts
+// are wanted, or narrow it to one map and length per process with a pattern such
+// as 'BenchmarkFindPathHeuristics/shore/cardinal/length=1000$'.
 func BenchmarkFindPathHeuristics(b *testing.B) {
 	for _, m := range benchMaps {
 		for _, length := range benchJourneyLengths {
 			b.Run(fmt.Sprintf("%s/length=%d", m.name, length), func(b *testing.B) {
 				terrain := m.terrain(length)
 				start, goal := benchJourney(terrain, m, length)
-				optimalPath, _ := findPath(terrain, start, goal, nil, uncappedExpansions, ScaledOctile{MaxSpeed: m.fastestSpeed})
+				if m.premise != nil {
+					if err := m.premise(NewCoarseCost(terrain, coarseBenchConfig()), start, goal); err != nil {
+						b.Fatalf("%s journey of %d tiles: %v", m.name, length, err)
+					}
+				}
+				optimalPath, _ := FindPath(terrain, start, goal, nil, uncappedExpansions, ScaledOctile{MaxSpeed: m.fastestSpeed})
 				if optimalPath == nil {
 					b.Fatalf("path from %v to %v: no optimal route", start, goal)
 				}
@@ -237,7 +294,7 @@ func BenchmarkFindPathHeuristics(b *testing.B) {
 func runHeuristicJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, heuristic Heuristic, optimalCost float64) {
 	b.Helper()
 
-	path, expanded := findPath(terrain, start, goal, nil, uncappedExpansions, heuristic)
+	path, expanded := FindPath(terrain, start, goal, nil, uncappedExpansions, heuristic)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -285,7 +342,7 @@ func runCoarseJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, 
 	extraChunks := coarseExtraChunks(terrain, start, goal)
 
 	field := NewCoarseCost(terrain, coarseBenchConfig())
-	path, expanded := findPath(terrain, start, goal, nil, uncappedExpansions, field)
+	path, expanded := FindPath(terrain, start, goal, nil, uncappedExpansions, field)
 
 	b.ReportAllocs()
 	b.ResetTimer()

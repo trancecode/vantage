@@ -74,7 +74,7 @@ const (
 func runFindPath(b *testing.B, terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, wantPath bool) {
 	b.Helper()
 
-	path, expanded := findPath(terrain, start, goal, isOccupied, benchMaxExpansions, nil)
+	path, expanded := FindPath(terrain, start, goal, isOccupied, benchMaxExpansions, nil)
 	if gotPath := path != nil; gotPath != wantPath {
 		b.Fatalf("path from %v to %v: got path %t, want %t", start, goal, gotPath, wantPath)
 	}

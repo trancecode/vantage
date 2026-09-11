@@ -108,19 +108,32 @@ func floorDiv(a, b int) int {
 	return q
 }
 
+// movementRates returns the rates for moving within or out of a cell. A rate
+// is infinite when nothing crosses the cell edge to edge that way, yet a route
+// can still enter and leave it through that side, as along a shore whose water
+// covers the cell's northern edge; so an infinite rate takes the other axis's
+// rate. A cell uncrossable both ways keeps both infinite.
+func movementRates(rates cellRates) cellRates {
+	if rates.uncrossable() {
+		return rates
+	}
+	if math.IsInf(rates.westEast, 1) {
+		rates.westEast = rates.northSouth
+	}
+	if math.IsInf(rates.northSouth, 1) {
+		rates.northSouth = rates.westEast
+	}
+	return rates
+}
+
 // localCost is the cost from one point to another nearby, using one cell's
-// crossing rates: octile distance with each axis weighted by its rate. An
-// infinite rate takes the other axis's rate, and both are 1.0 when neither is
-// finite, so a local cost is always finite.
+// movement rates: octile distance with each axis weighted by its rate. Both
+// rates are 1.0 when the cell is uncrossable, so a local cost is always finite.
 func localCost(fromX, fromY, toX, toY float64, rates cellRates) float64 {
+	rates = movementRates(rates)
 	westEast, northSouth := rates.westEast, rates.northSouth
-	switch {
-	case math.IsInf(westEast, 1) && math.IsInf(northSouth, 1):
+	if rates.uncrossable() {
 		westEast, northSouth = 1, 1
-	case math.IsInf(westEast, 1):
-		westEast = northSouth
-	case math.IsInf(northSouth, 1):
-		northSouth = westEast
 	}
 	dx, dy := math.Abs(toX-fromX), math.Abs(toY-fromY)
 	return dx*westEast + dy*northSouth - math.Min(dx, dy)*(westEast+northSouth)*(1-math.Sqrt2/2)
@@ -210,19 +223,20 @@ func (s *coarseSearch) value(cell Coord) (float64, bool) {
 	return s.cost[cell], true
 }
 
-// relax offers each neighbor of a settled cell the route through it. An east
-// or west edge costs a cell width times the two cells' mean west-east rate,
-// north and south likewise, and a diagonal edge sqrt(2) widths times the mean
-// of the two cells' mean rates. Relaxing builds the neighbor.
+// relax offers each neighbor of a settled cell the route through it, using
+// both cells' movement rates. An east or west edge costs a cell width times the
+// two cells' mean west-east rate, north and south likewise, and a diagonal edge
+// sqrt(2) widths times the mean of the two cells' mean rates; only a cell
+// uncrossable both ways blocks an edge. Relaxing builds the neighbor.
 func (s *coarseSearch) relax(cell Coord, cost float64) {
 	size := float64(s.field.config.CellSize)
-	here := s.field.rates(cell)
+	here := movementRates(s.field.rates(cell))
 	for _, dir := range directions {
 		next := Coord{X: cell.X + dir.X, Y: cell.Y + dir.Y}
 		if s.closed[next] {
 			continue
 		}
-		there := s.field.rates(next)
+		there := movementRates(s.field.rates(next))
 		var edge float64
 		switch {
 		case !isCardinalDirection(dir.X, dir.Y):

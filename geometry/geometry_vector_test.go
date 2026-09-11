@@ -105,3 +105,23 @@ func TestVector2Lerp_Extrapolates(t *testing.T) {
 		t.Errorf("Lerp(t=-1) = %v, want (-2,0)", got)
 	}
 }
+
+// A component equal at both ends must stay exactly that value at every weight,
+// as a body moving due east keeps its y. The blend p*(1-t) + other*t alone can
+// land one floating-point step off it, which moved bodies resting on a cell
+// boundary into the neighbouring cell.
+func TestVector2Lerp_EqualComponentsAreExact(t *testing.T) {
+	for y := -1000.0; y <= 1000; y += 0.5 {
+		a := NewVector2(3, y)
+		b := NewVector2(9, y)
+		for k := 0; k <= 60; k++ {
+			weight := float64(k) / 60
+			if got := a.Lerp(b, weight); got.Y() != y {
+				t.Fatalf("%v.Lerp(%v, %v).Y() = %v, want exactly %v", a, b, weight, got.Y(), y)
+			}
+			if got := a.Lerp(a, weight); got != a {
+				t.Fatalf("%v.Lerp(itself, %v) = %v, want exactly %v", a, weight, got, a)
+			}
+		}
+	}
+}

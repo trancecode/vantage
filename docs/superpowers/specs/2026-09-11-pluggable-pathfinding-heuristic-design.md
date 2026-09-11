@@ -62,10 +62,11 @@ type Heuristic interface {
 type Estimate func(tile Coord) float64
 ```
 
-`FindPath` takes the heuristic as its last parameter:
+`FindPath` takes the heuristic as its last parameter, and also reports how many
+nodes the search expanded:
 
 ```go
-func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic) []Coord
+func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic) (path []Coord, expanded int)
 ```
 
 A nil heuristic is octile distance, exactly as today: identical routes and
@@ -188,11 +189,23 @@ the start, and keeps it paused between requests:
 
 * **Seeds.** The four centres surrounding the goal start at their local cost
   from the goal (see "Local cost" below).
-* **Edges.** Each centre connects to its eight neighbours. An east or west edge
-  costs `CellSize` times the mean of the two cells' west-east rates, north and
-  south likewise with north-south rates, and a diagonal edge costs
-  `√2 * CellSize` times the mean of the two cells' mean rates. An infinite edge
-  is never taken. Relaxing an edge builds the neighbour cell.
+* **Edges.** Each centre connects to its eight neighbours, costed from the two
+  cells' *movement rates*: a cell's crossing rates, with an infinite rate
+  replaced by the other axis's rate. An east or west edge costs `CellSize`
+  times the mean of the two cells' west-east movement rates, north and south
+  likewise with north-south ones, and a diagonal edge costs `√2 * CellSize`
+  times the mean of the two cells' mean movement rates. Only a cell uncrossable
+  both ways blocks an edge. Relaxing an edge builds the neighbour cell.
+* **Why movement rates.** An infinite crossing rate says nothing crosses the
+  cell edge to edge that way, not that nothing enters or leaves through that
+  side. Along a shore whose water covers the northern edge of a row of cells,
+  every cell of the row has an infinite north-south rate, yet a route leaves
+  each of them through its southern side. Costing edges from raw crossing rates
+  sealed the goal's coarse search inside such a row, and every estimate fell
+  back to octile distance (nrg's Blighted Reaches, a 1,842-tile journey ending
+  on a pool shore: 14 centres settled, then the open set emptied). The
+  substitution errs low where a cell holds water running its whole length, a
+  cost in expansions rather than in route quality.
 * **Order.** A* toward the start cell: priority is cost from the goal plus the
   centre's octile distance to the start cell's centre divided by `MaxSpeed`.
   Dividing by the fastest speed keeps that focus from ever overestimating, so a
@@ -220,9 +233,9 @@ toward the goal.
 
 **Local cost.** The cost from a tile to a nearby point, using the rates of the
 tile's own cell: `dx*rateWE + dy*rateNS - min(dx, dy) * (rateWE + rateNS) *
-(1 - √2/2)`. On uniform ground it is octile distance times the rate. An
-infinite rate is replaced by the other axis's rate, and by 1.0 when both are
-infinite.
+(1 - √2/2)`. On uniform ground it is octile distance times the rate. It uses
+movement rates, as edges do, and 1.0 on both axes for a cell uncrossable both
+ways.
 
 ### Defaults
 
@@ -380,6 +393,16 @@ committed benchmarks described under "Benchmarks", recorded in
 9. Every strategy is benchmarked by committed benchmarks over the same map
    families and journey lengths, so a game design discussion can start from a
    number measured on demand.
+10. Coarse edges use movement rates: an infinite crossing rate takes the other
+    axis's rate, and only a cell uncrossable both ways blocks an edge. Raw
+    crossing rates sealed goals on pool shores inside their row of cells. Tracking
+    which sides of a cell connect to each other would be exact, but it needs more
+    state per cell and a border scan per edge, and the substitution already brings
+    the shore journey that exposed the seal to within 0.05% of optimal: a route
+    costing 2,386.9 against 2,385.7 from a Dijkstra search over the same terrain,
+    in 86,317 expansions (nrg's Blighted Reaches, snapped (8500,0) to
+    (10341,262), `MaxSpeed` 1.0, `CellBudget` 2,048, measured through a
+    throwaway probe).
 
 ## Testing
 
@@ -398,6 +421,10 @@ committed benchmarks described under "Benchmarks", recorded in
   Dijkstra's cost, and on a forest map with a pool across the straight line the
   search stays a corridor: expansions within a small multiple of the path's
   length, where octile distance floods.
+* **Shore cells.** On half-speed forest below a straight shoreline, with the goal
+  in the upper half of a shore cell, the coarse search settles a cell ten rows
+  south at about ten cell widths of forest, and the estimate at the start sees
+  the forest octile distance misses.
 * **Budget.** With a cell budget of 1 a reachable goal is still found, through
   the octile fallback; a goal sealed in a pocket of an edgeless map returns no
   path under the tile budget.
