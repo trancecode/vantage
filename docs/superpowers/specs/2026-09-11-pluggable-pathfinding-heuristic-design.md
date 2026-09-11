@@ -258,6 +258,14 @@ touched 82 to 138. No budget keeps a cold 2,000-tile journey to a few tens of
 chunks while still improving it; the cost is paid once per region, since cells
 are cached and warm journeys read no new ground.
 
+The default stays game-agnostic: on an in-memory map a cell costs only its own
+Dijkstra searches, and the materialization cost belongs to the game, which picks
+its own `CellBudget` after measuring on its real terrain. The additive route to
+removing that cost is a game-supplied per-cell cost source, answering a cell's
+rates from knowledge the game already has (such as a world graph of roads)
+without reading tiles. It is out of v0.1.21, and the field reads cells through
+one internal seam that such a source would replace.
+
 ### Variants measured and rejected
 
 Prototype figures, 32-tile cells unless stated:
