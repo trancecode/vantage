@@ -22,6 +22,7 @@ GRAPHICS_PACKAGES=(
     ./asset
     ./cmd/showcasedemo
     ./render
+    ./render/drawbench
     ./render/pixeltest
     ./scene
     ./ui
