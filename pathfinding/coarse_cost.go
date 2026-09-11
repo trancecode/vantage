@@ -258,13 +258,17 @@ func meanRate(rates cellRates) float64 {
 	return (rates.westEast + rates.northSouth) / 2
 }
 
-// coarseTieBreak scales every coarse estimate. On uniform ground an oblique
-// journey has a wide band of equally cheap routes, and an estimate that is
-// nearly exact leaves their priorities tied, so A* expands the band; the slight
-// scale breaks the ties toward the goal. Measured on a 1,000-tile oblique
-// forest journey: 147,885 expansions unscaled, 1,038 scaled, with route quality
-// unchanged.
-const coarseTieBreak = 1.01
+// coarseTieBreak scales every coarse estimate. Where many routes cost within a
+// few percent of the cheapest, as on an oblique journey over uniform ground or
+// along the edge of a plain beside half-speed forest, an estimate accurate to
+// about a percent leaves their priorities tied within its own error, so A*
+// expands the whole band; the scale breaks the ties toward the goal. Measured
+// on nrg's civilized cardinal 1,000-tile journey, whose routes within 1% of
+// optimal cover 96,067 tiles: 115,633 expansions at 1.01, 95,533 at 1.02 and
+// 33,048 at 1.05. Across the heuristic benchmark maps, 1.05 cut expansions on
+// every journey that flooded (grid oblique at 2,000 tiles: 134,609 to 25,316)
+// while raising the largest cost above optimal from 0.27% to 0.44%.
+const coarseTieBreak = 1.05
 
 // ForSearch returns the coarse estimate for one search from start to goal.
 func (c *CoarseCost) ForSearch(start, goal Coord) Estimate {
