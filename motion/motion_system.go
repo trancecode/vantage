@@ -65,6 +65,11 @@ type System struct {
 	// and everything built on it panic when it is not set (<= 0).
 	MaxPathExpansions int
 
+	// Heuristic supplies the estimate every A* search the System runs orders
+	// its work by. Nil is octile distance, exact on open ground at speed 1.0;
+	// see pathfinding.Heuristic for the strategies and what they cost.
+	Heuristic pathfinding.Heuristic
+
 	// OnArrival, when non-nil, is called for each entity that reaches its
 	// destination during a Tick, after its Movement has been removed.
 	OnArrival func(MovementResult)

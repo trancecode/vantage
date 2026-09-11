@@ -127,11 +127,11 @@ var roadScenarios = []struct {
 }
 
 // BenchmarkFindPathRoads measures what dividing the heuristic by the terrain's
-// fastest speed (MaxSpeedProvider) costs in expansions, and what leaving it
+// fastest speed (ScaledOctile) costs in expansions, and what leaving it
 // undivided costs in route quality, on maps where roads at roadSpeed make some
 // steps cheaper than their distance. heuristic=octile is the terrain searched
-// as is; heuristic=scaled is the same terrain declaring roadSpeed, whose route
-// is the optimum because the divided heuristic never overestimates.
+// as is; heuristic=scaled is ScaledOctile at roadSpeed, whose route is the
+// optimum because the divided heuristic never overestimates.
 //
 // Each case reports the expansions the search needs to reach the goal, with no
 // budget in the way; whether that fits within benchMaxExpansions, which is
@@ -145,25 +145,25 @@ func BenchmarkFindPathRoads(b *testing.B) {
 		for _, length := range roadJourneyLengths {
 			b.Run(fmt.Sprintf("%s/length=%d", scenario.name, length), func(b *testing.B) {
 				terrain := scenario.terrain(length)
-				scaled := speedBoundedTerrain{TerrainProvider: terrain, maxSpeed: roadSpeed}
+				scaled := ScaledOctile{MaxSpeed: roadSpeed}
 				start := scenario.origin
 				goal := Coord{
 					X: start.X + int(math.Round(float64(length)*scenario.dx)),
 					Y: start.Y + int(math.Round(float64(length)*scenario.dy)),
 				}
 
-				optimalPath, optimalExpanded := findPath(scaled, start, goal, nil, uncappedExpansions)
+				optimalPath, optimalExpanded := findPath(terrain, start, goal, nil, uncappedExpansions, scaled)
 				if optimalPath == nil {
 					b.Fatalf("path from %v to %v: no route with the scaled heuristic", start, goal)
 				}
 				optimalCost := pathCost(terrain, optimalPath)
 
 				b.Run("heuristic=octile", func(b *testing.B) {
-					path, expanded := findPath(terrain, start, goal, nil, uncappedExpansions)
-					runRoadJourney(b, terrain, start, goal, path, expanded, optimalCost)
+					path, expanded := findPath(terrain, start, goal, nil, uncappedExpansions, nil)
+					runRoadJourney(b, terrain, start, goal, nil, path, expanded, optimalCost)
 				})
 				b.Run("heuristic=scaled", func(b *testing.B) {
-					runRoadJourney(b, scaled, start, goal, optimalPath, optimalExpanded, optimalCost)
+					runRoadJourney(b, terrain, start, goal, scaled, optimalPath, optimalExpanded, optimalCost)
 				})
 			})
 		}
@@ -176,7 +176,7 @@ func BenchmarkFindPathRoads(b *testing.B) {
 // the search, so a search that reached the goal in N expansions reaches it
 // under any budget of at least N: comparing the uncapped count against the
 // budget is the same as searching under it.
-func runRoadJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, path []Coord, expanded int, optimalCost float64) {
+func runRoadJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, heuristic Heuristic, path []Coord, expanded int, optimalCost float64) {
 	b.Helper()
 
 	if path == nil {
@@ -194,7 +194,7 @@ func runRoadJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, pa
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		FindPath(terrain, start, goal, nil, benchMaxExpansions)
+		FindPath(terrain, start, goal, nil, benchMaxExpansions, heuristic)
 	}
 	b.ReportMetric(float64(expanded), "expansions/op")
 	b.ReportMetric(foundWithinBudget, "found-within-budget/op")

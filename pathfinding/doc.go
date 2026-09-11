@@ -7,9 +7,10 @@
 //
 // On open terrain no faster than 1.0, a search that succeeds costs one node
 // expansion per tile of the path it returns, independently of the size of the
-// map. A terrain with faster tiles, such as roads, can implement
-// MaxSpeedProvider so that routes onto them are found, at the price of a
-// search that expands a region rather than a corridor.
+// map. Terrain faster or slower than 1.0 makes octile distance a poor
+// estimate, and FindPath takes a Heuristic so a game can choose a better one:
+// ScaledOctile for optimal routes at the price of a search that expands a
+// region rather than a corridor.
 //
 // A search that fails has to expand every reachable tile to establish that, so
 // the two ways a goal is commonly unenterable — its own tile occupied, or every

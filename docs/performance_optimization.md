@@ -91,11 +91,11 @@ actually routes toward walled-off goals often enough to matter; see
 
 ## Weak heuristic on terrain faster than 1.0 (pathfinding/astar.go)
 
-A terrain that implements `MaxSpeedProvider` has octile distance divided by its
-fastest speed, which keeps routes optimal onto roads but makes a search expand a
-region rather than a corridor: about 0.8 x length² tiles on open grass at a
-declared speed of 2.0, so 3.2 million expansions for a 2,000-tile journey where
-the undivided heuristic expands 2,001 (`BenchmarkFindPathRoads`). A stronger
+`ScaledOctile` divides octile distance by the fastest speed, which keeps routes
+optimal onto roads but makes a search expand a region rather than a corridor:
+about 0.8 x length² tiles on open grass at a declared speed of 2.0, so 3.2
+million expansions for a 2,000-tile journey where the undivided heuristic
+expands 2,001 (`BenchmarkFindPathRoads`). A stronger
 heuristic that still never overestimates would recover most of that: landmark
 distances (precomputed shortest-path costs from a few chosen tiles, compared
 through the triangle inequality), or a two-level search that routes over a road

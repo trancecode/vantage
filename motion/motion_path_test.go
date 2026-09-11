@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/trancecode/vantage/geometry"
+	"github.com/trancecode/vantage/pathfinding"
 	"github.com/trancecode/vantage/tilemap"
 )
 
@@ -163,6 +164,34 @@ func TestFindPathBetween_SameTileAtCenterReturnsEmpty(t *testing.T) {
 
 	if len(path) != 0 {
 		t.Errorf("expected empty path when already at the tile center, got %v", path)
+	}
+}
+
+// countingHeuristic counts the searches it served, estimating with octile
+// distance.
+type countingHeuristic struct {
+	searches int
+}
+
+func (h *countingHeuristic) ForSearch(start, goal pathfinding.Coord) pathfinding.Estimate {
+	h.searches++
+	return pathfinding.ScaledOctile{MaxSpeed: 1}.ForSearch(start, goal)
+}
+
+func TestFindTilePath_UsesSystemHeuristic(t *testing.T) {
+	s, _ := newTestSystem()
+	s.Terrain = &testTerrain{width: 10, height: 10}
+	s.MaxPathExpansions = testMaxPathExpansions
+	heuristic := &countingHeuristic{}
+	s.Heuristic = heuristic
+
+	path := s.FindTilePath(tilemap.TileCoord{X: 0, Y: 0}, tilemap.TileCoord{X: 3, Y: 0})
+
+	if len(path) == 0 {
+		t.Fatal("expected a path")
+	}
+	if heuristic.searches != 1 {
+		t.Errorf("expected the System's heuristic to serve 1 search, got %d", heuristic.searches)
 	}
 }
 

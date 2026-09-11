@@ -122,17 +122,16 @@ A step costs its distance divided by the terrain speed, and the heuristic is
 plain octile distance, which assumes no step costs less than its distance. Road
 at speed 2.0 breaks that assumption: near a road the heuristic overestimates,
 so a search can finish on the direct route over grass without ever expanding
-the tiles that lead onto a quicker road detour. A terrain that implements
-`MaxSpeedProvider` has the heuristic divided by its fastest speed, which never
-overestimates and so returns optimal routes, but weakens the estimate
-everywhere. Nothing implements it by default, so every existing search is
-unchanged.
+the tiles that lead onto a quicker road detour. The `ScaledOctile` heuristic
+divides octile distance by the fastest speed, which never overestimates and so
+returns optimal routes, but weakens the estimate everywhere. A search with no
+heuristic configured is unchanged.
 
 `BenchmarkFindPathRoads` in `pathfinding/astar_roads_bench_test.go` measures
 both sides of that trade on edgeless maps, so that a wide search is never cut
 short by a map edge:
 
-* **grass**: grass everywhere, with the terrain still declaring 2.0 because
+* **grass**: grass everywhere, with `ScaledOctile` still declaring 2.0 because
   roads exist elsewhere. This is the cost of scaling where no road helps.
 * **offset road**: grass with one 3-tile-wide road at 2.0 parallel to the
   journey, a tenth of the journey's length off to one side.
