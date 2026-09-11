@@ -125,6 +125,38 @@ func TestCoarseSearchStopsAtCellBudget(t *testing.T) {
 	assert.Equal(t, 3, search.settled)
 }
 
+// shoreTestTerrain is half-speed forest south of a straight shoreline at row
+// shoreY, with open water north of it.
+func shoreTestTerrain(shoreY int) speedFuncTerrain {
+	return speedFuncTerrain{speed: func(x, y int) float64 {
+		if y < shoreY {
+			return 0
+		}
+		return 0.5
+	}}
+}
+
+// TestCoarseSearchLeavesShoreCells tests that the coarse search reaches the
+// ground beyond a row of shore cells. Water along their northern side leaves
+// them no north-south crossing, yet a route leaves them through their southern
+// side without crossing them edge to edge.
+func TestCoarseSearchLeavesShoreCells(t *testing.T) {
+	size := DefaultCoarseCellSize
+	field := NewCoarseCost(shoreTestTerrain(8), testCoarseConfig(0.5))
+	// The goal sits in the upper half of its cell, so every center the search
+	// starts from is water or shore.
+	goal := Coord{15, 10}
+	start := Coord{15, 10 + 10*size}
+	require.True(t, math.IsInf(field.rates(field.cellOf(goal)).northSouth, 1), "The goal's cell should have no north-south crossing")
+	search := field.newSearch(start, goal)
+
+	value, ok := search.value(Coord{0, 10})
+
+	require.True(t, ok, "The cell ten rows south of the shore should settle")
+	assert.InDelta(t, float64(10*size)/0.5, value, float64(size), "The value should cross ten rows of half-speed forest")
+	assert.Greater(t, search.estimate(start), 1.5*octile(start, goal), "The estimate should see the half-speed forest octile distance misses")
+}
+
 // roadTestTerrain is grass with a 3-tile road at speed 2.0 centered on row
 // roadY. When blocked is set and true, the road is impassable instead.
 func roadTestTerrain(roadY int, blocked *bool) speedFuncTerrain {
