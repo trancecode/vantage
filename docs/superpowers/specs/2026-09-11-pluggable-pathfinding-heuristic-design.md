@@ -62,10 +62,11 @@ type Heuristic interface {
 type Estimate func(tile Coord) float64
 ```
 
-`FindPath` takes the heuristic as its last parameter:
+`FindPath` takes the heuristic as its last parameter, and also reports how many
+nodes the search expanded:
 
 ```go
-func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic) []Coord
+func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic) (path []Coord, expanded int)
 ```
 
 A nil heuristic is octile distance, exactly as today: identical routes and
