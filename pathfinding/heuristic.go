@@ -44,6 +44,8 @@ type ScaledOctile struct {
 	MaxSpeed float64
 }
 
+var _ Heuristic = ScaledOctile{}
+
 // ForSearch returns octile distance to goal divided by MaxSpeed. It panics when
 // MaxSpeed is not positive.
 func (s ScaledOctile) ForSearch(start, goal Coord) Estimate {

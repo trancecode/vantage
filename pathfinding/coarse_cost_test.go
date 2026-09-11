@@ -124,3 +124,152 @@ func TestCoarseSearchStopsAtCellBudget(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, 3, search.settled)
 }
+
+// roadTestTerrain is grass with a 3-tile road at speed 2.0 centered on row
+// roadY. When blocked is set and true, the road is impassable instead.
+func roadTestTerrain(roadY int, blocked *bool) speedFuncTerrain {
+	return speedFuncTerrain{speed: func(x, y int) float64 {
+		if y >= roadY-1 && y <= roadY+1 {
+			if blocked != nil && *blocked {
+				return 0
+			}
+			return 2.0
+		}
+		return 1.0
+	}}
+}
+
+// poolTestTerrain is half-speed forest with one circular pool of radius 30
+// centered on (100, 0).
+func poolTestTerrain() speedFuncTerrain {
+	return speedFuncTerrain{speed: func(x, y int) float64 {
+		dx, dy := x-100, y
+		if dx*dx+dy*dy <= 30*30 {
+			return 0
+		}
+		return 0.5
+	}}
+}
+
+// TestCoarseCostRouteNearOptimalOnRoad tests that the coarse field finds the
+// road detour octile distance misses, within 2% of the optimal cost.
+func TestCoarseCostRouteNearOptimalOnRoad(t *testing.T) {
+	terrain := roadTestTerrain(20, nil)
+	start, goal := Coord{0, 0}, Coord{200, 0}
+	const budget = 1_000_000
+
+	optimal := FindPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 2})
+	coarse := FindPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
+	direct := FindPath(terrain, start, goal, nil, budget, nil)
+	require.NotNil(t, optimal)
+	require.NotNil(t, coarse)
+	require.NotNil(t, direct)
+
+	optimalCost := pathCost(terrain, optimal)
+	assert.LessOrEqual(t, pathCost(terrain, coarse), optimalCost*1.02)
+	assert.GreaterOrEqual(t, pathCost(terrain, direct), optimalCost*1.3, "The map should make the road worth taking")
+}
+
+// TestCoarseCostStaysACorridorThroughForest tests that on half-speed forest,
+// where octile distance falls short and floods, the coarse field keeps the
+// search close to its route, around a pool on the straight line, and still
+// returns a near-optimal route.
+func TestCoarseCostStaysACorridorThroughForest(t *testing.T) {
+	terrain := poolTestTerrain()
+	start, goal := Coord{0, 0}, Coord{200, 0}
+	const budget = 1_000_000
+
+	optimal, _ := findPath(terrain, start, goal, nil, budget, ScaledOctile{MaxSpeed: 0.5})
+	_, octileExpanded := findPath(terrain, start, goal, nil, budget, nil)
+	coarse, coarseExpanded := findPath(terrain, start, goal, nil, budget, NewCoarseCost(terrain, testCoarseConfig(2)))
+	require.NotNil(t, optimal)
+	require.NotNil(t, coarse)
+
+	assert.Less(t, coarseExpanded, 20*len(coarse), "The search should stay a corridor")
+	assert.Less(t, coarseExpanded*10, octileExpanded, "The field should expand far less than octile distance")
+	assert.LessOrEqual(t, pathCost(terrain, coarse), pathCost(terrain, optimal)*1.02)
+}
+
+// TestCoarseCostFallsBackPastCellBudget tests that a search whose cell budget
+// runs out still reaches the goal, through the octile fallback.
+func TestCoarseCostFallsBackPastCellBudget(t *testing.T) {
+	terrain := poolTestTerrain()
+	config := testCoarseConfig(2)
+	config.CellBudget = 1
+
+	path := FindPath(terrain, Coord{0, 0}, Coord{200, 0}, nil, 1_000_000, NewCoarseCost(terrain, config))
+
+	require.NotNil(t, path)
+	assert.Equal(t, Coord{200, 0}, path[len(path)-1])
+	for _, tile := range path {
+		assert.True(t, terrain.IsWalkable(tile.X, tile.Y), "Path must avoid the pool: %v", tile)
+	}
+}
+
+// TestCoarseCostSealedGoalReturnsNoPath tests that on an edgeless map a goal
+// sealed in a pocket returns no path under the tile budget: the coarse search
+// is bounded too.
+func TestCoarseCostSealedGoalReturnsNoPath(t *testing.T) {
+	goal := Coord{0, 0}
+	terrain := unboundedTerrain{pocketCenter: goal, ringRadius: 2}
+
+	path := FindPath(terrain, Coord{10, 10}, goal, nil, 1000, NewCoarseCost(terrain, testCoarseConfig(1)))
+
+	assert.Nil(t, path)
+}
+
+// TestCoarseCostStaleCellsStillReturnWalkablePaths tests that terrain changing
+// after cells were built only degrades estimates: the route is still read from
+// the terrain as it is at search time.
+func TestCoarseCostStaleCellsStillReturnWalkablePaths(t *testing.T) {
+	blocked := false
+	terrain := roadTestTerrain(20, &blocked)
+	field := NewCoarseCost(terrain, testCoarseConfig(2))
+	start, goal := Coord{0, 0}, Coord{200, 0}
+	require.NotNil(t, FindPath(terrain, start, goal, nil, 1_000_000, field))
+
+	blocked = true
+	path := FindPath(terrain, start, goal, nil, 1_000_000, field)
+
+	require.NotNil(t, path)
+	assert.Equal(t, goal, path[len(path)-1])
+	for _, tile := range path {
+		assert.True(t, terrain.IsWalkable(tile.X, tile.Y), "Path must avoid the now-blocked road: %v", tile)
+	}
+}
+
+// TestCoarseCostIsDeterministic tests that searches over the same inputs return
+// the same path, from a fresh field or a warm one.
+func TestCoarseCostIsDeterministic(t *testing.T) {
+	terrain := poolTestTerrain()
+	start, goal := Coord{0, 0}, Coord{150, 90}
+	field := NewCoarseCost(terrain, testCoarseConfig(2))
+
+	want := FindPath(terrain, start, goal, nil, 1_000_000, field)
+	require.NotNil(t, want)
+
+	assert.Equal(t, want, FindPath(terrain, start, goal, nil, 1_000_000, field), "warm field")
+	assert.Equal(t, want, FindPath(terrain, start, goal, nil, 1_000_000, NewCoarseCost(terrain, testCoarseConfig(2))), "fresh field")
+}
+
+// TestCoarseCostOnFiniteMap tests that the field works over a finite map, where
+// cells straddle the edge, and still takes the road detour.
+func TestCoarseCostOnFiniteMap(t *testing.T) {
+	terrain := newMockTerrain(40, 12)
+	for y := range 12 {
+		for x := range 40 {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+	for x := range 40 {
+		terrain.setSpeed(x, 1, 2.0)
+	}
+	config := testCoarseConfig(2)
+	config.CellSize = 8
+	start, goal := Coord{0, 8}, Coord{39, 8}
+
+	path := FindPath(terrain, start, goal, nil, testMaxExpansions, NewCoarseCost(terrain, config))
+
+	require.NotNil(t, path)
+	assert.Less(t, pathCost(terrain, path), 39.0, "The route should use the road")
+}
