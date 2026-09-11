@@ -532,9 +532,17 @@ table, is the longest measured journey that fits the budget:
   Reaches and on shore, cardinal and oblique.
 
 That record times `CoarseCost` too: at those longest journeys a warm call takes
-7.6 ms on grass, 7.6 ms and 12 ms on Reaches cardinal and oblique, and 2.8 ms
-and 3.3 ms on shore cardinal and oblique, while a cold call over new ground
-takes 1,160 ms, 1,250 ms, 1,658 ms, 684 ms and 806 ms.
+17 ms on grass, 8.6 ms and 9.4 ms on Reaches cardinal and oblique, and 1.9 ms
+and 2.7 ms on shore cardinal and oblique, while a cold call over new ground
+takes 1,514 ms, 1,116 ms, 1,394 ms, 623 ms and 688 ms.
+
+Journey length is not the only thing that decides whether a search fits. A
+journey whose near-optimal routes fill a wide band, such as a walk along the
+edge of a plain beside half-speed forest, makes A* expand that band unless the
+estimate breaks ties decisively, however close the estimate is to the true
+cost. nrg's civilized cardinal 1,000-tile journey, with 96,067 tiles on routes
+within 1% of optimal, expanded 115,633 nodes at `CoarseCost`'s former tie-break
+scale of 1.01 and 33,048 at the current 1.05; the record gives the details.
 
 ## Not benchmarked
 

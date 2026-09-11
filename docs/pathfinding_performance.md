@@ -182,43 +182,43 @@ time columns time a search the budget stopped, not one that reached the goal.
 
 | Map | Length | Octile expansions | Octile fits 100k | Octile above optimal | Scaled expansions | Scaled fits 100k | Coarse expansions | Coarse fits 100k | Coarse above optimal | Coarse cold | Coarse warm | Cells built | Cells settled | Extra chunks |
 | --- | ---: | ---: | :---: | ---: | ---: | :---: | ---: | :---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| grass | 250 | 251 | yes | 0.0% | 50,428 | yes | 251 | yes | 0.0% | 93 ms | 0.7 ms | 153 | 103 | 43 |
-| grass | 500 | 501 | yes | 0.0% | 201,707 | no | 501 | yes | 0.0% | 180 ms | 1.1 ms | 381 | 295 | 97 |
-| grass | 1,000 | 1,001 | yes | 0.0% | 806,802 | no | 1,001 | yes | 0.0% | 517 ms | 6.9 ms | 1,141 | 985 | 290 |
-| grass | 2,000 | 2,001 | yes | 0.0% | 3,227,199 | no | 3,432 | yes | 0.0% | 1,160 ms | 7.6 ms | 2,319 | 2,048 | 581 |
-| offset road | 250 | 251 | yes | 48.9% | 13,841 | yes | 1,326 | yes | 0.5% | 53 ms | 1.5 ms | 108 | 64 | 29 |
-| offset road | 500 | 501 | yes | 47.7% | 56,367 | yes | 2,193 | yes | 0.5% | 97 ms | 2.6 ms | 229 | 159 | 56 |
-| offset road | 1,000 | 1,001 | yes | 47.0% | 226,824 | no | 19,932 | yes | 0.3% | 281 ms | 21 ms | 461 | 349 | 107 |
-| offset road | 2,000 | 2,001 | yes | 46.7% | 910,657 | no | 53,170 | yes | 0.2% | 879 ms | 83 ms | 1,317 | 1,113 | 310 |
-| grid, cardinal | 250 | 4,024 | yes | 0.2% | 62,178 | yes | 1,750 | yes | 1.1% | 73 ms | 2.0 ms | 136 | 91 | 33 |
-| grid, cardinal | 500 | 7,360 | yes | 31.7% | 96,233 | yes | 14,811 | yes | 0.3% | 205 ms | 26 ms | 348 | 249 | 83 |
-| grid, cardinal | 1,000 | 35,433 | yes | 49.9% | 339,306 | no | 29,974 | yes | 0.8% | 469 ms | 46 ms | 574 | 435 | 135 |
-| grid, cardinal | 2,000 | 141,042 | no | 72.9% | 679,882 | no | 81,496 | yes | 0.1% | 808 ms | 176 ms | 1,087 | 849 | 224 |
-| grid, oblique | 250 | 3,012 | yes | 19.8% | 26,406 | yes | 11,330 | yes | 0.4% | 163 ms | 21 ms | 183 | 119 | 42 |
-| grid, oblique | 500 | 23,471 | yes | 10.2% | 191,393 | no | 21,578 | yes | 0.3% | 303 ms | 48 ms | 441 | 347 | 106 |
-| grid, oblique | 1,000 | 13,024 | yes | 38.5% | 392,916 | no | 42,586 | yes | 0.2% | 727 ms | 99 ms | 1,011 | 856 | 239 |
-| grid, oblique | 2,000 | 71,926 | yes | 33.4% | 1,859,478 | no | 134,609 | no | 0.3% | 1,446 ms | 207 ms | 2,330 | 2,048 | 477 |
-| reaches, cardinal | 250 | 50,202 | yes | 0.0% | 88,573 | yes | 251 | yes | 0.0% | 108 ms | 1.1 ms | 199 | 137 | 52 |
-| reaches, cardinal | 500 | 177,131 | no | 0.0% | 312,787 | no | 501 | yes | 0.0% | 403 ms | 1.9 ms | 532 | 412 | 137 |
-| reaches, cardinal | 1,000 | 674,637 | no | 0.0% | 1,286,449 | no | 1,001 | yes | 0.0% | 1,250 ms | 7.6 ms | 1,754 | 1,480 | 457 |
-| reaches, cardinal | 2,000 | 2,755,106 | no | 0.0% | 5,287,660 | no | 2,038,254 | no | 0.0% | 1,989 ms | 203 ms | 2,578 | 2,048 | 651 |
-| reaches, oblique | 250 | 58,499 | yes | 0.0% | 100,853 | no | 225 | yes | 0.0% | 147 ms | 1.5 ms | 223 | 149 | 59 |
-| reaches, oblique | 500 | 218,762 | no | 0.0% | 382,702 | no | 877 | yes | 0.0% | 481 ms | 2.6 ms | 619 | 479 | 159 |
-| reaches, oblique | 1,000 | 856,155 | no | 0.0% | 1,544,108 | no | 1,324 | yes | 0.0% | 1,658 ms | 12 ms | 2,120 | 1,811 | 540 |
-| reaches, oblique | 2,000 | 3,656,883 | no | 0.0% | 6,263,063 | no | 2,681,649 | no | 0.0% | 1,764 ms | 191 ms | 2,578 | 2,048 | 649 |
-| shore, cardinal | 250 | 50,428 | yes | 0.0% | 94,687 | yes | 251 | yes | 0.0% | 56 ms | 0.4 ms | 136 | 86 | 36 |
-| shore, cardinal | 500 | 201,707 | no | 0.0% | 378,769 | no | 501 | yes | 0.0% | 172 ms | 1.2 ms | 385 | 299 | 101 |
-| shore, cardinal | 1,000 | 806,802 | no | 0.0% | 1,515,109 | no | 1,001 | yes | 0.0% | 684 ms | 2.8 ms | 1,254 | 1,092 | 322 |
-| shore, cardinal | 2,000 | 3,227,199 | no | 0.0% | 6,060,431 | no | 2,122,822 | no | 0.0% | 1,714 ms | 95 ms | 2,413 | 2,048 | 606 |
-| shore, oblique | 250 | 57,355 | yes | 0.0% | 94,035 | yes | 225 | yes | 0.0% | 74 ms | 1.3 ms | 155 | 101 | 44 |
-| shore, oblique | 500 | 225,292 | no | 0.0% | 370,388 | no | 448 | yes | 0.0% | 253 ms | 2.6 ms | 403 | 313 | 105 |
-| shore, oblique | 1,000 | 893,084 | no | 0.0% | 1,470,303 | no | 895 | yes | 0.0% | 806 ms | 3.3 ms | 1,200 | 1,040 | 305 |
-| shore, oblique | 2,000 | 3,561,088 | no | 0.0% | 5,867,230 | no | 2,311,831 | no | 0.0% | 1,612 ms | 107 ms | 2,416 | 2,048 | 608 |
+| grass | 250 | 251 | yes | 0.0% | 50,428 | yes | 251 | yes | 0.0% | 69 ms | 0.6 ms | 153 | 103 | 43 |
+| grass | 500 | 501 | yes | 0.0% | 201,707 | no | 501 | yes | 0.0% | 188 ms | 1.0 ms | 381 | 295 | 97 |
+| grass | 1,000 | 1,001 | yes | 0.0% | 806,802 | no | 1,001 | yes | 0.0% | 686 ms | 5.1 ms | 1,141 | 985 | 290 |
+| grass | 2,000 | 2,001 | yes | 0.0% | 3,227,199 | no | 3,428 | yes | 0.0% | 1,514 ms | 17 ms | 2,319 | 2,048 | 581 |
+| offset road | 250 | 251 | yes | 48.9% | 13,841 | yes | 1,349 | yes | 0.5% | 60 ms | 1.4 ms | 108 | 64 | 29 |
+| offset road | 500 | 501 | yes | 47.7% | 56,367 | yes | 2,061 | yes | 0.5% | 143 ms | 2.0 ms | 229 | 159 | 56 |
+| offset road | 1,000 | 1,001 | yes | 47.0% | 226,824 | no | 11,632 | yes | 0.3% | 377 ms | 27 ms | 461 | 349 | 107 |
+| offset road | 2,000 | 2,001 | yes | 46.7% | 910,657 | no | 33,412 | yes | 0.2% | 857 ms | 50 ms | 1,317 | 1,113 | 311 |
+| grid, cardinal | 250 | 4,024 | yes | 0.2% | 62,178 | yes | 1,006 | yes | 1.1% | 77 ms | 2.7 ms | 136 | 91 | 33 |
+| grid, cardinal | 500 | 7,360 | yes | 31.7% | 96,233 | yes | 11,401 | yes | 0.3% | 180 ms | 13 ms | 348 | 249 | 83 |
+| grid, cardinal | 1,000 | 35,433 | yes | 49.9% | 339,306 | no | 17,301 | yes | 0.8% | 354 ms | 32 ms | 574 | 435 | 135 |
+| grid, cardinal | 2,000 | 141,042 | no | 72.9% | 679,882 | no | 31,659 | yes | 0.1% | 703 ms | 101 ms | 1,087 | 849 | 258 |
+| grid, oblique | 250 | 3,012 | yes | 19.8% | 26,406 | yes | 9,731 | yes | 0.4% | 104 ms | 13 ms | 132 | 79 | 31 |
+| grid, oblique | 500 | 23,471 | yes | 10.2% | 191,393 | no | 14,950 | yes | 0.3% | 294 ms | 37 ms | 368 | 272 | 89 |
+| grid, oblique | 1,000 | 13,024 | yes | 38.5% | 392,916 | no | 16,614 | yes | 0.3% | 701 ms | 25 ms | 880 | 722 | 218 |
+| grid, oblique | 2,000 | 71,926 | yes | 33.4% | 1,859,478 | no | 25,316 | yes | 0.4% | 1,354 ms | 42 ms | 2,330 | 2,048 | 550 |
+| reaches, cardinal | 250 | 50,202 | yes | 0.0% | 88,573 | yes | 251 | yes | 0.0% | 112 ms | 0.8 ms | 199 | 137 | 52 |
+| reaches, cardinal | 500 | 177,131 | no | 0.0% | 312,787 | no | 501 | yes | 0.0% | 298 ms | 2.0 ms | 532 | 412 | 137 |
+| reaches, cardinal | 1,000 | 674,637 | no | 0.0% | 1,286,449 | no | 1,001 | yes | 0.0% | 1,116 ms | 8.6 ms | 1,754 | 1,480 | 457 |
+| reaches, cardinal | 2,000 | 2,755,106 | no | 0.0% | 5,287,660 | no | 2,074,923 | no | 0.0% | 2,169 ms | 181 ms | 2,579 | 2,048 | 651 |
+| reaches, oblique | 250 | 58,499 | yes | 0.0% | 100,853 | no | 225 | yes | 0.0% | 164 ms | 1.2 ms | 223 | 149 | 59 |
+| reaches, oblique | 500 | 218,762 | no | 0.0% | 382,702 | no | 757 | yes | 0.0% | 358 ms | 4.3 ms | 619 | 479 | 159 |
+| reaches, oblique | 1,000 | 856,155 | no | 0.0% | 1,544,108 | no | 1,204 | yes | 0.0% | 1,394 ms | 9.4 ms | 2,120 | 1,811 | 540 |
+| reaches, oblique | 2,000 | 3,656,883 | no | 0.0% | 6,263,063 | no | 2,695,604 | no | 0.0% | 2,075 ms | 213 ms | 2,580 | 2,048 | 650 |
+| shore, cardinal | 250 | 50,428 | yes | 0.0% | 94,687 | yes | 251 | yes | 0.0% | 50 ms | 0.7 ms | 136 | 86 | 36 |
+| shore, cardinal | 500 | 201,707 | no | 0.0% | 378,769 | no | 501 | yes | 0.0% | 179 ms | 1.6 ms | 385 | 299 | 101 |
+| shore, cardinal | 1,000 | 806,802 | no | 0.0% | 1,515,109 | no | 1,001 | yes | 0.0% | 623 ms | 1.9 ms | 1,254 | 1,092 | 322 |
+| shore, cardinal | 2,000 | 3,227,199 | no | 0.0% | 6,060,431 | no | 2,172,213 | no | 0.0% | 1,697 ms | 99 ms | 2,415 | 2,048 | 605 |
+| shore, oblique | 250 | 57,355 | yes | 0.0% | 94,035 | yes | 225 | yes | 0.0% | 60 ms | 0.8 ms | 155 | 101 | 44 |
+| shore, oblique | 500 | 225,292 | no | 0.0% | 370,388 | no | 448 | yes | 0.0% | 213 ms | 1.0 ms | 403 | 313 | 105 |
+| shore, oblique | 1,000 | 893,084 | no | 0.0% | 1,470,303 | no | 895 | yes | 0.0% | 688 ms | 2.7 ms | 1,200 | 1,040 | 305 |
+| shore, oblique | 2,000 | 3,561,088 | no | 0.0% | 5,867,230 | no | 2,338,542 | no | 0.0% | 1,742 ms | 176 ms | 2,416 | 2,048 | 608 |
 
-The `CoarseCost` columns come from a run at the commit that added the shore
-map, after coarse edges moved to movement rates (d68b2a8); the octile and
-scaled columns of the other maps come from the original run, since those
-searches did not change. Each case ran in its own process, one map and length
+The `CoarseCost` columns come from a run with its tie-break scale at 1.05, after
+coarse edges moved to movement rates (d68b2a8); the octile and scaled columns
+of the other maps come from the original run, since those searches did not
+change. Each case ran in its own process, one map and length
 at a time, because the uncapped 2,000-tile searches ran the machine out of
 memory in a single process.
 
@@ -237,11 +237,12 @@ What the table shows:
   the cardinal journeys while it fits the budget.** The 250-, 500- and
   1,000-tile cardinal journeys cost `CoarseCost` exactly as many expansions as
   a search on open grass of the same length (251, 501, 1,001); the oblique
-  journeys come close but not exact, at 225, 877 and 1,324. Octile needs
+  journeys come close but not exact, at 225, 757 and 1,204. Octile needs
   50,202 to 856,155 expansions across those six journeys and already misses
   the 100,000 budget past 250 tiles on both directions. The 500- and
   1,000-tile oblique journeys cost 591 and 1,038 expansions before coarse edges
-  moved to movement rates, with the same optimal routes; that fits the
+  moved to movement rates, and 877 and 1,324 with movement rates at the former
+  tie-break scale of 1.01, all with the same optimal routes; the rise fits the
   substitution erring low where a pool blocks a cell one way, though the
   benchmark does not isolate it.
 * **On the shore map, movement rates are what keep `CoarseCost` a corridor.**
@@ -252,15 +253,31 @@ What the table shows:
   oblique: every cell of the goal's row has an infinite north-south rate, the
   coarse search settles its whole 2,048-cell budget along the shore, and every
   estimate away from that row falls back to octile distance.
+* **A journey whose near-optimal routes fill a wide band floods unless ties
+  are broken decisively.** nrg's civilized cardinal 1,000-tile journey runs
+  along the edge of a grass plain beside half-speed forest: 27,936 tiles lie on
+  an exactly optimal route and 96,067 on a route within 1% of optimal. With
+  `CoarseCost`'s estimate within about 1% of the true cost there, the search
+  expanded 115,633 nodes at the former tie-break scale of 1.01, every one of
+  them on a route within 5% of optimal, and missed the 100,000 budget. It is
+  not estimate strength: the exact cost to the goal scaled by 1.01 expands
+  1,088 nodes, the route itself. Reopening closed nodes made it worse (269,031
+  expansions), and breaking equal priorities on the estimate changed nothing.
+  At the current scale of 1.05 the journey expands 33,048 nodes, 0.06% above
+  optimal. Octile distance floods that journey for a different reason: it
+  underestimates every one of the 807,222 tiles it expands by more than 2%.
+  These figures come from throwaway probes over nrg's world; on this table,
+  1.05 cut `grid, oblique` at 2,000 tiles from 134,609 expansions to 25,316
+  while its route rose from 0.27% to 0.44% above optimal.
 * **Six of the 2,000-tile journeys reach `DefaultCoarseCellBudget`.** At
   2,000 tiles, `grass`, `grid, oblique`, `reaches, cardinal`,
   `reaches, oblique`, `shore, cardinal` and `shore, oblique` each settle the
   full 2,048 cells the budget allows, and past that point their estimates fall
   back to octile distance. What that costs differs sharply by map: `grass`
-  keeps its route optimal at 3,432 expansions against octile's 2,001, and still
-  fits the 100,000 budget; `grid, oblique` needs 134,609 expansions and misses
-  the budget; the Reaches and shore journeys fall all the way into an octile
-  flood, at 2,038,254 to 2,681,649 expansions, also missing the budget. Cells
+  keeps its route optimal at 3,428 expansions against octile's 2,001, and
+  `grid, oblique` needs 25,316 expansions, both within the 100,000 budget; the
+  Reaches and shore journeys fall all the way into an octile flood, at 2,074,923
+  to 2,695,604 expansions, missing the budget. Cells
   built counts every neighbour cell a search relaxes as well as every one it
   settles, so it runs higher than cells settled, the count the budget actually
   bounds: `reaches, oblique` at 1,000 tiles builds 2,120 cells while settling

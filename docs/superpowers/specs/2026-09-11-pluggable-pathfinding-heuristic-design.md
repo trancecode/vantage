@@ -226,10 +226,13 @@ local cost straight to the goal, so the last stretch is guided by the goal
 itself rather than by centres around it. When no surrounding centre has a value,
 the estimate is octile distance.
 
-Every estimate is multiplied by 1.01. On uniform ground an oblique journey has a
-wide band of equally cheap routes, and an estimate that is nearly exact leaves
-their priorities tied, so A* expands the band. The slight scale breaks the ties
-toward the goal.
+Every estimate is multiplied by 1.05. Where many routes cost within a few
+percent of the cheapest, as on an oblique journey over uniform ground or along
+the edge of a plain beside half-speed forest, an estimate accurate to about a
+percent leaves their priorities tied within its own error, so A* expands the
+whole band. The scale breaks the ties toward the goal. It was 1.01 until nrg's
+civilized cardinal 1,000-tile journey, whose routes within 1% of optimal cover
+96,067 tiles, expanded 115,633 nodes at that scale; see ruling 7.
 
 **Local cost.** The cost from a tile to a nearby point, using the rates of the
 tile's own cell: `dx*rateWE + dy*rateNS - min(dx, dy) * (rateWE + rateNS) *
@@ -384,9 +387,20 @@ committed benchmarks described under "Benchmarks", recorded in
 5. `MaxSpeedProvider` is removed in favour of `ScaledOctile`.
 6. Diagonal coarse edges, costed from the two cells' mean rates. Four-neighbour
    edges overestimate oblique travel and measurably cost route quality.
-7. Estimates are scaled by 1.01 to break ties. It is a fixed constant rather
-   than a config field: no measured journey needed another value, and a second
-   knob would have no evidence to tune it by.
+7. Estimates are scaled by 1.05 to break ties. It is a fixed constant rather
+   than a config field: every measured journey is served by one value, and a
+   second knob would have no evidence to tune it by. The scale was 1.01 until
+   nrg's civilized cardinal 1,000-tile journey flooded past the 100,000 budget
+   with an estimate within about 1% of the true cost: 115,633 expansions at
+   1.01, 95,533 at 1.02, 33,048 at 1.05. Measured at 1.02 and 1.05 across every
+   heuristic benchmark map and nrg's probe matrix, 1.05 cut expansions on every
+   journey that flooded and made no journey that fit stop fitting. On the
+   benchmark table the largest rise in cost above optimal is grid oblique at
+   2,000 tiles, from 0.27% to 0.44%; on nrg's probe matrix, which rounds to
+   0.1%, the Reaches cardinal 2,000-tile journey went from 0.0% to 0.2%.
+   Reopening closed nodes made the civilized journey worse (269,031
+   expansions), and breaking equal priorities on the estimate changed nothing,
+   so neither is the fix.
 8. Past the cell budget, estimates fall back to octile distance rather than to
    the last settled values. Octile never runs away on unknown ground, and the
    budget default is sized so that measured journeys do not reach it.
