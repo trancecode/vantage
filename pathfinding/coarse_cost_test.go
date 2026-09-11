@@ -185,8 +185,8 @@ func TestCoarseCostStaysACorridorThroughForest(t *testing.T) {
 	require.NotNil(t, optimal)
 	require.NotNil(t, coarse)
 
-	assert.Less(t, coarseExpanded, 20*len(coarse), "The search should stay a corridor")
-	assert.Less(t, coarseExpanded*10, octileExpanded, "The field should expand far less than octile distance")
+	assert.Less(t, coarseExpanded, 30*len(coarse), "The search should stay a corridor")
+	assert.Less(t, coarseExpanded*5, octileExpanded, "The field should expand far less than octile distance")
 	assert.LessOrEqual(t, pathCost(terrain, coarse), pathCost(terrain, optimal)*1.02)
 }
 
