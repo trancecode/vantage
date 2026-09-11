@@ -197,9 +197,11 @@ func benchJourney(terrain TerrainProvider, m benchMap, length int) (start, goal 
 // route lies above the optimum, ScaledOctile at the map's fastest speed with no
 // budget. ns/op times a call under benchMaxExpansions, on a warm field for
 // heuristic=coarse. heuristic=coarse also reports cold-ms/op, one call under the
-// budget on a fresh field; cells-built/op, the cells that call built; and
-// extra-chunks/op, the benchChunkSize chunks those cells read that the tile
-// search did not, which is what a lazily generated world pays to materialize.
+// budget on a fresh field; cells-built/op, the cells that call built;
+// cells-settled/op, the cells that call's coarse search settled, which is what
+// DefaultCoarseCellBudget bounds; and extra-chunks/op, the benchChunkSize chunks
+// those cells read that the tile search did not, which is what a lazily
+// generated world pays to materialize.
 //
 // The longest Reaches journeys take seconds per search. Run it on its own, with
 // -benchtime 1x when only the counts are wanted, or narrow it with a pattern
@@ -250,16 +252,36 @@ func coarseBenchConfig() CoarseCostConfig {
 	return CoarseCostConfig{CellSize: DefaultCoarseCellSize, MaxSpeed: declaredMaxSpeed, CellBudget: DefaultCoarseCellBudget}
 }
 
+// coarseSearchRecorder is a Heuristic that serves a CoarseCost's estimates and
+// keeps the coarse search of the last search it served, so a benchmark can read
+// how many cells that search settled without the field keeping such state.
+type coarseSearchRecorder struct {
+	field *CoarseCost
+	last  *coarseSearch
+}
+
+// ForSearch starts the field's coarse search for start and goal, keeps it, and
+// returns its estimate.
+func (r *coarseSearchRecorder) ForSearch(start, goal Coord) Estimate {
+	r.last = r.field.newSearch(start, goal)
+	return r.last.estimate
+}
+
 // runCoarseJourney reports CoarseCost's journey metrics, cold and warm, and
 // times FindPath over the journey on a warm field under benchMaxExpansions.
 func runCoarseJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, optimalCost float64) {
 	b.Helper()
 
 	coldField := NewCoarseCost(terrain, coarseBenchConfig())
+	recorder := &coarseSearchRecorder{field: coldField}
 	coldStart := time.Now()
-	FindPath(terrain, start, goal, nil, benchMaxExpansions, coldField)
+	FindPath(terrain, start, goal, nil, benchMaxExpansions, recorder)
 	cold := time.Since(coldStart)
+	if recorder.last == nil {
+		b.Fatalf("path from %v to %v: the cold call ran no search", start, goal)
+	}
 	cellsBuilt := len(coldField.cells)
+	cellsSettled := recorder.last.settled
 	extraChunks := coarseExtraChunks(terrain, start, goal)
 
 	field := NewCoarseCost(terrain, coarseBenchConfig())
@@ -273,6 +295,7 @@ func runCoarseJourney(b *testing.B, terrain TerrainProvider, start, goal Coord, 
 	reportJourney(b, terrain, start, goal, path, expanded, optimalCost)
 	b.ReportMetric(float64(cold.Microseconds())/1000, "cold-ms/op")
 	b.ReportMetric(float64(cellsBuilt), "cells-built/op")
+	b.ReportMetric(float64(cellsSettled), "cells-settled/op")
 	b.ReportMetric(float64(extraChunks), "extra-chunks/op")
 }
 
