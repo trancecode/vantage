@@ -211,17 +211,29 @@ What the table shows:
   Octile comes out 46.7% to 48.9% above optimal on the offset-road journeys
   and up to 72.9% on the grid; `CoarseCost` stays within 0.1% to 1.1% at every
   length on both maps.
-* **On the Reaches map, `CoarseCost` matches the optimal expansion count while
-  it fits the budget.** The 250-, 500- and 1,000-tile journeys cost `CoarseCost`
-  exactly as many expansions as a search on open grass of the same length (251,
-  501, 1,001), where octile needs 50,202 to 856,155 and already misses the
-  100,000 budget past 250 tiles.
-* **The 2,000-tile journeys exhaust `DefaultCoarseCellBudget`.** The oblique
-  grid journey settles past 2,048 cells and falls back to octile past that
-  point, landing at 134,609 expansions; both Reaches journeys at 2,000 tiles do
-  the same, at 2,038,254 and 2,680,650 expansions. All three miss the 100,000
-  budget, the same outcome octile and `ScaledOctile` reach on those journeys
-  without a coarse field at all.
+* **On the Reaches map, `CoarseCost` matches the optimal expansion count on
+  the cardinal journeys while it fits the budget.** The 250-, 500- and
+  1,000-tile cardinal journeys cost `CoarseCost` exactly as many expansions as
+  a search on open grass of the same length (251, 501, 1,001); the oblique
+  journeys come close but not exact, at 225, 591 and 1,038. Octile needs
+  50,202 to 856,155 expansions across those six journeys and already misses
+  the 100,000 budget past 250 tiles on both directions.
+* **Four of the 2,000-tile journeys reach `DefaultCoarseCellBudget`.** In the
+  prototype runs recorded in the design spec, the grass-cardinal, grid-oblique
+  and both Reaches 2,000-tile journeys settle the full 2,048 cells the budget
+  allows, and past that point their estimates fall back to octile. What that
+  costs differs sharply by map: grass, cardinal keeps its route optimal even
+  with 1,224 estimates on the fallback, at 3,432 expansions against octile's
+  2,001, and still fits the 100,000 budget; grid, oblique needs 134,609
+  expansions with only 110 fallback estimates and misses the budget; both
+  Reaches journeys, with millions of fallback estimates, fall all the way into
+  an octile flood, at 2,038,254 and 2,680,650 expansions, also missing the
+  budget. Cells built, the column in the table above, counts every neighbour
+  cell a search relaxes as well as every one it settles, so it runs higher
+  than the settled count the budget actually bounds: the 1,000-tile
+  Reaches-oblique journey builds 2,119 cells while settling only 1,808, well
+  under budget, so a high built count on its own does not mean the budget was
+  reached.
 * **Cold calls pay for the ground they read to look ahead.** A fresh
   `CoarseCost` field reads terrain the tile search never enters, from 29 extra
   64-tile chunks on the 250-tile offset-road journey to 651 on the 2,000-tile
