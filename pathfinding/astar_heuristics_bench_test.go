@@ -40,6 +40,16 @@ const (
 	poolPercent = 60
 )
 
+// The shore map's journeys end in the cell holding benchOrigin, whose top row
+// is shoreCellTop. Water covers that cell's top four rows and everything north
+// of them, and the goal sits on row shoreGoalY, in the upper half of the cell,
+// so every coarse center a search starts from is water or shore.
+const (
+	shoreCellTop = benchOrigin / DefaultCoarseCellSize * DefaultCoarseCellSize
+	shoreY       = shoreCellTop + 4
+	shoreGoalY   = shoreCellTop + 10
+)
+
 // benchOrigin places every journey far from zero, so the widest search stays on
 // positive coordinates. It is a multiple of gridSpacing, which puts the grid
 // map's roads through it.
@@ -148,6 +158,19 @@ func reachesBenchTerrain(int) speedFuncTerrain {
 	}}
 }
 
+// shoreBenchTerrain is half-speed forest south of a straight shoreline with
+// open water north of it, standing in for a pool shore in nrg's Blighted
+// Reaches: the goal's row of cells has water along its northern edge, so none
+// of them can be crossed north to south.
+func shoreBenchTerrain(int) speedFuncTerrain {
+	return speedFuncTerrain{speed: func(x, y int) float64 {
+		if y < shoreY {
+			return 0
+		}
+		return forestSpeed
+	}}
+}
+
 // benchMap is one map family and journey direction.
 type benchMap struct {
 	name    string
@@ -158,6 +181,9 @@ type benchMap struct {
 	// fastestSpeed is the highest speed any tile of the map reports, which
 	// makes ScaledOctile at that speed the optimal reference.
 	fastestSpeed float64
+	// towardOrigin makes the journey end at the origin rather than start there,
+	// so its goal sits on whatever the map places at the origin.
+	towardOrigin bool
 }
 
 var benchMaps = []benchMap{
@@ -167,11 +193,13 @@ var benchMaps = []benchMap{
 	{name: "grid/oblique", terrain: gridBenchTerrain, origin: Coord{X: benchOrigin + gridSpacing/2, Y: benchOrigin + gridSpacing/2}, dx: 2 / math.Sqrt(5), dy: 1 / math.Sqrt(5), fastestSpeed: roadSpeed},
 	{name: "reaches/cardinal", terrain: reachesBenchTerrain, origin: Coord{X: benchOrigin, Y: benchOrigin}, dx: 1, fastestSpeed: forestSpeed},
 	{name: "reaches/oblique", terrain: reachesBenchTerrain, origin: Coord{X: benchOrigin, Y: benchOrigin}, dx: 2 / math.Sqrt(5), dy: 1 / math.Sqrt(5), fastestSpeed: forestSpeed},
+	{name: "shore/cardinal", terrain: shoreBenchTerrain, origin: Coord{X: benchOrigin, Y: shoreGoalY}, dy: 1, fastestSpeed: forestSpeed, towardOrigin: true},
+	{name: "shore/oblique", terrain: shoreBenchTerrain, origin: Coord{X: benchOrigin, Y: shoreGoalY}, dx: 2 / math.Sqrt(5), dy: 1 / math.Sqrt(5), fastestSpeed: forestSpeed, towardOrigin: true},
 }
 
 // benchJourney returns the start and goal of a journey of length tiles on a map:
 // from the map's origin along its direction, each moved off a pool when one
-// sits on it.
+// sits on it, and swapped when the map's journeys run toward its origin.
 func benchJourney(terrain TerrainProvider, m benchMap, length int) (start, goal Coord) {
 	start = m.origin
 	for !terrain.IsWalkable(start.X, start.Y) {
@@ -183,6 +211,9 @@ func benchJourney(terrain TerrainProvider, m benchMap, length int) (start, goal 
 	}
 	for !terrain.IsWalkable(goal.X, goal.Y) {
 		goal.X++
+	}
+	if m.towardOrigin {
+		return goal, start
 	}
 	return start, goal
 }

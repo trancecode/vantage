@@ -122,9 +122,9 @@ measured per-op cost: the budget divided by ns/op, rounded down.
 | Draw ordering | Drawables 1,000 to 100,000 | 1,000 | 10,000 | n/a | 101.930 ms at 100,000. [Draw ordering](#draw-ordering) |
 | Sprites per frame | Sprites 100 to 50,000 | none measured | 1,000 | n/a | 18.62 ms at 10,000. Software rasterizer. [Draw throughput](#draw-throughput) |
 | Labels per frame | Labels 10 to 1,000 | none measured | all measured | n/a | Software rasterizer. [Draw throughput](#draw-throughput) |
-| Pathfinding, nil heuristic | Journey 250 to 2,000 tiles within 100,000 expansions | n/a | n/a | n/a | Longest journey that fits: grass 2,000 (all measured), Reaches 250 cardinal and oblique. [Pathfinding](#pathfinding) |
-| Pathfinding, `ScaledOctile` | Journey 250 to 2,000 tiles within 100,000 expansions | n/a | n/a | n/a | Longest journey that fits: grass 250, Reaches 250 cardinal, none measured oblique. [Pathfinding](#pathfinding) |
-| Pathfinding, `CoarseCost` | Journey 250 to 2,000 tiles within 100,000 expansions | n/a | n/a | n/a | Longest journey that fits: grass 2,000 (all measured), Reaches 1,000 cardinal and oblique. [Pathfinding](#pathfinding) |
+| Pathfinding, nil heuristic | Journey 250 to 2,000 tiles within 100,000 expansions | n/a | n/a | n/a | Longest journey that fits: grass 2,000 (all measured), Reaches 250 cardinal and oblique, shore 250 cardinal and oblique. [Pathfinding](#pathfinding) |
+| Pathfinding, `ScaledOctile` | Journey 250 to 2,000 tiles within 100,000 expansions | n/a | n/a | n/a | Longest journey that fits: grass 250, Reaches 250 cardinal, none measured oblique, shore 250 cardinal and oblique. [Pathfinding](#pathfinding) |
+| Pathfinding, `CoarseCost` | Journey 250 to 2,000 tiles within 100,000 expansions | n/a | n/a | n/a | Longest journey that fits: grass 2,000 (all measured), Reaches 1,000 cardinal and oblique, shore 1,000 cardinal and oblique. [Pathfinding](#pathfinding) |
 
 For range queries, index maintenance, reservation churn and movement decisions,
 "all measured" means one op fits the budget at every measured row; a game runs
@@ -518,22 +518,23 @@ sprites, and from 100 to 1,000 labels, the frame time grows in every run.
 
 Pathfinding is not re-measured here. Its per-strategy record is the table in
 [pathfinding_performance.md](pathfinding_performance.md#heuristic-strategies),
-which gives, for grass, offset road, grid and Reaches journeys of 250 to 2,000
-tiles, how many node expansions each strategy needs and whether that fits the
-100,000-expansion search budget. The headline envelope, quoted from that
+which gives, for grass, offset road, grid, Reaches and shore journeys of 250 to
+2,000 tiles, how many node expansions each strategy needs and whether that fits
+the 100,000-expansion search budget. The headline envelope, quoted from that
 table, is the longest measured journey that fits the budget:
 
 * **nil** (plain octile distance): 2,000 tiles on grass, every length
-  measured; 250 tiles on Reaches, cardinal and oblique.
+  measured; 250 tiles on Reaches and on shore, cardinal and oblique.
 * **`ScaledOctile`**: 250 tiles on grass; 250 tiles on Reaches cardinal, and
   no measured length on Reaches oblique, where 250 tiles already needs 100,853
-  expansions.
+  expansions; 250 tiles on shore, cardinal and oblique.
 * **`CoarseCost`**: 2,000 tiles on grass, every length measured; 1,000 tiles on
-  Reaches, cardinal and oblique.
+  Reaches and on shore, cardinal and oblique.
 
 That record times `CoarseCost` too: at those longest journeys a warm call takes
-7.9 ms on grass and 8.3 ms and 7.0 ms on Reaches cardinal and oblique, while a
-cold call over new ground takes 1,092 ms, 1,165 ms and 1,121 ms.
+7.6 ms on grass, 7.6 ms and 12 ms on Reaches cardinal and oblique, and 2.8 ms
+and 3.3 ms on shore cardinal and oblique, while a cold call over new ground
+takes 1,160 ms, 1,250 ms, 1,658 ms, 684 ms and 806 ms.
 
 ## Not benchmarked
 
