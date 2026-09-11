@@ -89,20 +89,40 @@ notification rather than a local optimization. Left undone until a workload
 actually routes toward walled-off goals often enough to matter; see
 [pathfinding_performance.md](pathfinding_performance.md).
 
-## Weak heuristic on terrain faster than 1.0 (pathfinding/astar.go)
+## Coarse cost field (pathfinding/coarse_cost.go, pathfinding/coarse_cell.go)
 
-`ScaledOctile` divides octile distance by the fastest speed, which keeps routes
-optimal onto roads but makes a search expand a region rather than a corridor:
-about 0.8 x length² tiles on open grass at a declared speed of 2.0, so 3.2
-million expansions for a 2,000-tile journey where the undivided heuristic
-expands 2,001 (`BenchmarkFindPathRoads`). A stronger
-heuristic that still never overestimates would recover most of that: landmark
-distances (precomputed shortest-path costs from a few chosen tiles, compared
-through the triangle inequality), or a two-level search that routes over a road
-graph and plans only the legs onto and off it with A*. Both need precomputed
-data invalidated when terrain changes, which is a design decision rather than a
-local optimization. Left undone because scaling is opt-in and no consumer uses it
-yet; see [pathfinding_performance.md](pathfinding_performance.md).
+A fresh `CoarseCost` field reads terrain a tile search does not otherwise need,
+to look ahead for a faster or slower detour. On the measured journeys
+(`BenchmarkFindPathHeuristics`, see
+[pathfinding_performance.md](pathfinding_performance.md)) that cost 29 to 651
+extra 64-tile chunks beyond what the tile search itself touches, and a cold
+call runs from about 40 ms on a 250-tile offset-road journey to about 1.9
+seconds on a 2,000-tile Reaches journey. A game-supplied per-cell cost source,
+answering a cell's crossing rates from knowledge the game already has (such as
+a world graph of roads) without reading tiles, would remove that cost for a
+lazily generated world. It is additive to `CoarseCost` and left undone until a
+game has such a source.
+
+Building one cell allocates its walkable, speed and cost slices and runs
+`container/heap` with `any`-based interface boxing. `BenchmarkCoarseCostCellBuild`
+measures about 459 µs per cell on grass ground, 322 µs on the grid, and 461 µs
+on Reaches ground. A reused scratch buffer and a typed heap would cut the build
+cost, which matters only for cold searches, since a warm `CoarseCost` never
+rebuilds a cell it has already built.
+
+Each search allocates its own coarse-search cost and closed maps, even though
+many agents converging on one destination run the same coarse search from
+scratch. A small per-goal cache of settled cell values would let those searches
+share it instead of each rebuilding it.
+
+`ScaledOctile` remains expensive by design: about 0.8 x length² expansions on
+open grass at a declared speed of 2.0, so 3.2 million expansions for a
+2,000-tile journey where octile distance expands 2,001
+(`BenchmarkFindPathHeuristics`). A landmark heuristic (precomputed shortest-path
+costs from a few chosen tiles, compared through the triangle inequality) would
+recover most of that while staying optimal, but needs precomputed data
+invalidated when terrain changes, which is a design decision rather than a
+local optimization.
 
 ## Path-following search costs (motion/motion_towards.go)
 
