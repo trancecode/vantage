@@ -43,7 +43,7 @@ costs 2 allocations. Benchmarks (`sim_eventqueue_bench_test.go`) measure a
 steady-state pop+insert at ~167 ns (100 queued) rising to ~341 ns (100k queued),
 each with 2 allocs/op and 48 B/op. `BenchmarkDriverRunUntil` shows the same
 2 allocations and 48 B per event dispatched through `sim.Driver`, at 249.7 ns
-per event for 1,000 events per beat rising to 302.4 ns for 100,000 (see
+per event for 1,000 events per beat and 302.4 ns for 100,000 (see
 [performance_limits.md](performance_limits.md#event-dispatch)). A
 generics-native heap (hand-written sift-up/sift-down over the `[]T` backing
 slice instead of `container/heap`) would remove both allocations and the
@@ -183,20 +183,43 @@ curve.
 `RemoveEntity` deletes the entity from its cell's set but keeps the emptied set
 in the grid's map. As bodies travel onto ground nobody occupied, every crossing
 into a new cell allocates a set, and the map keeps every cell ever entered.
-`BenchmarkSystemTick` measures constant-speed ticks at 3, 74 and 1,995
-allocations for 1,000, 10,000 and 100,000 moving entities, and eased ticks at
-0, 12 and 3,391. An allocation profile of the 100,000-entity constant-speed row
-attributes all of the tick's allocations to `AddEntity`, reached through
-`UpdateEntityPosition`. A CPU profile of the 100,000-entity eased row
-(22,095,325 ns per tick, 221.0 ns per entity against 88.1 ns at 10,000)
-attributes most of the tick to the grid's map operations in
-`UpdateEntityPosition` rather than to the easing; the benchmark does not
-isolate why that cost grows faster than the population. Reusing emptied sets
-would remove most of the allocations, and deleting a cell once its set is empty
-would keep the map to occupied cells. Left as-is because 100,000 constant-speed
-bodies tick in 7,219,110 ns, inside a frame; revisit for large eased
-populations, or for worlds where bodies roam over new ground for long periods.
-See [performance_limits.md](performance_limits.md#movement-tick).
+Reusing emptied sets would remove those allocations, and deleting a cell once
+its set is empty would keep the map to occupied cells. `BenchmarkSystemTick`
+does not measure this case: its bodies shuttle over cells they have crossed
+before (see [performance_limits.md](performance_limits.md#movement-tick)).
+Left as-is until a world has bodies roaming over new ground for long periods.
+
+## Movement component re-add on arrival (motion/motion_move.go)
+
+`System.Tick` removes an arrived entity's `Movement`, and a game that sends the
+body on from `OnArrival` adds it straight back through `MoveEntity`, whose
+`Movements.GetOrAdd` reaches `ecs.Accessor.insertMissing` in
+`github.com/trancecode/ecs`. That function returns a pointer to its `value`
+parameter on its dead-entity and deferred paths, so the compiler moves `value`
+to the heap on every call (`go build -a -gcflags='all=-m' ./motion/` reports
+"moved to heap: ecs.value" for it), and every re-add allocates once.
+
+`BenchmarkSystemTick` shows allocations tracking arrivals: 7, 48 and 423
+allocs/op for 1,000, 10,000 and 100,000 moving entities, against about 4, 42
+and 417 bodies arriving per frame (see
+[performance_limits.md](performance_limits.md#movement-tick)). An allocation
+profile at commit c6725c1, produced by:
+
+```bash
+export GOMODCACHE=/tmp/go-mod-cache
+xvfb-run -a go test -run '^$' -bench 'SystemTick/ease=eased/entities=100000$' -benchtime 300x -memprofile tick.mem -memprofilerate 1 -o motion.test ./motion/
+go tool pprof -sample_index=alloc_objects -focus 'System\)\.Tick' -top motion.test tick.mem
+```
+
+attributes 498,211 of the 1,108,090 objects allocated under `Tick` to
+`insertMissing`, reached through `MoveEntity` from the benchmark's `OnArrival`,
+and the other 598,368 to `SpatialGrid.AddEntity` through
+`UpdateEntityPosition`. The profile covers the 900 warm-up ticks as well as the
+300 timed ones, so it does not split the timed ticks' 425 allocs/op between
+the two. Taking the pointer only on the paths that return it would let the
+immediate re-add allocate nothing. Left as-is because the change belongs in
+`github.com/trancecode/ecs`, not here; it is worth making there if allocations
+on arriving bodies show up in a game's profile.
 
 ## Tile ratio and screen multiplier computed per draw (render/render_sprite.go, render/render_camera.go)
 
@@ -217,18 +240,24 @@ construction.
 
 ## DrawList ordering sort (render/render_drawlist.go)
 
-`DrawList.Each` orders its entries with `sort.SliceStable`, which the standard
-library documents as O(n log n) comparisons and O(n log² n) swaps, and whose
-swaps go through a reflection-based swapper. `BenchmarkDrawListOrdering`
-measures one frame's ordering at 336.3 ns per drawable for 1,000 drawables
-(336,255 ns), 641.2 ns for 10,000 (6,412,156 ns) and 1,019.3 ns for 100,000
-(101,930,232 ns, about six frames). The cost per drawable triples over a
-hundredfold count, where an O(n log n) sort's would grow about 1.67 times
-(log 100,000 / log 1,000, derived). `slices.SortStableFunc` runs the same
-insertion-sort-and-merge algorithm without the reflection-based swapper, and
-carrying an insertion sequence number in each entry as the final tie-break
-would let `slices.SortFunc`, an O(n log n) unstable sort, keep insertion order
-for equal keys. Left as-is because 10,000 drawables order in 6,412,156 ns,
+`DrawList.Each` orders its entries with `sort.SliceStable`, whose swaps go
+through a reflection-based swapper. `sort.SliceStable`'s documentation states
+no complexity; it runs the same insertion-sort-and-merge algorithm as
+`sort.Stable`, which documents O(n log n) calls to Less and O(n log² n) calls
+to Swap. `BenchmarkDrawListOrdering` measures one frame's ordering at
+336.3 ns per drawable for 1,000 drawables (336,255 ns), 641.2 ns for 10,000
+(6,412,156 ns) and 1,019.3 ns for 100,000 (101,930,232 ns, about six frames).
+The cost per drawable grows 3.03 times over a hundredfold count, about 9%
+above the 2.78 times an O(n log² n) sort's would grow ((log 100,000 /
+log 1,000)², derived), a gap within the run-to-run spread recorded in
+[performance_limits.md](performance_limits.md#machine-and-how-to-re-run).
+The `sort` documentation notes that "in many situations, the newer
+slices.SortStableFunc function is more ergonomic and runs faster".
+`slices.SortStableFunc` runs the same algorithm without the reflection-based
+swapper, and carrying an insertion sequence number in each entry as the final
+tie-break would let `slices.SortFunc`, an O(n log n) unstable sort, keep
+insertion order for equal keys. Left as-is because 10,000 drawables order in
+6,412,156 ns,
 inside a frame; revisit if a scene orders tens of thousands of drawables per
 frame. See [performance_limits.md](performance_limits.md#draw-ordering).
 

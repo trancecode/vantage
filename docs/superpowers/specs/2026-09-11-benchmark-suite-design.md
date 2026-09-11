@@ -24,6 +24,15 @@ exported API and no behaviour, so it needs no release tag.
   drawing.
 * **Beat budget: 1 s.** nrg's simulation beat. Work a game schedules per beat,
   such as event dispatch and movement decisions, is judged against it as well.
+  The engine has no beat; the beat and the acceleration ladder below are nrg's,
+  and another game substitutes its own and re-derives the crossing points from
+  the per-unit costs.
+
+Per-beat work still runs inside frames, so a per-beat crossing point holds only
+when a game spreads that work across the beat's frames. Work that falls due at
+one instant, such as events scheduled for the same time or decisions made at the
+beat boundary, runs within one frame and is bounded by the frame budget; the
+limits document says so where it quotes per-beat figures.
 
 A frame is shared with everything else a game runs, so every limit reports two
 crossing points: the largest measured parameter whose cost fits **1 ms**, a
@@ -102,8 +111,18 @@ the rectangle's cell count and a part that grows with the entities found.
 * One op: one `Tick` advancing every moving entity by 16.7 ms, with the spatial
   grid kept in sync.
 * Parameters: 1k, 10k, 100k moving entities; constant-speed and eased moves.
-* Fixture: entities spread over a world at density 0.1, each moving toward a
-  destination far enough that none arrives during the benchmark.
+* Fixture: entities spawn at tile centres spread over a world at density 0.1,
+  and shuttle at speed 1 between their spawn tile centre and the tile centre 4
+  tiles east. Each body starts its first move at a hashed frame within the first
+  120 frames, and the first move stops a hashed 1 to 4 tiles east; every arrival
+  then turns the body around through `System.OnArrival`, so the re-issued
+  `MoveEntity` is part of the measured tick, as a game's arrivals are. Every leg
+  lasts a whole number of seconds, so the two staggers are what spread arrivals
+  evenly over the frames rather than in bursts a short run can miss. Before
+  timing, the benchmark ticks 900 frames (15 s of game time), so every body has
+  arrived at least once and every grid cell the shuttles touch exists.
+* Fixture check: fewer arrivals during the warm-up than entities, or a
+  re-issued move that does not start, fails the benchmark.
 * Metrics: ns/op, allocations.
 
 ### Movement decisions (`motion.System.MoveEntityTowards`, `MoveEntityTowardsArea`)
@@ -115,6 +134,12 @@ the rectangle's cell count and a part that grows with the entities found.
 * Parameters: `MoveEntityTowards` for journeys of 8, 32 and 128 tiles;
   `MoveEntityTowardsArea` for area radii of 1, 4 and 8 tiles, with the area's
   centre 32 tiles away.
+* Area fixture: another entity reserves every tile of the area inside its
+  outermost ring (a ring being a tile's Chebyshev distance from the centre
+  tile), as a crowd at a gather point would, so the decision scans the reserved
+  inner rings by lookup and plans to the nearest free tile on the outer ring,
+  and the radius matters. Before timing, the benchmark fails unless the target
+  tile lies on the outer ring.
 * Metrics: ns/op, allocations.
 * Longer journeys and other heuristics are pathfinding's to measure, and the
   limits document links there.
@@ -157,6 +182,11 @@ does, and runs under a virtual display (`xvfb-run -a`).
   and records the mean frame time. It reports one metric per count
   (`ms-per-frame-sprites-1k/op` and so on). It ignores `b.N` beyond the first
   call, runs its game loop once per process, and says so in its doc comment.
+  It reports no ns/op and no allocations, because its timed loop does no work.
+* Positions: in tile units, under a screen camera with world zero at the
+  canvas's top-left corner, so every drawable's top-left pixel lies on the
+  canvas. The benchmark checks every position through `Camera.WorldToScreen`
+  before drawing and fails if one falls off the canvas.
 * Parameters: sprites 100, 1k, 10k, 50k; labels 10, 100, 1k.
 * Caveat, stated in the doc comment and the limits document: under a virtual
   display the GPU work runs on Mesa's software rasterizer, so absolute frame times
@@ -228,6 +258,21 @@ Anything a benchmark reveals as worth optimising gets an entry in
    reading a row should not have to divide.
 7. The limits document opens with a summary of every aspect, pathfinding included
    as quoted headline envelopes with a link.
+8. The movement tick shuttles bodies between tile centres through `OnArrival`,
+   with staggered starts and after a warm-up, because bodies on cell boundaries
+   changed cell every tick from rounding, bodies heading onto new ground made
+   the cost per tick drift with the run length, and unstaggered arrivals came in
+   bursts a short run could miss.
+9. Area decision rows reserve the area's inner rings, because on open unreserved
+   ground the decision always plans to the centre tile, so every radius measured
+   the same decision.
+10. Draw throughput places drawables in tile units under a top-left camera and
+    checks each is on the canvas, because pixel positions passed as tile
+    positions put nearly every drawable off-screen.
+11. The beat and the acceleration ladder are attributed to nrg, and per-beat
+    figures hold only when the work is spread across the beat's frames, because
+    the engine has neither concept and work due at one instant runs within one
+    frame.
 
 ## Testing
 
