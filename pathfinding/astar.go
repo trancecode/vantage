@@ -26,25 +26,6 @@ type TerrainProvider interface {
 	GetTerrainSpeedMultiplier(x, y int) float64
 }
 
-// MaxSpeedProvider is an optional interface a TerrainProvider implements to
-// declare the highest speed multiplier any of its tiles reports. FindPath
-// divides its distance heuristic by that value, which keeps the heuristic from
-// overestimating on terrain faster than 1.0: without it, a search can settle
-// on a direct route and never look at a faster detour, such as a road that
-// lies off the straight line. The price is a weaker estimate everywhere, so
-// every search expands more nodes; see docs/pathfinding_performance.md.
-//
-// A terrain that does not implement it is searched as if its fastest tile
-// were 1.0. The value must be positive. Declaring a value below the fastest
-// speed any tile actually reports brings back the overestimate, so routes
-// onto those tiles can be missed silently. Declaring a value above it keeps
-// routes optimal and only costs extra expansions.
-type MaxSpeedProvider interface {
-	// MaxSpeedMultiplier returns the highest value GetTerrainSpeedMultiplier
-	// reports for any tile.
-	MaxSpeedMultiplier() float64
-}
-
 // pathNode represents a node in the A* pathfinding algorithm
 type pathNode struct {
 	coord  Coord
@@ -109,33 +90,6 @@ const (
 // isCardinalDirection returns true if the direction is cardinal (N, E, S, W)
 func isCardinalDirection(dx, dy int) bool {
 	return (dx == 0 && dy != 0) || (dx != 0 && dy == 0)
-}
-
-// heuristic calculates the estimated cost from one coord to another using
-// octile distance, divided by the fastest speed multiplier on the terrain so
-// that no step can cost less than the estimate it removes.
-func heuristic(from, to Coord, maxSpeed float64) float64 {
-	dx := math.Abs(float64(to.X - from.X))
-	dy := math.Abs(float64(to.Y - from.Y))
-
-	// Octile distance: diagonal moves cost sqrt(2), cardinal moves cost 1
-	return (cardinalCost*math.Max(dx, dy) + (diagonalCost-cardinalCost)*math.Min(dx, dy)) / maxSpeed
-}
-
-// terrainMaxSpeed returns the speed multiplier the heuristic divides by: the
-// terrain's own declaration when it implements MaxSpeedProvider, 1.0
-// otherwise. Dividing by exactly 1.0 leaves the heuristic bit-for-bit
-// unchanged for terrains that declare nothing.
-func terrainMaxSpeed(terrain TerrainProvider, start, goal Coord) float64 {
-	bounded, ok := terrain.(MaxSpeedProvider)
-	if !ok {
-		return 1
-	}
-	maxSpeed := bounded.MaxSpeedMultiplier()
-	if !(maxSpeed > 0) {
-		panic(fmt.Sprintf("finding path from %v to %v: MaxSpeedMultiplier must be positive, got %v", start, goal, maxSpeed))
-	}
-	return maxSpeed
 }
 
 // calculateTerrainSpeedMultiplier calculates the average terrain speed multiplier
@@ -217,6 +171,10 @@ func isGoalApproachable(terrain TerrainProvider, start, goal Coord, isOccupied O
 // being answered without searching, since a search would have to flood the map
 // to reach them.
 //
+// heuristic supplies the estimate the search orders its work by; nil is octile
+// distance, exact on open ground at speed 1.0. See Heuristic for what a
+// strategy may and may not change.
+//
 // maxExpansions bounds the search: once that many nodes have been expanded
 // (popped from the open set) without reaching the goal, FindPath gives up and
 // returns nil, exactly as it does when the open set empties. On a finite map
@@ -228,8 +186,8 @@ func isGoalApproachable(terrain TerrainProvider, start, goal Coord, isOccupied O
 // length. It must be positive; FindPath panics otherwise, because a zero
 // budget would silently mean an unbounded search, which is the hang this
 // parameter exists to rule out.
-func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int) []Coord {
-	path, _ := findPath(terrain, start, goal, isOccupied, maxExpansions)
+func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic) []Coord {
+	path, _ := findPath(terrain, start, goal, isOccupied, maxExpansions, heuristic)
 	return path
 }
 
@@ -238,11 +196,10 @@ func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 // search that walked a narrow corridor to the goal from one that flooded the
 // map, so the benchmarks measure it alongside wall-clock cost. A count equal
 // to maxExpansions with no path means the budget stopped the search.
-func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int) (path []Coord, expanded int) {
+func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic) (path []Coord, expanded int) {
 	if maxExpansions <= 0 {
 		panic(fmt.Sprintf("finding path from %v to %v: maxExpansions must be positive, got %d", start, goal, maxExpansions))
 	}
-	maxSpeed := terrainMaxSpeed(terrain, start, goal)
 
 	// Quick checks
 	if start == goal {
@@ -266,6 +223,11 @@ func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 		return nil, 0 // Goal is sealed off by its immediate surroundings
 	}
 
+	estimate := func(tile Coord) float64 { return octile(tile, goal) }
+	if heuristic != nil {
+		estimate = heuristic.ForSearch(start, goal)
+	}
+
 	// Initialize A* data structures
 	openSet := &pathNodeQueue{}
 	heap.Init(openSet)
@@ -279,7 +241,7 @@ func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 	startNode := &pathNode{
 		coord: start,
 		g:     0,
-		h:     heuristic(start, goal, maxSpeed),
+		h:     estimate(start),
 		index: -1,
 	}
 	startNode.f = startNode.g + startNode.h
@@ -363,7 +325,7 @@ func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 			if !visited {
 				neighborNode = &pathNode{
 					coord: neighbor,
-					h:     heuristic(neighbor, goal, maxSpeed),
+					h:     estimate(neighbor),
 					index: -1, // Not in the open set yet
 				}
 				nodeMap[neighbor] = neighborNode

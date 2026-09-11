@@ -56,7 +56,7 @@ func (s *System) FindTilePath(start, goal tilemap.TileCoord) []tilemap.TileCoord
 		return occupied
 	}
 
-	path := pathfinding.FindPath(s.Terrain, startCoord, goalCoord, isOccupied, s.MaxPathExpansions)
+	path := pathfinding.FindPath(s.Terrain, startCoord, goalCoord, isOccupied, s.MaxPathExpansions, s.Heuristic)
 	if path == nil {
 		return nil
 	}

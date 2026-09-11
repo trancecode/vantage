@@ -170,6 +170,17 @@ along the road; half-speed forest gives 2.0; a pool that blocks the cell gives
 infinity. Taking the cheapest crossing rather than a median is what keeps a
 3-tile road visible inside a 32-tile cell.
 
+A cell that straddles the edge of a finite map is measured over its in-bounds
+part only, since its out-of-bounds tiles are unwalkable and would otherwise
+leave no tile of the last column or row to reach. West to east, the search
+starts from the walkable tiles of the first column holding an in-bounds tile,
+stops at the first tile of the last such column it closes, and divides by the
+distance between those two columns rather than by `CellSize - 1`; north to
+south likewise with rows. When only one column (or row) is in bounds, the rate
+is the inverse of the highest speed among the cell's walkable tiles, and
+infinite when none is walkable. A cell entirely in bounds is measured exactly
+as above, so edgeless maps are unaffected.
+
 ### The coarse search
 
 Each search runs its own coarse search over cell centres, from the goal toward
@@ -257,6 +268,14 @@ built cells covering 107 to 540 extra 64-tile chunks, and a 256-cell budget stil
 touched 82 to 138. No budget keeps a cold 2,000-tile journey to a few tens of
 chunks while still improving it; the cost is paid once per region, since cells
 are cached and warm journeys read no new ground.
+
+The default stays game-agnostic: on an in-memory map a cell costs only its own
+Dijkstra searches, and the materialization cost belongs to the game, which picks
+its own `CellBudget` after measuring on its real terrain. The additive route to
+removing that cost is a game-supplied per-cell cost source, answering a cell's
+rates from knowledge the game already has (such as a world graph of roads)
+without reading tiles. It is out of v0.1.21, and the field reads cells through
+one internal seam that such a source would replace.
 
 ### Variants measured and rejected
 

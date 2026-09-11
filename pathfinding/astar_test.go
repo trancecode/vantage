@@ -75,7 +75,7 @@ func TestFindPathStraightLine(t *testing.T) {
 	// Test horizontal path
 	start := Coord{0, 5}
 	goal := Coord{5, 5}
-	path := FindPath(terrain, start, goal, nil, testMaxExpansions)
+	path := FindPath(terrain, start, goal, nil, testMaxExpansions, nil)
 
 	require.NotNil(t, path)
 	assert.Equal(t, 6, len(path)) // Start + 4 intermediate + goal
@@ -103,7 +103,7 @@ func TestFindPathDiagonal(t *testing.T) {
 	// Test diagonal path
 	start := Coord{0, 0}
 	goal := Coord{3, 3}
-	path := FindPath(terrain, start, goal, nil, testMaxExpansions)
+	path := FindPath(terrain, start, goal, nil, testMaxExpansions, nil)
 
 	require.NotNil(t, path)
 	assert.Equal(t, 4, len(path)) // Optimal diagonal path
@@ -136,7 +136,7 @@ func TestFindPathObstacles(t *testing.T) {
 	// Test path that must go around the wall
 	start := Coord{0, 5}
 	goal := Coord{8, 5}
-	path := FindPath(terrain, start, goal, nil, testMaxExpansions)
+	path := FindPath(terrain, start, goal, nil, testMaxExpansions, nil)
 
 	require.NotNil(t, path)
 	assert.Equal(t, start, path[0])
@@ -174,7 +174,7 @@ func TestFindPathNoPath(t *testing.T) {
 	// Test path from outside to inside the island
 	start := Coord{0, 0}
 	goal := Coord{5, 5}
-	path := FindPath(terrain, start, goal, nil, testMaxExpansions)
+	path := FindPath(terrain, start, goal, nil, testMaxExpansions, nil)
 
 	assert.Nil(t, path, "Should return nil when no path exists")
 }
@@ -198,7 +198,7 @@ func TestFindPathDiagonalCornerCutting(t *testing.T) {
 	// Test diagonal movement that would cut through the corner
 	start := Coord{4, 4}
 	goal := Coord{6, 6}
-	path := FindPath(terrain, start, goal, nil, testMaxExpansions)
+	path := FindPath(terrain, start, goal, nil, testMaxExpansions, nil)
 
 	require.NotNil(t, path)
 
@@ -238,7 +238,7 @@ func TestFindPathWithOccupancy(t *testing.T) {
 	// Test path that must go around occupied tiles
 	start := Coord{0, 5}
 	goal := Coord{9, 5}
-	path := FindPath(terrain, start, goal, isOccupied, testMaxExpansions)
+	path := FindPath(terrain, start, goal, isOccupied, testMaxExpansions, nil)
 
 	require.NotNil(t, path)
 
@@ -273,7 +273,7 @@ func TestFindPathTerrainSpeed(t *testing.T) {
 	// Test that pathfinding prefers the faster route
 	start := Coord{0, 1}
 	goal := Coord{4, 1}
-	path := FindPath(terrain, start, goal, nil, testMaxExpansions)
+	path := FindPath(terrain, start, goal, nil, testMaxExpansions, nil)
 
 	require.NotNil(t, path)
 
@@ -302,18 +302,18 @@ func TestFindPathEdgeCases(t *testing.T) {
 
 	// Test same start and goal - should return nil (no path needed)
 	start := Coord{5, 5}
-	path := FindPath(terrain, start, start, nil, testMaxExpansions)
+	path := FindPath(terrain, start, start, nil, testMaxExpansions, nil)
 	assert.Nil(t, path)
 
 	// Test out of bounds goal
 	outOfBounds := Coord{15, 15}
-	path = FindPath(terrain, start, outOfBounds, nil, testMaxExpansions)
+	path = FindPath(terrain, start, outOfBounds, nil, testMaxExpansions, nil)
 	assert.Nil(t, path)
 
 	// Test unwalkable goal
 	terrain.setWalkable(7, 7, false)
 	unwalkableGoal := Coord{7, 7}
-	path = FindPath(terrain, start, unwalkableGoal, nil, testMaxExpansions)
+	path = FindPath(terrain, start, unwalkableGoal, nil, testMaxExpansions, nil)
 	assert.Nil(t, path)
 }
 
@@ -336,7 +336,7 @@ func TestFindPathOccupiedGoal(t *testing.T) {
 
 	// Path should NOT be found because occupied tiles are not reachable
 	start := Coord{0, 0}
-	path := FindPath(terrain, start, goal, isOccupied, testMaxExpansions)
+	path := FindPath(terrain, start, goal, isOccupied, testMaxExpansions, nil)
 
 	assert.Nil(t, path, "Should not find path to occupied destination")
 }
@@ -363,7 +363,7 @@ func TestFindPathGoalRingedByOccupants(t *testing.T) {
 	}
 
 	goal := Coord{5, 5}
-	path := FindPath(terrain, Coord{0, 0}, goal, ringOccupancy(goal), testMaxExpansions)
+	path := FindPath(terrain, Coord{0, 0}, goal, ringOccupancy(goal), testMaxExpansions, nil)
 
 	assert.Nil(t, path, "Should not find path to a goal with no free approach")
 }
@@ -382,7 +382,7 @@ func TestFindPathGoalRingedButAdjacentStart(t *testing.T) {
 
 	goal := Coord{5, 5}
 	start := Coord{4, 4}
-	path := FindPath(terrain, start, goal, ringOccupancy(goal), testMaxExpansions)
+	path := FindPath(terrain, start, goal, ringOccupancy(goal), testMaxExpansions, nil)
 
 	require.NotNil(t, path)
 	assert.Equal(t, []Coord{start, goal}, path)
@@ -409,7 +409,7 @@ func TestFindPathImpassableSpeed(t *testing.T) {
 		terrain.setSpeed(5, y, 0)
 	}
 
-	path := FindPath(terrain, Coord{0, 5}, Coord{9, 5}, nil, testMaxExpansions)
+	path := FindPath(terrain, Coord{0, 5}, Coord{9, 5}, nil, testMaxExpansions, nil)
 
 	assert.Nil(t, path, "Should not cross a band of zero-speed terrain")
 }
@@ -436,11 +436,11 @@ func TestFindPathDeterministic(t *testing.T) {
 
 	start := Coord{0, 0}
 	goal := Coord{29, 29}
-	want := FindPath(terrain, start, goal, isOccupied, testMaxExpansions)
+	want := FindPath(terrain, start, goal, isOccupied, testMaxExpansions, nil)
 	require.NotNil(t, want)
 
 	for range 5 {
-		assert.Equal(t, want, FindPath(terrain, start, goal, isOccupied, testMaxExpansions))
+		assert.Equal(t, want, FindPath(terrain, start, goal, isOccupied, testMaxExpansions, nil))
 	}
 }
 
@@ -478,7 +478,7 @@ func TestFindPathBudgetExhausted(t *testing.T) {
 	terrain := unboundedTerrain{pocketCenter: goal, ringRadius: 2}
 	const budget = 1000
 
-	path, expanded := findPath(terrain, Coord{10, 10}, goal, nil, budget)
+	path, expanded := findPath(terrain, Coord{10, 10}, goal, nil, budget, nil)
 
 	assert.Nil(t, path, "Should give up on a goal sealed inside a pocket")
 	assert.Equal(t, budget, expanded, "The budget, not an emptied open set, should have stopped the search")
@@ -490,7 +490,7 @@ func TestFindPathBudgetExhausted(t *testing.T) {
 func TestFindPathAroundPocket(t *testing.T) {
 	terrain := unboundedTerrain{pocketCenter: Coord{0, 0}, ringRadius: 2}
 
-	path := FindPath(terrain, Coord{10, 10}, Coord{-10, -10}, nil, 1000)
+	path := FindPath(terrain, Coord{10, 10}, Coord{-10, -10}, nil, 1000, nil)
 
 	require.NotNil(t, path, "Should find a path around the pocket")
 	assert.Equal(t, Coord{-10, -10}, path[len(path)-1])
@@ -505,7 +505,7 @@ func TestFindPathInsidePocket(t *testing.T) {
 	goal := Coord{0, 0}
 	terrain := unboundedTerrain{pocketCenter: goal, ringRadius: 2}
 
-	path := FindPath(terrain, Coord{1, 1}, goal, nil, 1000)
+	path := FindPath(terrain, Coord{1, 1}, goal, nil, 1000, nil)
 
 	assert.Equal(t, []Coord{{1, 1}, {0, 0}}, path)
 }
@@ -520,11 +520,11 @@ func TestFindPathBudgetIsInclusive(t *testing.T) {
 	goal := Coord{20, 0}
 	const pathTiles = 21
 
-	found, expanded := findPath(terrain, start, goal, nil, pathTiles)
+	found, expanded := findPath(terrain, start, goal, nil, pathTiles, nil)
 	require.Len(t, found, pathTiles)
 	assert.Equal(t, pathTiles, expanded)
 
-	assert.Nil(t, FindPath(terrain, start, goal, nil, pathTiles-1), "One expansion short of the goal should return no path")
+	assert.Nil(t, FindPath(terrain, start, goal, nil, pathTiles-1, nil), "One expansion short of the goal should return no path")
 }
 
 // TestFindPathRequiresPositiveBudget tests that a budget that is not positive
@@ -539,18 +539,9 @@ func TestFindPathRequiresPositiveBudget(t *testing.T) {
 	}
 
 	for _, budget := range []int{0, -1} {
-		assert.Panics(t, func() { FindPath(terrain, Coord{0, 0}, Coord{2, 2}, nil, budget) }, "budget %d", budget)
+		assert.Panics(t, func() { FindPath(terrain, Coord{0, 0}, Coord{2, 2}, nil, budget, nil) }, "budget %d", budget)
 	}
 }
-
-// speedBoundedTerrain declares a fastest speed multiplier on top of any
-// TerrainProvider, which is what makes FindPath divide its heuristic by it.
-type speedBoundedTerrain struct {
-	TerrainProvider
-	maxSpeed float64
-}
-
-func (t speedBoundedTerrain) MaxSpeedMultiplier() float64 { return t.maxSpeed }
 
 // pathCost returns the movement cost the search assigns to path.
 func pathCost(terrain TerrainProvider, path []Coord) float64 {
@@ -566,10 +557,43 @@ func pathCost(terrain TerrainProvider, path []Coord) float64 {
 	return cost
 }
 
-// TestFindPathMaxSpeedTakesRoadDetour tests that a terrain declaring its
-// fastest speed gets the optimal route when that route detours onto a road off
-// the straight line, and that the undivided heuristic misses the detour.
-func TestFindPathMaxSpeedTakesRoadDetour(t *testing.T) {
+// recordingHeuristic records the start and goal of every search it served,
+// estimating with octile distance.
+type recordingHeuristic struct {
+	searches [][2]Coord
+}
+
+func (h *recordingHeuristic) ForSearch(start, goal Coord) Estimate {
+	h.searches = append(h.searches, [2]Coord{start, goal})
+	return func(tile Coord) float64 { return octile(tile, goal) }
+}
+
+// TestFindPathAsksHeuristicOncePerSearch tests that FindPath asks the
+// configured heuristic for one estimate per search it runs, with that search's
+// start and goal, and not at all for a goal it rejects without searching.
+func TestFindPathAsksHeuristicOncePerSearch(t *testing.T) {
+	terrain := newMockTerrain(10, 10)
+	for y := range 10 {
+		for x := range 10 {
+			terrain.setWalkable(x, y, true)
+		}
+	}
+	terrain.setWalkable(9, 9, false)
+	heuristic := &recordingHeuristic{}
+
+	path := FindPath(terrain, Coord{0, 0}, Coord{5, 5}, nil, testMaxExpansions, heuristic)
+	require.NotNil(t, path)
+	assert.Equal(t, [][2]Coord{{{0, 0}, {5, 5}}}, heuristic.searches)
+	assert.Equal(t, FindPath(terrain, Coord{0, 0}, Coord{5, 5}, nil, testMaxExpansions, nil), path, "An octile heuristic should route like nil")
+
+	assert.Nil(t, FindPath(terrain, Coord{0, 0}, Coord{9, 9}, nil, testMaxExpansions, heuristic))
+	assert.Len(t, heuristic.searches, 1, "A rejected goal should not reach the heuristic")
+}
+
+// TestScaledOctileTakesRoadDetour tests that ScaledOctile finds the optimal
+// route when that route detours onto a road off the straight line, and that
+// plain octile distance misses the detour.
+func TestScaledOctileTakesRoadDetour(t *testing.T) {
 	terrain := newMockTerrain(40, 12)
 	for y := range 12 {
 		for x := range 40 {
@@ -582,23 +606,23 @@ func TestFindPathMaxSpeedTakesRoadDetour(t *testing.T) {
 	start := Coord{0, 8}
 	goal := Coord{39, 8}
 
-	direct := FindPath(terrain, start, goal, nil, testMaxExpansions)
-	scaled := FindPath(speedBoundedTerrain{TerrainProvider: terrain, maxSpeed: 2.0}, start, goal, nil, testMaxExpansions)
-	// Dividing by an enormous speed leaves no heuristic to speak of, which
+	direct := FindPath(terrain, start, goal, nil, testMaxExpansions, nil)
+	scaled := FindPath(terrain, start, goal, nil, testMaxExpansions, ScaledOctile{MaxSpeed: 2.0})
+	// Dividing by an enormous speed leaves no estimate to speak of, which
 	// turns the search into Dijkstra's: exhaustive and certainly optimal.
-	exhaustive := FindPath(speedBoundedTerrain{TerrainProvider: terrain, maxSpeed: 1e12}, start, goal, nil, testMaxExpansions)
+	exhaustive := FindPath(terrain, start, goal, nil, testMaxExpansions, ScaledOctile{MaxSpeed: 1e12})
 	require.NotNil(t, direct)
 	require.NotNil(t, scaled)
 	require.NotNil(t, exhaustive)
 
-	assert.InDelta(t, 39.0, pathCost(terrain, direct), 1e-9, "The undivided heuristic should walk the straight line")
-	assert.InDelta(t, pathCost(terrain, exhaustive), pathCost(terrain, scaled), 1e-9, "The divided heuristic should find the optimal route")
+	assert.InDelta(t, 39.0, pathCost(terrain, direct), 1e-9, "Octile distance should walk the straight line")
+	assert.InDelta(t, pathCost(terrain, exhaustive), pathCost(terrain, scaled), 1e-9, "ScaledOctile should find the optimal route")
 	assert.Less(t, pathCost(terrain, scaled), pathCost(terrain, direct), "The optimal route should use the road")
 }
 
-// TestFindPathRequiresPositiveMaxSpeed tests that a declared fastest speed that
-// is not positive is a programming error rather than a heuristic to divide by.
-func TestFindPathRequiresPositiveMaxSpeed(t *testing.T) {
+// TestScaledOctileRequiresPositiveMaxSpeed tests that a fastest speed that is
+// not positive is a programming error rather than a speed to divide by.
+func TestScaledOctileRequiresPositiveMaxSpeed(t *testing.T) {
 	terrain := newMockTerrain(3, 3)
 	for y := range 3 {
 		for x := range 3 {
@@ -607,7 +631,7 @@ func TestFindPathRequiresPositiveMaxSpeed(t *testing.T) {
 	}
 
 	for _, maxSpeed := range []float64{0, -1, math.NaN()} {
-		bounded := speedBoundedTerrain{TerrainProvider: terrain, maxSpeed: maxSpeed}
-		assert.Panics(t, func() { FindPath(bounded, Coord{0, 0}, Coord{2, 2}, nil, testMaxExpansions) }, "max speed %v", maxSpeed)
+		heuristic := ScaledOctile{MaxSpeed: maxSpeed}
+		assert.Panics(t, func() { FindPath(terrain, Coord{0, 0}, Coord{2, 2}, nil, testMaxExpansions, heuristic) }, "max speed %v", maxSpeed)
 	}
 }

@@ -27,7 +27,7 @@ the most important invariant to preserve when extending the engine.
 | `easing` | Easing curves (`Curve`, `Apply`) for shaping interpolated progress | — |
 | `config` | Layered configuration loader (`Loader`, `Duration`) | — |
 | `asset` | Engine-bundled assets (default fonts), embedded | — |
-| `pathfinding` | A* search with terrain awareness | — |
+| `pathfinding` | A* search with terrain awareness and pluggable heuristics (octile, ScaledOctile, CoarseCost) | — |
 | `tilemap` | Tile coordinates, `SpatialGrid` (range queries), `TileOccupancyManager` | `geometry`, `ecs` |
 | `sim` | Deterministic event scheduling: `Driver`, `EventQueue`, `Event`, `TickSystem`, `EventHandler` | `util`, `ecs` |
 | `motion` | Movement components (`Spatial`, `Movement`) and `System` (a tick system) | `geometry`, `easing`, `pathfinding`, `tilemap`, `ecs` |
