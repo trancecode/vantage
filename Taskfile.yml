@@ -78,6 +78,26 @@ tasks:
     cmds:
       - ./scripts/check-headless-packages.sh
 
+  bench:
+    desc: Run the benchmark suite under a virtual display
+    summary: |
+      Runs every benchmark, or the ones PKG and BENCH select, under xvfb-run so
+      the draw throughput benchmark in render/drawbench has a display.
+      BENCHTIME sets -benchtime, for example 1x for a smoke run. See
+      docs/performance_limits.md for what each benchmark measures and the
+      recorded results.
+
+        task bench
+        task bench PKG=./tilemap/
+        task bench PKG=./tilemap/ BENCH=GetRange
+        task bench BENCHTIME=1x
+    vars:
+      PKG: '{{.PKG | default "./..."}}'
+      BENCH: '{{.BENCH | default "."}}'
+      BENCHTIME: '{{.BENCHTIME | default "1s"}}'
+    cmds:
+      - xvfb-run -a go test -run '^$' -bench '{{.BENCH}}' -benchtime '{{.BENCHTIME}}' -timeout 60m {{.PKG}}
+
   lint:
     desc: Run linters and helper checks
     summary: |

@@ -327,6 +327,31 @@ render.Log.PrintProfiler(profiler)        // one overlay line per phase
 `render.ScreenLogger.PrintProfiler` renders a snapshot on the debug overlay:
 name, total, average, and call count per phase.
 
+## Benchmarks
+
+`task bench` runs the benchmark suite under a virtual display, so the draw
+throughput benchmark has a display without opening a window:
+
+```bash
+task bench                                  # the whole suite
+task bench PKG=./tilemap/                   # one package
+task bench PKG=./tilemap/ BENCH=GetRange    # one benchmark
+task bench BENCHTIME=1x                     # counts and a smoke run
+```
+
+`PKG` defaults to `./...`, `BENCH` to `.` and `BENCHTIME` to `1s`. What each
+benchmark measures, and the recorded limits, are in
+[performance_limits.md](performance_limits.md).
+
+`render/drawbench` occasionally crashes inside Ebitengine's game loop under
+the virtual display, with the panic "clock: lastNow must be older than n" or a
+segmentation fault. The crash is in the game loop, not in the benchmark's
+fixture checks, so re-running the package is the remedy:
+
+```bash
+task bench PKG=./render/drawbench/
+```
+
 ## Debug HTTP server
 
 `util.StartDebugHTTPServer(port, debugMode)` serves pprof and expvar endpoints
