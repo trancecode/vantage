@@ -327,6 +327,22 @@ render.Log.PrintProfiler(profiler)        // one overlay line per phase
 `render.ScreenLogger.PrintProfiler` renders a snapshot on the debug overlay:
 name, total, average, and call count per phase.
 
+## Benchmarks
+
+`task bench` runs the benchmark suite under a virtual display, so the draw
+throughput benchmark has a display without opening a window:
+
+```bash
+task bench                                  # the whole suite
+task bench PKG=./tilemap/                   # one package
+task bench PKG=./tilemap/ BENCH=GetRange    # one benchmark
+task bench BENCHTIME=1x                     # counts and a smoke run
+```
+
+`PKG` defaults to `./...`, `BENCH` to `.` and `BENCHTIME` to `1s`. What each
+benchmark measures, and the recorded limits, are in
+[performance_limits.md](performance_limits.md).
+
 ## Debug HTTP server
 
 `util.StartDebugHTTPServer(port, debugMode)` serves pprof and expvar endpoints

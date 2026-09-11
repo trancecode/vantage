@@ -40,13 +40,17 @@ path; revisit if diffing large golden sets becomes slow.
 interface is `any`-based. Each `Add` boxes the element into an interface and
 each `Next` boxes the popped value on the way out, so a pop-and-reschedule cycle
 costs 2 allocations. Benchmarks (`sim_eventqueue_bench_test.go`) measure a
-steady-state pop+insert at ~156 ns (100 queued) rising to ~280 ns (100k queued),
-each with 2 allocs/op. A generics-native heap — hand-written sift-up/sift-down
-over the `[]T` backing slice instead of `container/heap` — would remove both
-allocations and the per-operation interface dispatch, at the cost of ~30 extra
-lines. Left as-is because the scheduler is not alloc-bound at realistic event
-rates (100k events/sec is ~3 MB/s of tiny, short-lived garbage); revisit if the
-event queue shows up in allocation profiles under load.
+steady-state pop+insert at ~167 ns (100 queued) rising to ~341 ns (100k queued),
+each with 2 allocs/op and 48 B/op. `BenchmarkDriverRunUntil` shows the same
+2 allocations and 48 B per event dispatched through `sim.Driver`, at 249.7 ns
+per event for 1,000 events per beat rising to 302.4 ns for 100,000 (see
+[performance_limits.md](performance_limits.md#event-dispatch)). A
+generics-native heap (hand-written sift-up/sift-down over the `[]T` backing
+slice instead of `container/heap`) would remove both allocations and the
+per-operation interface dispatch, at the cost of ~30 extra lines. Left as-is
+because the scheduler is not alloc-bound at realistic event rates (100,000
+events per beat is 4.8 MB per beat of tiny, short-lived garbage); revisit if
+the event queue shows up in allocation profiles under load.
 
 ## Event queue Reschedule/Cancel index (sim/sim_eventqueue.go)
 
@@ -163,6 +167,37 @@ If range queries show up hot in a profile, keep each cell as an EntityId-sorted
 slice instead of a set (insert/remove become O(cell size), queries become an
 ordered merge with no final sort), which also shrinks per-cell memory.
 
+The result slice also starts empty and grows by appending, so allocations per
+query grow with the entities found. `BenchmarkSpatialGridGetRange` measures, at
+cell size 1, 3 allocations for a query returning 3 entities (density 0.01,
+radius 4, 1,773 ns) rising to 18 for one returning 8,385 (density 0.5,
+radius 64, 2,225,697 ns and 259,321 B/op). Summing the visited cells' sizes
+before collecting would allow one allocation per query, and a caller-supplied
+buffer none. See
+[performance_limits.md](performance_limits.md#range-queries) for the full
+curve.
+
+## SpatialGrid cell sets on the movement tick (tilemap/tilemap_grid.go)
+
+`SpatialGrid.AddEntity` allocates a new set for a cell that has none, and
+`RemoveEntity` deletes the entity from its cell's set but keeps the emptied set
+in the grid's map. As bodies travel onto ground nobody occupied, every crossing
+into a new cell allocates a set, and the map keeps every cell ever entered.
+`BenchmarkSystemTick` measures constant-speed ticks at 3, 74 and 1,995
+allocations for 1,000, 10,000 and 100,000 moving entities, and eased ticks at
+0, 12 and 3,391. An allocation profile of the 100,000-entity constant-speed row
+attributes all of the tick's allocations to `AddEntity`, reached through
+`UpdateEntityPosition`. A CPU profile of the 100,000-entity eased row
+(22,095,325 ns per tick, 221.0 ns per entity against 88.1 ns at 10,000)
+attributes most of the tick to the grid's map operations in
+`UpdateEntityPosition` rather than to the easing; the benchmark does not
+isolate why that cost grows faster than the population. Reusing emptied sets
+would remove most of the allocations, and deleting a cell once its set is empty
+would keep the map to occupied cells. Left as-is because 100,000 constant-speed
+bodies tick in 7,219,110 ns, inside a frame; revisit for large eased
+populations, or for worlds where bodies roam over new ground for long periods.
+See [performance_limits.md](performance_limits.md#movement-tick).
+
 ## Tile ratio and screen multiplier computed per draw (render/render_sprite.go, render/render_camera.go)
 
 `Sprite.TileRatio` (`TileSize / SourceTileSize`) and `Camera.screenMultiplier`
@@ -179,6 +214,23 @@ Left as a per-call division because it is cheap relative to the surrounding
 draw call; revisit only if profiling shows either division hot, and only with
 an invalidation scheme that still reacts to a `TileSize` change after
 construction.
+
+## DrawList ordering sort (render/render_drawlist.go)
+
+`DrawList.Each` orders its entries with `sort.SliceStable`, which the standard
+library documents as O(n log n) comparisons and O(n log² n) swaps, and whose
+swaps go through a reflection-based swapper. `BenchmarkDrawListOrdering`
+measures one frame's ordering at 336.3 ns per drawable for 1,000 drawables
+(336,255 ns), 641.2 ns for 10,000 (6,412,156 ns) and 1,019.3 ns for 100,000
+(101,930,232 ns, about six frames). The cost per drawable triples over a
+hundredfold count, where an O(n log n) sort's would grow about 1.67 times
+(log 100,000 / log 1,000, derived). `slices.SortStableFunc` runs the same
+insertion-sort-and-merge algorithm without the reflection-based swapper, and
+carrying an insertion sequence number in each entry as the final tie-break
+would let `slices.SortFunc`, an O(n log n) unstable sort, keep insertion order
+for equal keys. Left as-is because 10,000 drawables order in 6,412,156 ns,
+inside a frame; revisit if a scene orders tens of thousands of drawables per
+frame. See [performance_limits.md](performance_limits.md#draw-ordering).
 
 ## Auto-crop startup scan cost (render/render_spriteautocrop.go)
 
