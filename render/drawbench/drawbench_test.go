@@ -59,13 +59,20 @@ func hash(i int, salt uint64) uint64 {
 	return h
 }
 
-// positions returns count hashed positions inside the canvas.
-func positions(count int, salt uint64) []geometry.Vector2 {
+// positions returns count hashed world positions, in tiles, whose pixels under
+// camera cover the canvas. It fails when a position's pixel falls off the canvas,
+// so a camera or tile size that stops matching the canvas cannot silently draw
+// off-screen.
+func positions(camera *render.Camera, count int, salt uint64) ([]geometry.Vector2, error) {
 	out := make([]geometry.Vector2, count)
 	for i := range count {
-		out[i] = geometry.NewVector2(float64(hash(i, salt)%canvasWidth), float64(hash(i, salt+1)%canvasHeight))
+		p := geometry.NewVector2(float64(hash(i, salt)%canvasWidth)/render.TileSize, float64(hash(i, salt+1)%canvasHeight)/render.TileSize)
+		if pixel := camera.WorldToScreen(p); pixel.X() < 0 || pixel.X() >= canvasWidth || pixel.Y() < 0 || pixel.Y() >= canvasHeight {
+			return nil, fmt.Errorf("position %d at %v tiles maps to pixel %v, off the %dx%d canvas", i, p, pixel, canvasWidth, canvasHeight)
+		}
+		out[i] = p
 	}
-	return out
+	return out, nil
 }
 
 // countLabel renders a count as the metric suffix spells it: 100, 1k, 50k.
@@ -76,21 +83,27 @@ func countLabel(count int) string {
 	return fmt.Sprintf("%d", count)
 }
 
-// buildCases returns every case in the order the benchmark runs them. It creates
-// images, so it runs inside the game loop.
-func buildCases() []drawCase {
+// buildCases returns every case in the order the benchmark runs them, drawing
+// through a screen camera with world zero at the canvas's top-left corner. It
+// creates images, so it runs inside the game loop.
+func buildCases() ([]drawCase, error) {
 	img := ebiten.NewImage(spritePixels, spritePixels)
 	img.Fill(color.White)
 	sprite := render.NewSprite()
 	sprite.AddImage(render.AnimationDefault, img)
 	camera := render.NewScreenCamera(canvasWidth, canvasHeight)
+	camera.SetZeroAsTopLeft()
 	label := render.NewTextWriter().Text("label")
 
 	var cases []drawCase
 	for _, count := range []int{100, 1_000, 10_000, 50_000} {
-		at := positions(count, 1)
+		name := "sprites-" + countLabel(count)
+		at, err := positions(camera, count, 1)
+		if err != nil {
+			return nil, fmt.Errorf("placing %s: %w", name, err)
+		}
 		cases = append(cases, drawCase{
-			name: "sprites-" + countLabel(count),
+			name: name,
 			draw: func(screen *ebiten.Image) {
 				for _, p := range at {
 					sprite.Draw(screen, camera, p, render.AnimationDefault)
@@ -99,9 +112,13 @@ func buildCases() []drawCase {
 		})
 	}
 	for _, count := range []int{10, 100, 1_000} {
-		at := positions(count, 3)
+		name := "labels-" + countLabel(count)
+		at, err := positions(camera, count, 3)
+		if err != nil {
+			return nil, fmt.Errorf("placing %s: %w", name, err)
+		}
 		cases = append(cases, drawCase{
-			name: "labels-" + countLabel(count),
+			name: name,
 			draw: func(screen *ebiten.Image) {
 				for _, p := range at {
 					label.Draw(screen, camera, p)
@@ -109,7 +126,7 @@ func buildCases() []drawCase {
 			},
 		})
 	}
-	return cases
+	return cases, nil
 }
 
 // throughputGame draws each case for warmupFrames and then measuredFrames
@@ -129,7 +146,11 @@ type throughputGame struct {
 // has been measured.
 func (g *throughputGame) Update() error {
 	if g.cases == nil {
-		g.cases = buildCases()
+		cases, err := buildCases()
+		if err != nil {
+			return fmt.Errorf("building the draw cases: %w", err)
+		}
+		g.cases = cases
 	}
 	if g.current >= len(g.cases) {
 		return ebiten.Termination
@@ -162,8 +183,10 @@ func (g *throughputGame) Layout(int, int) (int, int) {
 	return canvasWidth, canvasHeight
 }
 
-// gameRun holds the one game loop's outcome, shared by every call to the
-// benchmark in this process.
+// gameRun runs the game loop once per process, and gameResults, gameNames and
+// gameErr hold its outcome: each case's mean frame time and metric name, in the
+// order the cases ran, and the error RunGame returned. Every call to the
+// benchmark in this process shares them.
 var (
 	gameRun     sync.Once
 	gameResults []time.Duration
@@ -174,9 +197,16 @@ var (
 // BenchmarkDrawThroughput measures one frame's wall time drawing a synthetic
 // 16-pixel sprite 100, 1,000, 10,000 and 50,000 times, and a short text label
 // 10, 100 and 1,000 times, at hashed positions on a 1280x720 canvas, with vsync
-// off. It reports ms-per-frame-<case>/op for each case. The game loop runs once
-// per process, the first time the benchmark is called; later calls report the
-// same results, so b.N and -benchtime do not change what it measures.
+// off. Positions are in tiles, under a camera with world zero at the canvas's
+// top-left corner, and every drawable's top-left pixel lies on the canvas, which
+// the benchmark checks before drawing; the drawables are mostly on-canvas, since
+// those placed within a sprite or a label's width of the right or bottom edge are
+// clipped there.
+//
+// It reports ms-per-frame-<case>/op for each case, and no ns/op, since its timed
+// loop does no work. The game loop runs once per process, the first time the
+// benchmark is called; later calls report the same results, so b.N and
+// -benchtime do not change what it measures.
 func BenchmarkDrawThroughput(b *testing.B) {
 	gameRun.Do(func() {
 		ebiten.SetWindowSize(canvasWidth, canvasHeight)
@@ -198,6 +228,7 @@ func BenchmarkDrawThroughput(b *testing.B) {
 
 	for b.Loop() {
 	}
+	b.ReportMetric(0, "ns/op")
 	for i, name := range gameNames {
 		b.ReportMetric(float64(gameResults[i].Microseconds())/1000, "ms-per-frame-"+name+"/op")
 	}
