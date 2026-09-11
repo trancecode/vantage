@@ -177,7 +177,7 @@ own that contains only test files, `render/drawbench`, as `render/pixeltest`
 does, and runs under a virtual display (`xvfb-run -a`).
 
 * `BenchmarkDrawThroughput` runs one `RunGame` with vsync off. Inside the loop it
-  steps through each count, draws that many copies of a synthetic 16-tile sprite
+  steps through each count, draws that many copies of a synthetic 16-pixel sprite
   (or text labels) at hashed positions every frame for a fixed number of frames,
   and records the mean frame time. It reports one metric per count
   (`ms-per-frame-sprites-1k/op` and so on). It ignores `b.N` beyond the first

@@ -213,8 +213,8 @@ go tool pprof -sample_index=alloc_objects -focus 'System\)\.Tick' -top motion.te
 
 attributes 498,211 of the 1,108,090 objects allocated under `Tick` to
 `insertMissing`, reached through `MoveEntity` from the benchmark's `OnArrival`,
-and the other 598,368 to `SpatialGrid.AddEntity` through
-`UpdateEntityPosition`. The profile covers the 900 warm-up ticks as well as the
+598,368 to `SpatialGrid.AddEntity` through `UpdateEntityPosition`, and 11,511 in
+`Tick` itself. The profile covers the 900 warm-up ticks as well as the
 300 timed ones, so it does not split the timed ticks' 425 allocs/op between
 the two. Taking the pointer only on the paths that return it would let the
 immediate re-add allocate nothing. Left as-is because the change belongs in

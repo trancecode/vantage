@@ -116,7 +116,7 @@ measured per-op cost: the budget divided by ns/op, rounded down.
 | Range queries, cell size 4 (best or tied at density 0.1) | Query half-width 4 to 64 tiles, density 0.1, one query | all measured | all measured | all measured | At radius 64: 3 queries per ms, 65 per frame, 6 per tick at 10x. [Range queries](#range-queries) |
 | Index maintenance | Population 1,000 to 100,000, one move | all measured | all measured | all measured | At 100,000: 2,595 moves per ms, 43,342 per frame, 4,334 per tick at 10x. [Index maintenance](#index-maintenance) |
 | Reservation churn | Occupied tiles 1,000 to 100,000, one reservation move | all measured | all measured | all measured | At 100,000: 8,688 per ms, 145,091 per frame, 14,509 per tick at 10x. [Reservation churn](#reservation-churn) |
-| Movement tick (linear) | Moving entities 1,000 to 100,000, one tick | 10,000 | all measured | 10,000 | 16.477 ms at 100,000, within the run-to-run spread of the frame. Eased moves: the same crossing points, 13.734 ms at 100,000. [Movement tick](#movement-tick) |
+| Movement tick (linear) | Moving entities 1,000 to 100,000, one tick | 10,000 | all measured | 10,000 | 16.477 ms at 100,000, within the run-to-run spread of the frame. Eased moves: the same crossing points, 13.734 ms at 100,000, also within the run-to-run spread of the frame. [Movement tick](#movement-tick) |
 | Movement decisions | Journey 8 to 128 tiles, one decision | all measured | all measured (frame and beat) | all measured (tick and beat) | At 128 tiles: 5 per ms, 84 per frame, 8 per tick at 10x, 5,052 per beat, 505 per beat at 10x. [Movement decisions](#movement-decisions) |
 | Event dispatch | Events per beat 1,000 to 100,000 | 1,000 | all measured | all measured | 30.244 ms at 100,000, 302.4 ns per event. [Event dispatch](#event-dispatch) |
 | Draw ordering | Drawables 1,000 to 100,000 | 1,000 | 10,000 | n/a | 101.930 ms at 100,000. [Draw ordering](#draw-ordering) |
@@ -314,8 +314,9 @@ Linear moves: 10,000 entities is the largest measured count that fits 1 ms
 at 16.477 ms fits it by less than the run-to-run spread, so treat 100,000 as
 the frame's edge. Eased moves: 10,000 entities is the largest measured count
 that fits 1 ms (0.655 ms) and a tick at 10x; all measured counts fit the
-frame, 100,000 at 13.734 ms. At each count, linear and eased moves differ by
-less than the run-to-run spread.
+frame, but 100,000 at 13.734 ms also fits it by less than the run-to-run
+spread, so treat 100,000 as the frame's edge here too. At each count, linear
+and eased moves differ by less than the run-to-run spread.
 
 The cost per entity grows 2.92 times from 1,000 to 100,000 entities for linear
 moves and 3.10 times for eased moves (derived). Allocations per tick track the
@@ -368,13 +369,12 @@ Quadrupling the journey multiplies the cost by 3.89 from 8 to 32 tiles and by
 4.03 from 32 to 128 tiles (derived), in proportion to the journey. Between area
 radii, bytes and allocations per decision grow with the radius, from 17,480 B
 and 130 allocations at radius 1 to 27,416 B and 156 at radius 8. The times are
-less settled: radii 1 and 4 are within the run-to-run spread of each other, and
-while the recorded run puts radius 8 at 68,267 ns against 41,133 ns at radius
-1, the five repeated runs in [Machine and how to re-run](#machine-and-how-to-re-run)
-took 51,499 to 63,291 ns at radius 8 and 42,507 to 51,321 ns at radius 1, so
-radius 8 costs more, by less than the recorded run suggests. Longer journeys
-and other heuristics are measured by pathfinding; see
-[Pathfinding](#pathfinding).
+less settled: the recorded run puts radius 8 at 68,267 ns against 41,133 ns at
+radius 1, but the five repeated runs in
+[Machine and how to re-run](#machine-and-how-to-re-run) took 51,499 to 63,291 ns
+at radius 8 and 42,507 to 51,321 ns at radius 1, so the times at radii 1, 4 and
+8 are within the run-to-run spread of each other. Longer journeys and other
+heuristics are measured by pathfinding; see [Pathfinding](#pathfinding).
 
 ## Event dispatch
 
