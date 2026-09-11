@@ -12,8 +12,9 @@ import (
 // between neighbouring tiles costs route quality, never correctness: the
 // search still reads walkability, step costs and occupancy from the terrain.
 type Heuristic interface {
-	// ForSearch returns the estimate for one search from start to goal.
-	// FindPath calls it once per search that runs, after the goal rejections
+	// ForSearch returns the estimate for one search from start to goal. A
+	// strategy may ignore start: ScaledOctile does, while CoarseCost uses it to
+	// focus its coarse search. FindPath calls it once per search that runs, after the goal rejections
 	// that need no search. The returned Estimate may keep per-search state and
 	// is used by that search only.
 	ForSearch(start, goal Coord) Estimate

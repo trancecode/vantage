@@ -67,7 +67,8 @@ type System struct {
 
 	// Heuristic supplies the estimate every A* search the System runs orders
 	// its work by. Nil is octile distance, exact on open ground at speed 1.0;
-	// see pathfinding.Heuristic for the strategies and what they cost.
+	// see the pathfinding package documentation for the strategies and what
+	// they cost.
 	Heuristic pathfinding.Heuristic
 
 	// OnArrival, when non-nil, is called for each entity that reaches its

@@ -110,6 +110,19 @@ on Reaches ground. A reused scratch buffer and a typed heap would cut the build
 cost, which matters only for cold searches, since a warm `CoarseCost` never
 rebuilds a cell it has already built.
 
+A search with `CoarseCost` pays a fixed overhead even on a short hop: it builds
+its goal cell and the cells of the tiles it estimates from, and allocates its
+per-search maps; onto new ground, a short hop builds a few cells.
+
+One known worst case is a cell that can be crossed one way but that no coarse
+edge reaches, for example a cell with one infinite rate whose neighbours block
+the other axis. The uncrossable-cell shortcut in `coarseSearch.value` does not
+catch it, so one value request for such a cell runs the coarse search until it
+has settled `CellBudget` cells. A guard that treats a cell whose eight coarse
+edges are all infinite like an uncrossable one would bound that, at the price
+of building its eight neighbour cells on every such request. It is left undone
+because pools shaped like round blobs rarely produce such cells.
+
 Each search allocates its own coarse-search cost and closed maps, even though
 many agents converging on one destination run the same coarse search from
 scratch. A small per-goal cache of settled cell values would let those searches

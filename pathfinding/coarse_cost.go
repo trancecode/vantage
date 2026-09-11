@@ -277,22 +277,32 @@ func (s *coarseSearch) estimate(tile Coord) float64 {
 	fy -= math.Floor(fy)
 	weights := [4]float64{(1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy}
 
+	cells := s.surrounding(tile)
+	var values [4]float64
+	var usable [4]bool
 	sum, weight := 0.0, 0.0
-	cheapest := math.Inf(1)
-	for i, cell := range s.surrounding(tile) {
+	for i, cell := range cells {
 		value, ok := s.value(cell)
 		if !ok || math.IsInf(value, 1) {
 			continue
 		}
+		values[i], usable[i] = value, true
 		sum += weights[i] * value
 		weight += weights[i]
-		centerX, centerY := s.field.center(cell)
-		cheapest = math.Min(cheapest, localCost(x, y, centerX, centerY, rates)+value)
 	}
 
-	estimate := cheapest
+	estimate := math.Inf(1)
 	if weight > 0 {
 		estimate = sum / weight
+	}
+	if weight == 0 {
+		for i, cell := range cells {
+			if !usable[i] {
+				continue
+			}
+			centerX, centerY := s.field.center(cell)
+			estimate = math.Min(estimate, localCost(x, y, centerX, centerY, rates)+values[i])
+		}
 	}
 	if max(here.X-s.goalCell.X, s.goalCell.X-here.X) <= 1 && max(here.Y-s.goalCell.Y, s.goalCell.Y-here.Y) <= 1 {
 		estimate = math.Min(estimate, localCost(x, y, float64(s.goal.X), float64(s.goal.Y), rates))
