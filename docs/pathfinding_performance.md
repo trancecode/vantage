@@ -163,8 +163,10 @@ go test ./pathfinding/ -run '^$' -bench BenchmarkFindPathHeuristics -benchtime 1
 go test ./pathfinding/ -run '^$' -bench BenchmarkCoarseCost
 ```
 
-The Reaches journeys take seconds per case; narrow to one map with a pattern
-such as `-bench 'BenchmarkFindPathHeuristics/reaches/cardinal'`.
+The Reaches and shore journeys take seconds per case, and their uncapped
+2,000-tile searches ran a 16 GB machine out of memory when every case shared
+one process. Narrow to one map and length per process with a pattern such as
+`-bench 'BenchmarkFindPathHeuristics/reaches/cardinal/length=2000$'`.
 
 Expansions are counted with no budget in the way, so the count is what a
 search needs to reach the goal; "fits 100k" says whether that count is at most
