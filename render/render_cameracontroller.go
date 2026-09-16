@@ -66,21 +66,43 @@ func (cc *CameraController) HandleInput() {
 		cc.mmbPressed = false
 	}
 
-	// Accumulate zoom from wheel and Q/E into a single delta, clamped once,
-	// matching the original single-clamp-per-frame behavior.
-	zoomDelta := 0.0
-	if _, wheelY := ebiten.Wheel(); wheelY != 0 {
-		zoomDelta += wheelY * cc.ZoomSpeed
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyQ) {
+	_, wheelY := ebiten.Wheel()
+	cc.applyZoomInput(wheelY, ebiten.IsKeyPressed(ebiten.KeyQ), ebiten.IsKeyPressed(ebiten.KeyE))
+}
+
+// applyZoomInput accumulates one frame's zoom input, the wheel's vertical
+// scroll and whether Q (zoom out) and E (zoom in) are held, into a single
+// delta, clamped once, and zooms by it about the screen centre.
+func (cc *CameraController) applyZoomInput(wheelY float64, zoomOut, zoomIn bool) {
+	zoomDelta := wheelY * cc.ZoomSpeed
+	if zoomOut {
 		zoomDelta -= cc.ZoomSpeed
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyE) {
+	if zoomIn {
 		zoomDelta += cc.ZoomSpeed
 	}
 	if zoomDelta != 0 {
-		cc.Camera.AddZoom(zoomDelta)
+		cc.zoomBy(zoomDelta)
 	}
+}
+
+// zoomBy adjusts the camera's zoom by delta, clamped to its limits, keeping the
+// world position at the centre of the screen in place. The camera keeps its
+// position in screen pixels, and the world position at the screen centre is
+// -position / (TileSize * EffectiveZoom), so a zoom change alone would scale the
+// view about world (0, 0). Multiplying the position by after / before, the
+// ratio of the new effective zoom to the old, keeps that quotient, and so the
+// centre, unchanged. A step the clamp absorbs leaves the position untouched.
+func (cc *CameraController) zoomBy(delta float64) {
+	c := cc.Camera
+	before := c.EffectiveZoom()
+	c.AddZoom(delta)
+	after := c.EffectiveZoom()
+	if after == before {
+		return
+	}
+	scale := after / before
+	c.SetPosition(geometry.NewVector2(c.Position().X()*scale, c.Position().Y()*scale))
 }
 
 // CursorWorldPosition returns the OS cursor position converted to world

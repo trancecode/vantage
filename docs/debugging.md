@@ -106,8 +106,9 @@ engine logs a warning rather than leaving a blank screen unexplained.
 Camera controls, from `render.CameraController`:
 
 * `W` / `A` / `S` / `D` pan.
-* `Q` / `E` zoom out and in.
-* The mouse wheel also zooms, alongside `Q` / `E`.
+* `Q` / `E` zoom out and in, keeping whatever is at the centre of the screen
+  in place.
+* The mouse wheel also zooms, alongside `Q` / `E`, the same way.
 * Dragging with the middle mouse button pans.
 
 The labels keep a fixed pixel size and stay visible however far you zoom in.

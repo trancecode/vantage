@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/trancecode/vantage/geometry"
@@ -114,5 +115,107 @@ func TestScreenCameraIgnoresTileSize(t *testing.T) {
 	}
 	if before != 1 {
 		t.Fatalf("screen camera EffectiveZoom = %v, want 1", before)
+	}
+}
+
+// cameraCentredOn returns an 800x600 camera whose screen centre shows the world
+// position centre.
+func cameraCentredOn(centre geometry.Vector2) *Camera {
+	c := NewCamera(800, 600)
+	zoom := c.EffectiveZoom()
+	c.SetPosition(geometry.NewVector2(-centre.X()*TileSize*zoom, -centre.Y()*TileSize*zoom))
+	return c
+}
+
+// screenCentreWorld returns the world position at the centre of the camera's
+// screen.
+func screenCentreWorld(c *Camera) geometry.Vector2 {
+	return c.ScreenToWorld(geometry.NewVector2(float64(c.ScreenWidth())/2, float64(c.ScreenHeight())/2))
+}
+
+// requireWorldNear fails the test unless got is within 1e-9 of want on both
+// axes.
+func requireWorldNear(t *testing.T, want, got geometry.Vector2, context string) {
+	t.Helper()
+	const eps = 1e-9
+	dx, dy := got.X()-want.X(), got.Y()-want.Y()
+	if dx > eps || dx < -eps || dy > eps || dy < -eps {
+		t.Fatalf("%s: screen centre = (%v, %v), want (%v, %v)", context, got.X(), got.Y(), want.X(), want.Y())
+	}
+}
+
+// TestCameraControllerZoomKeepsScreenCentre tests that zooming through the
+// controller keeps the world position at the screen centre in place, far from
+// the world origin, zooming in and out.
+func TestCameraControllerZoomKeepsScreenCentre(t *testing.T) {
+	centre := geometry.NewVector2(9000, -4200)
+	cc := NewCameraController(cameraCentredOn(centre))
+
+	for _, delta := range []float64{0.1, 0.1, 0.3, -0.5, -0.4, 0.2} {
+		cc.zoomBy(delta)
+		requireWorldNear(t, centre, screenCentreWorld(cc.Camera), fmt.Sprintf("after zooming by %v to %v", delta, cc.Camera.Zoom()))
+	}
+}
+
+// TestCameraControllerZoomKeepsAPannedScreenCentre tests that a zoom after a pan
+// in the same frame keeps the panned view's centre, since HandleInput pans
+// before it zooms.
+func TestCameraControllerZoomKeepsAPannedScreenCentre(t *testing.T) {
+	cc := NewCameraController(cameraCentredOn(geometry.NewVector2(9000, -4200)))
+	cc.Camera.Move(geometry.NewVector2(-37, 12))
+	centre := screenCentreWorld(cc.Camera)
+
+	cc.zoomBy(0.3)
+
+	requireWorldNear(t, centre, screenCentreWorld(cc.Camera), "after panning then zooming")
+}
+
+// TestCameraControllerZoomAtALimitLeavesThePositionAlone tests that a zoom step
+// the camera clamps away changes neither the zoom nor the position.
+func TestCameraControllerZoomAtALimitLeavesThePositionAlone(t *testing.T) {
+	for _, limit := range []struct {
+		name  string
+		delta float64
+		zoom  func(*Camera) float64
+	}{
+		{"max", 0.1, (*Camera).MaxZoom},
+		{"min", -0.1, (*Camera).MinZoom},
+	} {
+		c := cameraCentredOn(geometry.NewVector2(9000, -4200))
+		c.SetZoom(limit.zoom(c))
+		position := c.Position()
+		cc := NewCameraController(c)
+
+		cc.zoomBy(limit.delta)
+
+		if c.Zoom() != limit.zoom(c) || c.Position() != position {
+			t.Fatalf("zooming past the %s limit: zoom %v position %v, want zoom %v position %v", limit.name, c.Zoom(), c.Position(), limit.zoom(c), position)
+		}
+	}
+}
+
+// TestCameraControllerZoomInputKeepsScreenCentre tests that one frame's zoom
+// input, wheel and Q/E alike, zooms about the screen centre: it is the path
+// HandleInput forwards real input to.
+func TestCameraControllerZoomInputKeepsScreenCentre(t *testing.T) {
+	centre := geometry.NewVector2(9000, -4200)
+	cc := NewCameraController(cameraCentredOn(centre))
+
+	for _, input := range []struct {
+		name            string
+		wheelY          float64
+		zoomOut, zoomIn bool
+	}{
+		{"wheel up", 1, false, false},
+		{"E held", 0, false, true},
+		{"Q held", 0, true, false},
+		{"wheel down with E held", -2, false, true},
+	} {
+		zoom := cc.Camera.Zoom()
+		cc.applyZoomInput(input.wheelY, input.zoomOut, input.zoomIn)
+		if cc.Camera.Zoom() == zoom {
+			t.Fatalf("%s: zoom stayed at %v", input.name, zoom)
+		}
+		requireWorldNear(t, centre, screenCentreWorld(cc.Camera), input.name)
 	}
 }
