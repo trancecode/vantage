@@ -95,14 +95,18 @@ func (c *Camera) Zoom() float64 {
 // normalization factor so that a given user zoom frames the same number of
 // tiles on any resolution.
 func (c *Camera) EffectiveZoom() float64 {
-	return c.zoom * c.screenMultiplier()
+	return c.zoom * c.ScreenMultiplier()
 }
 
-// screenMultiplier normalizes zoom across screen sizes, so a camera shows
-// defaultVerticalTileCount tiles vertically at a user zoom of 1. It is computed
-// on demand rather than stored, so a tile size configured after the camera was
-// built still applies.
-func (c *Camera) screenMultiplier() float64 {
+// ScreenMultiplier returns the screen-size normalization factor that converts
+// a pixel-space distance into screen pixels at a user zoom of 1, so that a
+// camera shows defaultVerticalTileCount tiles vertically at that zoom whatever
+// the resolution. EffectiveZoom is this multiplied by the user zoom; a caller
+// wanting a distance that stays constant on screen at every zoom, rather than
+// constant in the world, scales by this instead. It is computed on demand
+// rather than stored, so a tile size configured after the camera was built
+// still applies.
+func (c *Camera) ScreenMultiplier() float64 {
 	if c.fixedScreenMultiplier != 0 {
 		return c.fixedScreenMultiplier
 	}
@@ -117,6 +121,29 @@ func (c *Camera) MinZoom() float64 {
 // MaxZoom returns the maximum user-level zoom the camera clamps to.
 func (c *Camera) MaxZoom() float64 {
 	return c.maxZoom
+}
+
+// SetZoomLimits sets the user-level zoom range the camera clamps to, and
+// clamps the current zoom into the new range. A game showing far more or far
+// less of its world than the engine's default 0.2 to 5 widens the range here;
+// a world thousands of tiles across needs a floor well below 0.2 to frame any
+// useful part of it. It panics on a non-positive minimum or a maximum below
+// the minimum, since a zoom of zero collapses the world-to-screen transform
+// and an inverted range has no value to clamp to.
+//
+// The tests are negated rather than written the direct way round because every
+// ordered comparison against NaN is false: a NaN limit would pass `min <= 0`
+// and `max < min` and then silently disable the clamp it was stored as.
+func (c *Camera) SetZoomLimits(min, max float64) {
+	if !(min > 0) {
+		panic(fmt.Sprintf("camera minimum zoom must be positive, got %v", min))
+	}
+	if !(max >= min) {
+		panic(fmt.Sprintf("camera maximum zoom %v is below the minimum %v", max, min))
+	}
+	c.minZoom = min
+	c.maxZoom = max
+	c.clampZoom()
 }
 
 // SetZoom sets the camera's zoom level, clamped to the camera's limits.

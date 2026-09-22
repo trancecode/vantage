@@ -223,10 +223,10 @@ on arriving bodies show up in a game's profile.
 
 ## Tile ratio and screen multiplier computed per draw (render/render_sprite.go, render/render_camera.go)
 
-`Sprite.TileRatio` (`TileSize / SourceTileSize`) and `Camera.screenMultiplier`
+`Sprite.TileRatio` (`TileSize / SourceTileSize`) and `Camera.ScreenMultiplier`
 (`screenHeight / (defaultVerticalTileCount * TileSize)`) are both divisions
 recomputed on every call, `TileRatio` inside `buildDrawOp` on every sprite draw
-and `screenMultiplier` inside `EffectiveZoom` on every camera use, rather than
+and `ScreenMultiplier` inside `EffectiveZoom` on every camera use, rather than
 being cached on the `Sprite`/`Camera` or constant-folded at build time. This is
 deliberate, not an oversight: `TileSize` is a `var`, read where used rather
 than captured, specifically so that a game changing it after sprites and

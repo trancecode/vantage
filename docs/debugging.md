@@ -105,10 +105,18 @@ engine logs a warning rather than leaving a blank screen unexplained.
 
 Camera controls, from `render.CameraController`:
 
-* `W` / `A` / `S` / `D` pan.
+* `W` / `A` / `S` / `D` pan, at a constant speed on screen: `move_speed` is in
+  pixel-space units per frame at a zoom of 1 (`tile_size` of them to a tile),
+  and the view covers the same fraction of the screen per frame however far it
+  is zoomed out.
 * `Q` / `E` zoom out and in, keeping whatever is at the centre of the screen
   in place.
 * The mouse wheel also zooms, alongside `Q` / `E`, the same way.
+* Zoom steps are multiplicative: `zoom_speed` of `0.1` means one step
+  multiplies or divides the zoom by `1.1`, so a step is the same relative
+  change at every level and a handful of steps crosses a wide zoom range. A
+  game whose world needs one sets its own range with `Camera.SetZoomLimits`;
+  the engine default is `0.2` to `5`.
 * Dragging with the middle mouse button pans.
 
 The labels keep a fixed pixel size and stay visible however far you zoom in.

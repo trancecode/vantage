@@ -42,7 +42,12 @@ type WindowSettings struct {
 // engine does not consume these directly; a game applies them to its
 // CameraController.
 type CameraSettings struct {
+	// MoveSpeed is the keyboard pan speed in pixel-space units per frame at a
+	// zoom of 1, held constant in screen pixels at every zoom.
 	MoveSpeed float64 `toml:"move_speed"`
+
+	// ZoomSpeed is the relative zoom change per input step: 0.1 multiplies or
+	// divides the zoom by 1.1 per step.
 	ZoomSpeed float64 `toml:"zoom_speed"`
 }
 

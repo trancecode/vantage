@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/trancecode/vantage/geometry"
@@ -151,9 +152,9 @@ func TestCameraControllerZoomKeepsScreenCentre(t *testing.T) {
 	centre := geometry.NewVector2(9000, -4200)
 	cc := NewCameraController(cameraCentredOn(centre))
 
-	for _, delta := range []float64{0.1, 0.1, 0.3, -0.5, -0.4, 0.2} {
-		cc.zoomBy(delta)
-		requireWorldNear(t, centre, screenCentreWorld(cc.Camera), fmt.Sprintf("after zooming by %v to %v", delta, cc.Camera.Zoom()))
+	for _, factor := range []float64{1.1, 1.1, 1.5, 0.5, 0.6, 1.2} {
+		cc.zoomBy(factor)
+		requireWorldNear(t, centre, screenCentreWorld(cc.Camera), fmt.Sprintf("after zooming by a factor of %v to %v", factor, cc.Camera.Zoom()))
 	}
 }
 
@@ -165,7 +166,7 @@ func TestCameraControllerZoomKeepsAPannedScreenCentre(t *testing.T) {
 	cc.Camera.Move(geometry.NewVector2(-37, 12))
 	centre := screenCentreWorld(cc.Camera)
 
-	cc.zoomBy(0.3)
+	cc.zoomBy(1.3)
 
 	requireWorldNear(t, centre, screenCentreWorld(cc.Camera), "after panning then zooming")
 }
@@ -174,19 +175,19 @@ func TestCameraControllerZoomKeepsAPannedScreenCentre(t *testing.T) {
 // the camera clamps away changes neither the zoom nor the position.
 func TestCameraControllerZoomAtALimitLeavesThePositionAlone(t *testing.T) {
 	for _, limit := range []struct {
-		name  string
-		delta float64
-		zoom  func(*Camera) float64
+		name   string
+		factor float64
+		zoom   func(*Camera) float64
 	}{
-		{"max", 0.1, (*Camera).MaxZoom},
-		{"min", -0.1, (*Camera).MinZoom},
+		{"max", 1.1, (*Camera).MaxZoom},
+		{"min", 1 / 1.1, (*Camera).MinZoom},
 	} {
 		c := cameraCentredOn(geometry.NewVector2(9000, -4200))
 		c.SetZoom(limit.zoom(c))
 		position := c.Position()
 		cc := NewCameraController(c)
 
-		cc.zoomBy(limit.delta)
+		cc.zoomBy(limit.factor)
 
 		if c.Zoom() != limit.zoom(c) || c.Position() != position {
 			t.Fatalf("zooming past the %s limit: zoom %v position %v, want zoom %v position %v", limit.name, c.Zoom(), c.Position(), limit.zoom(c), position)
@@ -217,5 +218,159 @@ func TestCameraControllerZoomInputKeepsScreenCentre(t *testing.T) {
 			t.Fatalf("%s: zoom stayed at %v", input.name, zoom)
 		}
 		requireWorldNear(t, centre, screenCentreWorld(cc.Camera), input.name)
+	}
+}
+
+// TestSetZoomLimitsWidensTheReachableRange tests that a game can set a zoom
+// floor below the engine default and then actually reach it.
+func TestSetZoomLimitsWidensTheReachableRange(t *testing.T) {
+	c := NewCamera(800, 600)
+	c.SetZoomLimits(0.02, 20)
+
+	if c.MinZoom() != 0.02 || c.MaxZoom() != 20 {
+		t.Fatalf("limits = %v to %v, want 0.02 to 20", c.MinZoom(), c.MaxZoom())
+	}
+	c.SetZoom(0.02)
+	if c.Zoom() != 0.02 {
+		t.Fatalf("zoom = %v at the new floor, want 0.02", c.Zoom())
+	}
+	c.SetZoom(0.001)
+	if c.Zoom() != 0.02 {
+		t.Fatalf("zoom = %v below the new floor, want it clamped to 0.02", c.Zoom())
+	}
+}
+
+// TestSetZoomLimitsClampsTheCurrentZoom tests that narrowing the range around a
+// camera already outside it brings the camera back in.
+func TestSetZoomLimitsClampsTheCurrentZoom(t *testing.T) {
+	c := NewCamera(800, 600)
+	c.SetZoom(3)
+
+	c.SetZoomLimits(0.02, 0.5)
+
+	if c.Zoom() != 0.5 {
+		t.Fatalf("zoom = %v after the range moved below it, want 0.5", c.Zoom())
+	}
+}
+
+// TestSetZoomLimitsRejectsAnInvalidRange tests that a range with no value to
+// clamp to, or one admitting a zoom of zero, panics rather than leaving the
+// camera with a transform that collapses the world.
+func TestSetZoomLimitsRejectsAnInvalidRange(t *testing.T) {
+	for _, limits := range []struct {
+		name     string
+		min, max float64
+	}{
+		{"zero minimum", 0, 5},
+		{"negative minimum", -1, 5},
+		{"maximum below minimum", 2, 1},
+		// A NaN limit passes every ordered comparison, so it would be stored
+		// and then silently disable the clamp on that side.
+		{"NaN minimum", math.NaN(), 5},
+		{"NaN maximum", 0.02, math.NaN()},
+	} {
+		t.Run(limits.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("SetZoomLimits(%v, %v) did not panic", limits.min, limits.max)
+				}
+			}()
+			NewCamera(800, 600).SetZoomLimits(limits.min, limits.max)
+		})
+	}
+}
+
+// TestPanSpeedIsConstantInScreenPixelsAtEveryZoom tests that a frame of
+// keyboard panning moves the view by the same number of screen pixels however
+// far the camera is zoomed out, so a wide view does not crawl.
+func TestPanSpeedIsConstantInScreenPixelsAtEveryZoom(t *testing.T) {
+	pan := func(zoom float64) geometry.Vector2 {
+		c := NewCamera(800, 600)
+		c.SetZoomLimits(0.02, 5)
+		c.SetZoom(zoom)
+		before := c.Position()
+		NewCameraController(c).applyPanInput(false, true, false, true)
+		return c.Position().Sub(before)
+	}
+
+	atOne := pan(1)
+	if atOne == geometry.Zero2D() {
+		t.Fatal("panning at zoom 1 moved the camera nowhere")
+	}
+	for _, zoom := range []float64{0.02, 0.5, 5} {
+		if got := pan(zoom); got != atOne {
+			t.Fatalf("pan at zoom %v moved by (%v, %v), want (%v, %v) as at zoom 1", zoom, got.X(), got.Y(), atOne.X(), atOne.Y())
+		}
+	}
+}
+
+// TestZoomInputStepsAreMultiplicative tests that one input step changes the
+// zoom by a constant ratio rather than a constant amount, in both directions.
+func TestZoomInputStepsAreMultiplicative(t *testing.T) {
+	cc := NewCameraController(NewCamera(800, 600))
+	cc.Camera.SetZoomLimits(0.02, 5)
+
+	for _, step := range []struct {
+		name  string
+		wheel float64
+		want  float64
+	}{
+		{"one step in", 1, 1.1},
+		{"a second step in", 1, 1.1 * 1.1},
+		{"two steps out", -2, 1},
+	} {
+		cc.applyZoomInput(step.wheel, false, false)
+		if diff := cc.Camera.Zoom() - step.want; diff > 1e-9 || diff < -1e-9 {
+			t.Fatalf("%s: zoom = %v, want %v", step.name, cc.Camera.Zoom(), step.want)
+		}
+	}
+}
+
+// TestZoomInputReachesAWidenedFloor tests that multiplicative steps cross the
+// orders of magnitude between the default framing and a continent-wide view,
+// which additive steps of ZoomSpeed could never do.
+func TestZoomInputReachesAWidenedFloor(t *testing.T) {
+	cc := NewCameraController(NewCamera(800, 600))
+	cc.Camera.SetZoomLimits(0.02, 5)
+
+	for range 100 {
+		cc.applyZoomInput(0, true, false)
+	}
+
+	if cc.Camera.Zoom() != cc.Camera.MinZoom() {
+		t.Fatalf("zoom = %v after 100 zoom-out steps, want the floor %v", cc.Camera.Zoom(), cc.Camera.MinZoom())
+	}
+}
+
+// TestZoomInputRejectsAStepBaseThatIsNotPositive tests that a ZoomSpeed which
+// would make a step multiply by a non-positive base is refused. Raising such a
+// base to the fractional step count a trackpad produces gives NaN, and a NaN
+// zoom passes every clamp comparison, so it would stick silently.
+func TestZoomInputRejectsAStepBaseThatIsNotPositive(t *testing.T) {
+	for _, zoomSpeed := range []float64{-1, -2, math.NaN()} {
+		t.Run(fmt.Sprintf("ZoomSpeed %v", zoomSpeed), func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("a ZoomSpeed of %v did not panic", zoomSpeed)
+				}
+			}()
+			cc := NewCameraController(NewCamera(800, 600))
+			cc.ZoomSpeed = zoomSpeed
+			cc.applyZoomInput(0.5, false, false)
+		})
+	}
+}
+
+// TestZoomInputHandlesAFractionalWheelStep tests that a trackpad's fractional
+// scroll zooms by a fractional power of the step base rather than a whole
+// notch.
+func TestZoomInputHandlesAFractionalWheelStep(t *testing.T) {
+	cc := NewCameraController(NewCamera(800, 600))
+
+	cc.applyZoomInput(0.5, false, false)
+
+	want := math.Pow(1.1, 0.5)
+	if diff := cc.Camera.Zoom() - want; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("zoom = %v after half a wheel step, want %v", cc.Camera.Zoom(), want)
 	}
 }
