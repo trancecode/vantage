@@ -59,3 +59,23 @@ func TestFaderNewKeyStartsOpaqueAndEndFrameForgets(t *testing.T) {
 		t.Fatalf("forgotten key: got %v, want 1", got)
 	}
 }
+
+func TestFaderStructLiteralEasesLikeNewFader(t *testing.T) {
+	// A struct-literal Fader should work and produce the same results as NewFader.
+	literal := &Fader[int]{FadedOpacity: 0.35, Duration: 200 * time.Millisecond}
+	fromNew := NewFader[int](0.35, 200*time.Millisecond)
+
+	// Both should handle the first call (100ms occluding) identically.
+	literalStep1 := literal.Opacity(1, true, 100*time.Millisecond)
+	newStep1 := fromNew.Opacity(1, true, 100*time.Millisecond)
+	if !near(literalStep1, newStep1) {
+		t.Errorf("step 1 (literal): got %v, want %v", literalStep1, newStep1)
+	}
+
+	// Both should handle the second call (another 100ms occluding) identically.
+	literalStep2 := literal.Opacity(1, true, 100*time.Millisecond)
+	newStep2 := fromNew.Opacity(1, true, 100*time.Millisecond)
+	if !near(literalStep2, newStep2) {
+		t.Errorf("step 2 (literal): got %v, want %v", literalStep2, newStep2)
+	}
+}

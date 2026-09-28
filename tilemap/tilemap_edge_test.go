@@ -46,6 +46,15 @@ func TestQuarterEdgeShapeUncoveredTileIsNone(t *testing.T) {
 	}
 }
 
+func TestQuarterOffsetPanicsForQuarterNone(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Quarter.Offset should panic for QuarterNone, but did not")
+		}
+	}()
+	QuarterNone.Offset()
+}
+
 // TestQuarterEdgeShapeReadsOnlyItsThreeNeighbours checks, over all 256
 // neighbourhoods, that a quarter's shape depends only on the neighbours on its
 // own side: flipping any other neighbour never changes it.

@@ -17,7 +17,9 @@ func Occludes(occluder geometry.Rectangle, occluderBase float64, subject geometr
 
 // Fader eases the opacity of keyed drawables between opaque and a faded
 // opacity, one step per call, so an occluder fades out smoothly while it hides
-// something and back in once clear. It is display state only.
+// something and back in once clear. It is display state only. A struct literal
+// such as &Fader[int]{FadedOpacity: 0.35, Duration: 200*time.Millisecond} is
+// usable and works the same as a value from NewFader.
 type Fader[K comparable] struct {
 	// FadedOpacity is the opacity an occluding drawable eases to, in [0, 1].
 	FadedOpacity float64
@@ -38,6 +40,12 @@ func NewFader[K comparable](fadedOpacity float64, duration time.Duration) *Fader
 // is true and towards 1 otherwise, and returns it. A key seen for the first
 // time starts opaque.
 func (f *Fader[K]) Opacity(key K, occluding bool, elapsed time.Duration) float64 {
+	if f.opacity == nil {
+		f.opacity = make(map[K]float64)
+	}
+	if f.seen == nil {
+		f.seen = make(map[K]bool)
+	}
 	f.seen[key] = true
 	current, ok := f.opacity[key]
 	if !ok {
