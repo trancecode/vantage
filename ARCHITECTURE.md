@@ -31,7 +31,7 @@ the most important invariant to preserve when extending the engine.
 | `tilemap` | Tile coordinates, `SpatialGrid` (range queries), `TileOccupancyManager` | `geometry`, `ecs` |
 | `sim` | Deterministic event scheduling: `Driver`, `EventQueue`, `Event`, `TickSystem`, `EventHandler` | `util`, `ecs` |
 | `motion` | Movement components (`Spatial`, `Movement`) and `System` (a tick system) | `geometry`, `easing`, `pathfinding`, `tilemap`, `ecs` |
-| `render` | Graphics layer: camera, sprites, sprite library, text, tile scaling, `ScreenLogger` | `asset`, `geometry`, `util` |
+| `render` | Graphics layer: camera, sprites, sprite library, text, tile scaling, occluder fading (`Occludes`, `Fader`), `ScreenLogger` | `asset`, `geometry`, `util` |
 | `ui` | Interactive user-interface components | `asset` |
 | `scene` | `Scene` interface, the `Manager` that drives scenes, and the sprite showcase (`cmd/showcasedemo` runs it on placeholder art) | `render`, `ui`, `geometry` |
 | `app` | Top-level `App` (implements `ebiten.Game`), window, scene selection, screenshots | `config`, `render`, `scene`, `util` |

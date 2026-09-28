@@ -33,6 +33,13 @@ func (r Rectangle) Height() float64 {
 	return r.Max.Y() - r.Min.Y()
 }
 
+// Overlaps reports whether r and o share any area. Rectangles that only touch
+// along an edge do not overlap.
+func (r Rectangle) Overlaps(o Rectangle) bool {
+	return r.Min.X() < o.Max.X() && o.Min.X() < r.Max.X() &&
+		r.Min.Y() < o.Max.Y() && o.Min.Y() < r.Max.Y()
+}
+
 func (r Rectangle) String() string {
 	return fmt.Sprintf("(%v, %v)", r.Min, r.Max)
 }

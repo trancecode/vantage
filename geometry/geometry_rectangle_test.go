@@ -41,3 +41,25 @@ func TestRandomPointInRectangleReproducibleAcrossSaveReload(t *testing.T) {
 		t.Fatalf("point drawn after save/reload = %v, want %v (sequence diverged)", got, want)
 	}
 }
+
+func TestRectangleOverlaps(t *testing.T) {
+	a := NewRectangleFromPoints(0.0, 0.0, 10.0, 10.0)
+	cases := []struct {
+		name string
+		b    Rectangle
+		want bool
+	}{
+		{"inside", NewRectangleFromPoints(2.0, 2.0, 4.0, 4.0), true},
+		{"crossing an edge", NewRectangleFromPoints(8.0, 8.0, 12.0, 12.0), true},
+		{"touching an edge only", NewRectangleFromPoints(10.0, 0.0, 12.0, 10.0), false},
+		{"apart", NewRectangleFromPoints(20.0, 20.0, 30.0, 30.0), false},
+	}
+	for _, c := range cases {
+		if got := a.Overlaps(c.b); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+		if got := c.b.Overlaps(a); got != c.want {
+			t.Errorf("%s (reversed): got %v, want %v", c.name, got, c.want)
+		}
+	}
+}

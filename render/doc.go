@@ -33,6 +33,13 @@
 // selects how sprites are resampled when drawn at anything other than their
 // native size, defaulting to nearest so pixel art stays crisp.
 //
+// Occludes reports whether a drawable occludes another based on their
+// rectangles and base positions; Fader eases each drawable's opacity towards
+// a faded value while it occludes and back to opaque once clear, managing the
+// display state as drawables move and change occlusion. DrawList collects
+// drawable payloads and iterates them in painter's order (ascending layer,
+// then ascending Y) for back-to-front 2D drawing.
+//
 // ScreenLogger draws the debug overlay, with the package-level Log as the
 // shared instance; it lives here rather than in util so that util and the
 // simulation packages above it stay free of any graphics dependency.
