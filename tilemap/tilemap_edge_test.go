@@ -51,7 +51,7 @@ func TestQuarterEdgeShapeUncoveredTileIsNone(t *testing.T) {
 // own side: flipping any other neighbour never changes it.
 func TestQuarterEdgeShapeReadsOnlyItsThreeNeighbours(t *testing.T) {
 	offsets := [8][2]int{{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}}
-	for mask := 0; mask < 256; mask++ {
+	for mask := range 256 {
 		covered := func(m int) func(x, y int) bool {
 			return func(x, y int) bool {
 				if x == 0 && y == 0 {
