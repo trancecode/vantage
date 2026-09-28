@@ -12,4 +12,8 @@
 // type. Terrain adapts a TileGrid to pathfinding.TerrainProvider through a
 // game-supplied speed function, so a game's tile types plug into pathfinding
 // and motion without engine knowledge of them.
+//
+// QuarterEdgeShape tells which piece of an overlay's edge art each quarter of
+// a covered tile shows, enabling games to assemble ground overlays from
+// hand-drawn edge pieces.
 package tilemap
