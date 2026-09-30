@@ -307,6 +307,14 @@ escape hatch needs no further engine work: precompute the crop boxes offline
 and call `LoadSpriteAnimations` directly with the resulting `AnimationSpec`
 map, skipping `LoadSpriteAutoCropped`'s scan entirely.
 
+## Auto-crop atlas duplicates reused cells (render/render_spriteautocrop.go)
+
+`autoCropAtlas` packs a cell once per reference, so a cell listed twice in one
+animation, or shared by two animations, is stored twice in the atlas.
+Deduplicating placements by source cell would save that memory. It is not
+implemented because the published sheets do not reuse cells; that is not
+measured.
+
 ## Sprite showcase per-frame redraw cost
 
 `scene.SpriteShowcaseScene.Draw` rebuilds the whole cell list every frame

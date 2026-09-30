@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"image"
 	"image/color"
 	"math"
 	"slices"
@@ -61,11 +62,15 @@ func showcaseSpriteLabelY() float64 { return ShowcaseSlotTiles + 0.2 }
 func showcaseAnimationLabelY() float64 { return ShowcaseSlotTiles + 0.8 }
 
 // showcaseFitScale returns the display scale that fits a sprite's art inside
-// one cell's slot, which is ShowcaseSlotTiles tiles: the largest frame
-// dimension across its animations, measured at the size the engine actually
-// draws it, divided into the slot's pixel size.
+// one cell's slot, which is ShowcaseSlotTiles tiles: the largest extent of
+// any animation, measured at the size the engine actually draws it, divided
+// into the slot's pixel size.
 //
-// The drawn size is the raw frame dimension multiplied by its
+// An animation's extent is the union, in frame space, of its frames' images
+// placed at their offsets, so frames cropped to different boxes are measured
+// by the area they sweep together, not by any one image.
+//
+// The drawn size is the raw extent dimension multiplied by its
 // render.Sprite.TileRatio. The ratio matters because the engine has already
 // applied it by the time this scene's display scale reaches the draw: a 64
 // pixel frame declaring a SourceTileSize of 64 is drawn at one 16 pixel tile,
@@ -77,7 +82,7 @@ func showcaseAnimationLabelY() float64 { return ShowcaseSlotTiles + 0.8 }
 // misrepresent it: a showcase is for judging art as it will be drawn, and an
 // upscaled 8x8 sprite is not what the game shows.
 //
-// The measurement reads only image bounds, which is metadata available without
+// The measurement reads only image bounds and offsets, which is metadata available without
 // a running game loop, so it stays testable headlessly. Sprite.VisibleBounds
 // would be a tighter measurement but scans pixels, which is not.
 //
@@ -89,13 +94,15 @@ func showcaseFitScale(sprite *render.Sprite) float64 {
 	drawnScale := sprite.TileRatio()
 	artPixels := 0.0
 	for _, animation := range sprite.Animations {
+		var extent image.Rectangle
 		for _, frame := range animation.Frames {
 			if frame.Image == nil {
 				continue
 			}
-			bounds := frame.Image.Bounds()
-			artPixels = max(artPixels, float64(max(bounds.Dx(), bounds.Dy()))*drawnScale)
+			placed := image.Rectangle{Min: frame.Offset, Max: frame.Offset.Add(frame.Image.Bounds().Size())}
+			extent = extent.Union(placed)
 		}
+		artPixels = max(artPixels, float64(max(extent.Dx(), extent.Dy()))*drawnScale)
 	}
 	if artPixels <= 0 {
 		return 1.0

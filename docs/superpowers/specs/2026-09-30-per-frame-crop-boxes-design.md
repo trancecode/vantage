@@ -150,11 +150,17 @@ performance documents that describe per-animation cropping are updated.
 
 Outside vantage:
 
-* lockstep only bumps the version. Its loader comment about `SetZeroPosition`
-  becomes obsolete and can go.
-* sprite_generation_pipeline's `harness/teamcolor.go` indexes `Images`, and
-  changes to `Frames[index].Image`.
-* nrg compiles unchanged.
+* lockstep only bumps the version; drawing is unchanged and memory drops. Its
+  loader comment in `shell/shell_sprites.go` describing per-animation crops,
+  derived per-animation anchors, and `SetZeroPosition` overwriting them is
+  stale and should be rewritten.
+* sprite_generation_pipeline's `harness/teamcolor.go` indexes `Images` and
+  duplicates the frame arithmetic; it moves to
+  `animation.FrameAt(elapsed).Image`, keeping its zero-frames guard since
+  `FrameAt` panics on an empty animation.
+* nrg's runtime code is unaffected (its LPC sprites use `AddImage`, so offsets
+  are zero), but `rts/rts_lpc_library_test.go` reads `Animations[...].Images`
+  and moves to `Frames`.
 
 ## Testing
 

@@ -705,3 +705,18 @@ func TestAddImageStoresAnUncroppedFrame(t *testing.T) {
 		t.Fatalf("AddImage frame offset = %v, want zero", got)
 	}
 }
+
+// TestSetZeroPositionDropsTheCachedVisibleTop covers the cache that is
+// measured against the anchor: moving the anchor must not leave the old
+// measurement behind.
+func TestSetZeroPositionDropsTheCachedVisibleTop(t *testing.T) {
+	s := NewSprite()
+	s.AddImage(AnimationDefault, ebiten.NewImage(4, 4))
+	s.cachedVisibleTopAboveZero[AnimationDefault] = 99
+
+	s.SetZeroPosition(geometry.NewVector2(1, 1))
+
+	if got, ok := s.cachedVisibleTopAboveZero[AnimationDefault]; ok {
+		t.Fatalf("cachedVisibleTopAboveZero still holds %v after SetZeroPosition", got)
+	}
+}

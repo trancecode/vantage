@@ -10,8 +10,8 @@ import (
 	"github.com/trancecode/vantage/geometry"
 )
 
-// UsePlaceholderSpriteImages, when true, makes Sprite.Image return a placeholder
-// for a missing animation type instead of panicking. Set by engine configuration.
+// UsePlaceholderSpriteImages, when true, makes drawing a missing animation type
+// draw nothing instead of panicking. Set by engine configuration.
 var UsePlaceholderSpriteImages bool
 
 // Sprite represents a game sprite with animations.
@@ -66,7 +66,9 @@ type Frame struct {
 
 // FrameAt returns the frame shown once elapsed has passed since the animation
 // started, looping. The frames split Duration evenly; a zero Duration holds
-// the first frame. It panics on an animation with no frames.
+// the first frame. It panics on an animation with no frames, and when Duration
+// is positive but shorter than one nanosecond per frame, since the per-frame
+// time then rounds to zero. elapsed must not be negative.
 func (a *Animation) FrameAt(elapsed time.Duration) Frame {
 	index := 0
 	if a.Duration > 0 {
@@ -92,20 +94,6 @@ func (s *Sprite) AddImage(animationType AnimationType, img *ebiten.Image) {
 		s.Animations[animationType] = &Animation{}
 	}
 	s.Animations[animationType].Frames = append(s.Animations[animationType].Frames, Frame{Image: img})
-}
-
-// Image returns the first image of the specified animation type.
-// It panics if the animation type does not exist or has no images, unless
-// UsePlaceholderSpriteImages is set, in which case it returns nil.
-func (s *Sprite) Image(animationType AnimationType) *ebiten.Image {
-	if _, ok := s.Animations[animationType]; !ok || len(s.Animations[animationType].Frames) == 0 {
-		if !UsePlaceholderSpriteImages {
-			panic(fmt.Sprintf("no such animation type: %s", animationType))
-		}
-		// TODO: return a default image
-		return nil
-	}
-	return s.Animations[animationType].Frames[0].Image
 }
 
 // HasAnimation checks if the sprite has a specific animation defined.
@@ -209,8 +197,8 @@ func (s *Sprite) DrawAnimationScaled(screen *ebiten.Image, c *Camera, p geometry
 // VisibleBounds returns the bounding rectangle of non-transparent pixels in
 // the first frame of the given animation, expressed in frame space, the same
 // coordinates as Anchor, so a hit test combines the two directly. Cached per
-// animation after first call. Returns an empty
-// rectangle if no visible content is found.
+// animation after first call. Returns an empty rectangle if no visible content
+// is found.
 //
 // The rectangle is in the source animation's own coordinates and is not
 // mirrored, so a hit test against a flipped sprite is reflected about the
@@ -386,6 +374,7 @@ func (s *Sprite) SetZeroPosition(pos geometry.Vector2) *Sprite {
 	for _, animation := range s.Animations {
 		animation.ZeroPosition = pos
 	}
+	s.cachedVisibleTopAboveZero = make(map[AnimationType]float64)
 	return s
 }
 
@@ -450,8 +439,8 @@ func sortedAnimationTypes[V any](m map[AnimationType]V) []AnimationType {
 }
 
 // LoadSpriteAnimations builds a sprite whose animations each carry their own
-// frame rectangles and offsets, anchor and duration. Frames are sub-images of img, so the
-// whole sprite costs one texture however many animations it has.
+// frame rectangles and offsets, anchor and duration. Frames are sub-images of
+// img, so the whole sprite costs one texture however many animations it has.
 //
 // Use it when a sheet is not a uniform grid, or when animations need different
 // anchors. LoadSprite is the convenience for the uniform case and is built on

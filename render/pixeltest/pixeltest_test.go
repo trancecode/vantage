@@ -65,9 +65,9 @@ const (
 //     Cell 2 is AnimationIdleRight and carries a non-square block
 //     at an off-diagonal cell-local origin: a square block at a square
 //     origin cannot distinguish an x/y transposition in the crop or the
-//     anchor rebase, so this shape can. All three cells carry real cell
+//     frame offset, so this shape can. All three cells carry real cell
 //     padding around their content, which is what a real sprite sheet looks
-//     like, and what proves the crop and rebase math correct; they are
+//     like, and what proves the crop and offset math correct; they are
 //     compared under FilterNearest unmasked, and under FilterLinear with the
 //     comparison masked to the cropped frame's own quad (see buildScenarios
 //     for why: a real, gutter-independent difference otherwise appears
@@ -134,7 +134,7 @@ func buildFixtureSheet() *image.RGBA {
 // AnimationIdleLeft and AnimationAttackLeft are not listed because neither is
 // drawn from its own cell: both are generated from their Right counterparts by
 // [render.MirroredAnimations], and scenarios draw them to exercise that flip
-// against a rebased anchor.
+// against a frame offset.
 var fixtureIndexes = map[render.AnimationType][]int{
 	render.AnimationIdleDown:    {0, 1},
 	render.AnimationIdleRight:   {2},
@@ -187,7 +187,7 @@ type scenario struct {
 // two concerns buildFixtureSheet describes:
 //
 // AnimationIdleDown (both frames), AnimationIdleRight and AnimationIdleLeft
-// exercise the crop and anchor-rebase math: an off-diagonal box, two frames of
+// exercise the crop and frame-offset math: an off-diagonal box, two frames of
 // one animation cropped to different boxes, and a mirrored flip. Under
 // FilterNearest the comparison is exact and unmasked, over the whole canvas.
 // Under FilterLinear it needs

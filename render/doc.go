@@ -18,7 +18,7 @@
 // the convenience for a uniform grid built on top of it. LoadSpriteAutoCropped
 // crops each frame to its own content, repacks the frames into a smaller image
 // before upload, and records each frame's offset in its cell so the sheet-wide
-// anchor serves every frame, so a sparse sheet costs only the video memory its
+// anchor serves every frame, and a sparse sheet costs only the video memory its
 // content actually needs. RegisterAnimationName gives an AnimationType a
 // display name for labels such as the sprite showcase's; AnimationName returns
 // it, falling back to the type's generated String with the engine's Animation

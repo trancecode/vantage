@@ -153,10 +153,10 @@ func TestAutoCropRejectsABadGrid(t *testing.T) {
 // autoCropAsymmetricTestSheet builds a 2x2 grid of 16 pixel cells where cell 0
 // carries a non-square 8x2 opaque block at a non-square, off-diagonal cell-local
 // origin of (3,7). autoCropTestSheet's blocks all sit on the diagonal with equal
-// width and height, so swapping X and Y anywhere in the crop or rebase math
+// width and height, so swapping X and Y anywhere in the crop or frame offset math
 // produces the same result and is invisible to tests built on it. This fixture's
 // block tells X and Y apart in both its origin and its shape, so a transposed
-// rebase lands on a different, wrong anchor.
+// offset lands on a different, wrong corner.
 func autoCropAsymmetricTestSheet() *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
 	fill := func(x0, y0, x1, y1 int) {

@@ -1,12 +1,15 @@
 package scene
 
 import (
+	"image"
+	"image/color"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/trancecode/vantage/geometry"
 	"github.com/trancecode/vantage/render"
 )
 
@@ -640,5 +643,41 @@ func TestShowcaseLayoutOrdersAnimationsByValueNotName(t *testing.T) {
 	if cells[0].Animation != first || cells[1].Animation != second {
 		t.Fatalf("animations ordered %v then %v, want value order %v then %v",
 			cells[0].Animation, cells[1].Animation, first, second)
+	}
+}
+
+// TestShowcaseFitScaleCoversTheFrameSpaceExtentOfAnAnimation covers an
+// auto-cropped animation whose frames sit at different offsets, such as a
+// weapon swing. Each frame is cropped to its own box and drawn at its offset,
+// so the animation sweeps the union of the boxes, which is wider than any one
+// frame image, and the scale must fit that union into the slot.
+func TestShowcaseFitScaleCoversTheFrameSpaceExtentOfAnAnimation(t *testing.T) {
+	sheet := image.NewRGBA(image.Rect(0, 0, 128, 64))
+	fill := func(r image.Rectangle) {
+		for y := r.Min.Y; y < r.Max.Y; y++ {
+			for x := r.Min.X; x < r.Max.X; x++ {
+				sheet.Set(x, y, color.RGBA{R: 255, A: 255})
+			}
+		}
+	}
+	// Cell 0 holds content at cell pixels (0,20)-(20,60); cell 1, whose
+	// pixels start at x=64, holds content at cell pixels (40,20)-(60,60).
+	fill(image.Rect(0, 20, 20, 60))
+	fill(image.Rect(64+40, 20, 64+60, 60))
+
+	sprite, err := render.LoadSpriteAutoCropped(
+		sheet, 2, 1,
+		map[render.AnimationType][]int{render.AnimationDefault: {0, 1}},
+		nil,
+		geometry.NewVector2(0, 0),
+	)
+	if err != nil {
+		t.Fatalf("LoadSpriteAutoCropped returned error: %v", err)
+	}
+
+	// The union spans x 0..60 and y 20..60, so its longest side is 60 pixels.
+	want := render.TileSize * ShowcaseSlotTiles / 60.0
+	if got := showcaseFitScale(sprite); got != want {
+		t.Fatalf("showcaseFitScale = %v, want %v", got, want)
 	}
 }
