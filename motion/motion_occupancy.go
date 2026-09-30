@@ -28,6 +28,8 @@ type Occupancy interface {
 
 var _ Occupancy = (*tilemap.TileOccupancyManager)(nil)
 
+var _ Occupancy = (*tilemap.CircleReservations)(nil)
+
 // tileLedger is the per-tile lookup the tile route helpers use to route around
 // reserved tiles. A tilemap.TileOccupancyManager provides it; an Occupancy
 // without it leaves those helpers ignoring bodies.
