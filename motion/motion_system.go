@@ -29,10 +29,14 @@ type System struct {
 	// Grid, when non-nil, is kept in sync as entities move.
 	Grid *tilemap.SpatialGrid
 
-	// Occupancy, when non-nil, tracks tile reservations: MoveEntity refuses
-	// destinations reserved by another entity and moves the reservation as
-	// the entity departs.
-	Occupancy *tilemap.TileOccupancyManager
+	// Occupancy, when non-nil, records reservations: MoveEntity refuses a
+	// destination another entity holds and moves the entity's claim as it sets
+	// off, and CancelMove settles the claim where the entity stopped. A
+	// tilemap.TileOccupancyManager reserves whole tiles, and the tile route
+	// helpers (FindTilePath and everything built on it) route around its
+	// reserved tiles. Any other Occupancy, such as tilemap.CircleReservations,
+	// is ignored by those helpers.
+	Occupancy Occupancy
 
 	// Terrain provides walkability for CanReach and the pathfinding helpers.
 	// FindTilePath, FindPathBetween, MoveEntityTowards and

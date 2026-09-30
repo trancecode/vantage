@@ -30,7 +30,7 @@ func newPathTestSystem(t *testing.T, at tilemap.TileCoord) (*System, ecsEntity) 
 	id := w.NewEntity()
 	pos := tilemap.TileToWorldPosition(at)
 	s.Spatials.Add(id, Spatial{Position: pos})
-	s.Occupancy.SetOccupant(at, id)
+	ledgerOf(s).SetOccupant(at, id)
 	return s, ecsEntity{id: id, world: w}
 }
 
@@ -185,7 +185,7 @@ func TestMoveEntityTowardsArea_SearchesNothingWhenAreaIsTaken(t *testing.T) {
 	// Reserve every tile within the radius, the crowded case the ring scan
 	// exists to handle.
 	for _, tile := range []tilemap.TileCoord{centerTile, {X: 4, Y: 5}, {X: 6, Y: 5}, {X: 5, Y: 4}, {X: 5, Y: 6}} {
-		s.Occupancy.SetOccupant(tile, e.world.NewEntity())
+		ledgerOf(s).SetOccupant(tile, e.world.NewEntity())
 	}
 	searches := countPathSearches(s)
 

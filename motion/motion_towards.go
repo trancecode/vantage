@@ -242,10 +242,10 @@ func (s *System) canEndPathOnTile(tile, originTile tilemap.TileCoord) bool {
 	if !s.Terrain.IsInBounds(tile.X, tile.Y) || !s.Terrain.IsWalkable(tile.X, tile.Y) {
 		return false
 	}
-	if s.Occupancy != nil {
+	if ledger, ok := s.ledger(); ok {
 		// Any reservation blocks the goal, including this entity's own:
 		// pathfinding routes around reserved tiles without exception.
-		if _, occupied := s.Occupancy.GetOccupant(tile); occupied {
+		if _, occupied := ledger.GetOccupant(tile); occupied {
 			return false
 		}
 	}

@@ -41,8 +41,8 @@ func TestCanReach_ChecksTerrainAndOccupancy(t *testing.T) {
 	s.MaxPathExpansions = testMaxPathExpansions
 	id := w.NewEntity()
 	other := w.NewEntity()
-	s.Occupancy.SetOccupant(tilemap.TileCoord{X: 5, Y: 5}, other)
-	s.Occupancy.SetOccupant(tilemap.TileCoord{X: 6, Y: 6}, id)
+	ledgerOf(s).SetOccupant(tilemap.TileCoord{X: 5, Y: 5}, other)
+	ledgerOf(s).SetOccupant(tilemap.TileCoord{X: 6, Y: 6}, id)
 
 	cases := []struct {
 		name string
@@ -94,7 +94,7 @@ func TestFindTilePath_AvoidsOccupiedTiles(t *testing.T) {
 	s.MaxPathExpansions = testMaxPathExpansions
 	s.Occupancy = tilemap.NewTileOccupancyManager()
 	blocker := w.NewEntity()
-	s.Occupancy.SetOccupant(tilemap.TileCoord{X: 1, Y: 0}, blocker)
+	ledgerOf(s).SetOccupant(tilemap.TileCoord{X: 1, Y: 0}, blocker)
 
 	path := s.FindTilePath(tilemap.TileCoord{X: 0, Y: 0}, tilemap.TileCoord{X: 3, Y: 0})
 

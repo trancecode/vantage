@@ -22,6 +22,11 @@ func newTestSystem() (*System, *ecs.World) {
 	return s, w
 }
 
+// ledgerOf returns the tile ledger a test installed as the System's Occupancy.
+func ledgerOf(s *System) *tilemap.TileOccupancyManager {
+	return s.Occupancy.(*tilemap.TileOccupancyManager)
+}
+
 // addMovingEntity creates an entity at pos moving toward dest at speed.
 func addMovingEntity(s *System, w *ecs.World, pos, dest geometry.Vector2, speed float64) ecs.EntityId {
 	id := w.NewEntity()

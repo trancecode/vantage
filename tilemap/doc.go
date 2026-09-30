@@ -3,7 +3,8 @@
 // TileCoord represents integer tile coordinates. WorldPositionToTile and
 // TileToWorldPosition convert between continuous world space (Vector2) and
 // discrete tile space. TileOccupancyManager tracks which entity occupies
-// each tile, used by movement and pathfinding to avoid collisions.
+// each tile, used by movement and pathfinding to avoid collisions. Its
+// Available, Claim and Stop methods let a motion.System reserve through it.
 //
 // SpatialGrid partitions the world into configurable-size cells keyed by
 // TileCoord for efficient spatial neighbor queries.

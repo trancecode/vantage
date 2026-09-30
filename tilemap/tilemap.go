@@ -61,3 +61,37 @@ func (tom *TileOccupancyManager) IsOccupied(tile TileCoord) bool {
 	_, occupied := tom.occupancy[tile]
 	return occupied
 }
+
+// Available reports whether id could claim the tile holding position: the tile
+// is unreserved or already id's.
+func (tom *TileOccupancyManager) Available(id ecs.EntityId, position geometry.Vector2) bool {
+	occupant, occupied := tom.occupancy[WorldPositionToTile(position)]
+	return !occupied || occupant == id
+}
+
+// Claim reserves the tile holding destination for id as it sets off from from,
+// and reports false, changing nothing, when another entity holds that tile.
+// The tile holding from is cleared whoever holds it, which is how a move has
+// always released its origin, so redirecting an entity mid-move strands the
+// old destination's reservation and can clear a tile the entity never held.
+func (tom *TileOccupancyManager) Claim(id ecs.EntityId, from, destination geometry.Vector2) bool {
+	if !tom.Available(id, destination) {
+		return false
+	}
+	tom.ClearOccupant(WorldPositionToTile(from))
+	tom.SetOccupant(WorldPositionToTile(destination), id)
+	return true
+}
+
+// Stop records that id halted at position on its way to destination: the
+// destination tile is released if id holds it, and the tile holding position
+// becomes id's unless another entity holds it.
+func (tom *TileOccupancyManager) Stop(id ecs.EntityId, destination, position geometry.Vector2) {
+	destinationTile := WorldPositionToTile(destination)
+	if occupant, occupied := tom.occupancy[destinationTile]; occupied && occupant == id {
+		tom.ClearOccupant(destinationTile)
+	}
+	if tom.Available(id, position) {
+		tom.SetOccupant(WorldPositionToTile(position), id)
+	}
+}

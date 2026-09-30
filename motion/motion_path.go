@@ -11,31 +11,29 @@ import (
 )
 
 // CanReachTile reports whether entityId can move onto tile: the tile must be
-// in bounds and walkable (always true when Terrain is nil) and not reserved
-// by another entity (always true when Occupancy is nil).
+// in bounds and walkable (always true when Terrain is nil) and its centre
+// available to the entity (always true when Occupancy is nil).
 func (s *System) CanReachTile(entityId ecs.EntityId, tile tilemap.TileCoord) bool {
+	return s.CanReach(entityId, tilemap.TileToWorldPosition(tile))
+}
+
+// CanReach reports whether entityId can move to destination: the tile holding
+// it must be in bounds and walkable (always true when Terrain is nil) and
+// destination available to the entity (always true when Occupancy is nil). It
+// checks only the destination, not the way there; use FindPathBetween or
+// WalkIsClear for that.
+func (s *System) CanReach(entityId ecs.EntityId, destination geometry.Vector2) bool {
+	tile := tilemap.WorldPositionToTile(destination)
 	if s.Terrain != nil && (!s.Terrain.IsInBounds(tile.X, tile.Y) || !s.Terrain.IsWalkable(tile.X, tile.Y)) {
 		return false
 	}
-	if s.Occupancy != nil {
-		if occupant, occupied := s.Occupancy.GetOccupant(tile); occupied {
-			return occupant == entityId
-		}
-	}
-	return true
-}
-
-// CanReach reports whether entityId can move onto the tile containing
-// destination. It checks only the destination tile, not the path to it; use
-// FindPathBetween for a full path check.
-func (s *System) CanReach(entityId ecs.EntityId, destination geometry.Vector2) bool {
-	return s.CanReachTile(entityId, tilemap.WorldPositionToTile(destination))
+	return s.Occupancy == nil || s.Occupancy.Available(entityId, destination)
 }
 
 // FindTilePath finds a tile path from start to goal using A* over the
-// System's Terrain, routing around tiles reserved in Occupancy. It returns
-// nil when no path exists or when the search exhausts MaxPathExpansions
-// first. Terrain and MaxPathExpansions must be set; FindTilePath panics
+// System's Terrain, routing around tiles reserved in a tile ledger Occupancy.
+// It returns nil when no path exists or when the search exhausts
+// MaxPathExpansions first. Terrain and MaxPathExpansions must be set; FindTilePath panics
 // otherwise.
 func (s *System) FindTilePath(start, goal tilemap.TileCoord) []tilemap.TileCoord {
 	if s.Terrain == nil {
@@ -48,12 +46,12 @@ func (s *System) FindTilePath(start, goal tilemap.TileCoord) []tilemap.TileCoord
 	startCoord := pathfinding.Coord{X: start.X, Y: start.Y}
 	goalCoord := pathfinding.Coord{X: goal.X, Y: goal.Y}
 
-	isOccupied := func(coord pathfinding.Coord) bool {
-		if s.Occupancy == nil {
-			return false
+	var isOccupied pathfinding.OccupancyChecker
+	if ledger, ok := s.ledger(); ok {
+		isOccupied = func(coord pathfinding.Coord) bool {
+			_, occupied := ledger.GetOccupant(tilemap.TileCoord{X: coord.X, Y: coord.Y})
+			return occupied
 		}
-		_, occupied := s.Occupancy.GetOccupant(tilemap.TileCoord{X: coord.X, Y: coord.Y})
-		return occupied
 	}
 
 	path, _ := pathfinding.FindPath(s.Terrain, startCoord, goalCoord, isOccupied, s.MaxPathExpansions, s.Heuristic)

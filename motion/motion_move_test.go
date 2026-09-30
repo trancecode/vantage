@@ -43,7 +43,7 @@ func TestMoveEntity_DestinationOccupied(t *testing.T) {
 	s.Spatials.Add(id, Spatial{Position: origin})
 	other := w.NewEntity()
 	dest := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 2, Y: 0})
-	s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(dest), other)
+	ledgerOf(s).SetOccupant(tilemap.WorldPositionToTile(dest), other)
 
 	start := s.MoveEntity(id, dest, MoveOptions{Speed: 1.0})
 
@@ -63,17 +63,17 @@ func TestMoveEntity_MovesReservation(t *testing.T) {
 	destTile := tilemap.TileCoord{X: 2, Y: 0}
 	origin := tilemap.TileToWorldPosition(originTile)
 	s.Spatials.Add(id, Spatial{Position: origin})
-	s.Occupancy.SetOccupant(originTile, id)
+	ledgerOf(s).SetOccupant(originTile, id)
 
 	start := s.MoveEntity(id, tilemap.TileToWorldPosition(destTile), MoveOptions{Speed: 1.0})
 
 	if !start.Started() {
 		t.Fatalf("expected move to start, got %+v", start)
 	}
-	if s.Occupancy.IsOccupied(originTile) {
+	if ledgerOf(s).IsOccupied(originTile) {
 		t.Error("expected origin tile reservation to be cleared")
 	}
-	occupant, occupied := s.Occupancy.GetOccupant(destTile)
+	occupant, occupied := ledgerOf(s).GetOccupant(destTile)
 	if !occupied || occupant != id {
 		t.Error("expected destination tile to be reserved by the mover")
 	}
@@ -91,7 +91,7 @@ func TestMoveEntity_AlreadyAtDestination(t *testing.T) {
 	if start.Outcome != MoveOutcomeAtDestination {
 		t.Fatalf("expected MoveOutcomeAtDestination, got %+v", start)
 	}
-	occupant, occupied := s.Occupancy.GetOccupant(tilemap.WorldPositionToTile(pos))
+	occupant, occupied := ledgerOf(s).GetOccupant(tilemap.WorldPositionToTile(pos))
 	if !occupied || occupant != id {
 		t.Error("expected entity to keep its tile reservation")
 	}

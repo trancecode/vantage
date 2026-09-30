@@ -26,7 +26,7 @@ func newDecisionSystem(start geometry.Vector2) (*System, *ecs.World, ecs.EntityI
 	id := w.NewEntity()
 	s.Spatials.Add(id, Spatial{Position: start})
 	s.Grid.AddEntity(id, start)
-	s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(start), id)
+	ledgerOf(s).SetOccupant(tilemap.WorldPositionToTile(start), id)
 	return s, w, id
 }
 
@@ -48,8 +48,8 @@ func BenchmarkMoveEntityTowards(b *testing.B) {
 				if !move.Started() {
 					b.Fatalf("journey of %d tiles, decision %d: started no move: %v", journey, attempt, move.Outcome)
 				}
-				s.Occupancy.ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
-				s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(start), id)
+				ledgerOf(s).ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
+				ledgerOf(s).SetOccupant(tilemap.WorldPositionToTile(start), id)
 			}
 
 			b.ReportAllocs()
@@ -59,8 +59,8 @@ func BenchmarkMoveEntityTowards(b *testing.B) {
 				if !move.Started() {
 					b.Fatalf("journey of %d tiles: started no move: %v", journey, move.Outcome)
 				}
-				s.Occupancy.ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
-				s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(start), id)
+				ledgerOf(s).ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
+				ledgerOf(s).SetOccupant(tilemap.WorldPositionToTile(start), id)
 			}
 		})
 	}
@@ -77,7 +77,7 @@ func reserveInnerRings(s *System, center geometry.Vector2, radius float64, occup
 		for dy := -inner; dy <= inner; dy++ {
 			tile := tilemap.TileCoord{X: centerTile.X + dx, Y: centerTile.Y + dy}
 			if tilemap.TileToWorldPosition(tile).DistanceTo(center) <= radius {
-				s.Occupancy.SetOccupant(tile, occupant)
+				ledgerOf(s).SetOccupant(tile, occupant)
 			}
 		}
 	}
@@ -117,8 +117,8 @@ func BenchmarkMoveEntityTowardsArea(b *testing.B) {
 				if !move.Started() {
 					b.Fatalf("area of radius %g, decision %d: started no move: %v", radius, attempt, move.Outcome)
 				}
-				s.Occupancy.ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
-				s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(start), id)
+				ledgerOf(s).ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
+				ledgerOf(s).SetOccupant(tilemap.WorldPositionToTile(start), id)
 			}
 
 			b.ReportAllocs()
@@ -128,8 +128,8 @@ func BenchmarkMoveEntityTowardsArea(b *testing.B) {
 				if !move.Started() {
 					b.Fatalf("area of radius %g: started no move: %v", radius, move.Outcome)
 				}
-				s.Occupancy.ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
-				s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(start), id)
+				ledgerOf(s).ClearOccupant(tilemap.WorldPositionToTile(move.Destination))
+				ledgerOf(s).SetOccupant(tilemap.WorldPositionToTile(start), id)
 			}
 		})
 	}

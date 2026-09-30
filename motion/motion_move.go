@@ -7,7 +7,6 @@ import (
 	"github.com/trancecode/ecs/ecs"
 	"github.com/trancecode/vantage/easing"
 	"github.com/trancecode/vantage/geometry"
-	"github.com/trancecode/vantage/tilemap"
 )
 
 // MoveOutcome classifies the result of trying to start a move.
@@ -87,9 +86,8 @@ type MoveOptions struct {
 
 // MoveEntity starts moving an entity toward destination under opts (average
 // speed in tiles per second, and the easing curve shaping it). When the System
-// has an Occupancy manager, the destination tile must be free (or reserved by
-// this entity); the entity's reservation moves from its current tile to the
-// destination tile as the move starts.
+// has an Occupancy, the destination must be available to the entity, and
+// Occupancy.Claim moves the entity's reservation to it as the move starts.
 //
 // The entity's facing direction is set toward the destination. The entity must
 // have a Spatial and opts.Speed must be positive; MoveEntity panics otherwise.
@@ -108,20 +106,11 @@ func (s *System) MoveEntity(id ecs.EntityId, destination geometry.Vector2, opts 
 		panic(fmt.Sprintf("moving entity %v: no Spatial component", id))
 	}
 
-	// Refuse destinations reserved by another entity.
-	if s.Occupancy != nil {
-		destTile := tilemap.WorldPositionToTile(destination)
-		if occupant, occupied := s.Occupancy.GetOccupant(destTile); occupied && occupant != id {
-			return MoveStart{Outcome: MoveOutcomeDestinationOccupied, Destination: destination}
-		}
-		s.Occupancy.ClearOccupant(tilemap.WorldPositionToTile(sc.Position))
+	if s.Occupancy != nil && !s.Occupancy.Claim(id, sc.Position, destination) {
+		return MoveStart{Outcome: MoveOutcomeDestinationOccupied, Destination: destination}
 	}
 
 	if sc.Position == destination {
-		// Keep the entity's reservation on its current tile.
-		if s.Occupancy != nil {
-			s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(destination), id)
-		}
 		return MoveStart{Outcome: MoveOutcomeAtDestination, Destination: destination}
 	}
 
@@ -139,16 +128,37 @@ func (s *System) MoveEntity(id ecs.EntityId, destination geometry.Vector2, opts 
 	mc.Total = total
 	sc.Direction = destination.Sub(sc.Position)
 
-	if s.Occupancy != nil {
-		s.Occupancy.SetOccupant(tilemap.WorldPositionToTile(destination), id)
-	}
-
 	return MoveStart{
 		Outcome:     MoveOutcomeStarted,
 		Destination: destination,
 		Distance:    distance,
 		Duration:    total,
 	}
+}
+
+// CancelMove stops id's in-flight move where the body now stands, and reports
+// whether there was one. It removes the Movement and, when the System has an
+// Occupancy, moves the entity's claim from the cancelled destination to its
+// current position through Occupancy.Stop. With no move in flight it changes
+// nothing. Cancel before displacing a body (a push, a teleport): an eased or
+// timed move would otherwise pull it back on its next tick. An entity with a
+// Movement must have a Spatial; CancelMove panics otherwise.
+func (s *System) CancelMove(id ecs.EntityId) bool {
+	mc, ok := s.Movements.Get(id)
+	if !ok {
+		return false
+	}
+	destination := mc.Destination
+	s.Movements.Remove(id)
+
+	if s.Occupancy != nil {
+		sc, ok := s.Spatials.Get(id)
+		if !ok {
+			panic(fmt.Sprintf("cancelling move of entity %v: no Spatial component", id))
+		}
+		s.Occupancy.Stop(id, destination, sc.Position)
+	}
+	return true
 }
 
 // FaceDirection sets an entity's facing direction without moving it. The
