@@ -195,7 +195,7 @@ reservations, since bodies do not route around each other. Both share one implem
 
 ### `System.FindRoute`
 
-`System.FindRoute(from, to geometry.Vector2) []geometry.Vector2` returns the points a body walks
+`System.FindRoute(from, to geometry.Vector2) ([]geometry.Vector2, bool)` returns the points a body walks
 through from `from` to `to`, in order:
 
 1. the centre of `from`'s tile, unless `from` is exactly on it;
@@ -203,7 +203,7 @@ through from `from` to `to`, in order:
 3. the centre of `to`'s tile, unless `to` is exactly on it;
 4. `to` itself.
 
-It returns nil when no route exists: `to`'s tile is not walkable, or the search found nothing
+It reports false, with a nil route, when no route exists: `to`'s tile is not walkable, or the search found nothing
 within `MaxPathExpansions`. When `from` and `to` share a tile it returns steps 1, 3 and 4 with
 the repeated centre once; when `from == to` it returns an empty slice. It uses `Terrain`,
 `MaxPathExpansions` and `Heuristic`, panics when `Terrain` or `MaxPathExpansions` is not set, as
@@ -348,4 +348,5 @@ guarantee.
 
 ## Rulings made during implementation
 
-None yet.
+1. `FindRoute` returns `([]geometry.Vector2, bool)` rather than a slice alone, so an empty route
+   (already there) and no route are told apart by `ok` rather than by nil versus empty.

@@ -36,4 +36,7 @@
 // Continuous movement lets a body stand and walk anywhere rather than hop
 // between tile centres. WalkIsClear tests whether a round body can walk
 // straight from one point to another without touching a blocked tile.
+// System.FindRoute plans a route between two arbitrary points through tile
+// centres, never cutting a blocked corner, and keeps every step between its
+// points walkable for a body of radius under 0.5.
 package motion
