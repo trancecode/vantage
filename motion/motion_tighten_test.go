@@ -1,8 +1,10 @@
 package motion
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/trancecode/vantage/geometry"
@@ -52,22 +54,13 @@ func TestTightenRoute_StopsWhereTheWallBlocksTheView(t *testing.T) {
 	if !ok || !WalkIsClear(terrain, from, got, 0.25) {
 		t.Fatalf("expected a clear leg, got %v, %v", got, ok)
 	}
-	i := slicesIndex(route, got)
+	i := slices.Index(route, got)
 	if i < 0 {
 		t.Fatalf("expected an uncapped leg to end on a route point, got %v", got)
 	}
 	if i+1 < len(route) && WalkIsClear(terrain, from, route[i+1], 0.25) {
 		t.Errorf("expected the next route point %v to be out of view", route[i+1])
 	}
-}
-
-func slicesIndex(route []geometry.Vector2, p geometry.Vector2) int {
-	for i, q := range route {
-		if q == p {
-			return i
-		}
-	}
-	return -1
 }
 
 func TestTightenRoute_ReportsFalseWhenNothingIsClear(t *testing.T) {
@@ -150,7 +143,37 @@ func TestTightenRoute_LargeBodyNeverWalksThroughAWall(t *testing.T) {
 	}
 }
 
+func TestTightenRoute_ShortLegsStillReachTheGoal(t *testing.T) {
+	terrain := &testTerrain{width: 10, height: 10}
+	s := newRouteSystem(terrain)
+	position, goal := v(1.5, 1.5), v(5.5, 5.5)
+
+	for leg := 0; position != goal; leg++ {
+		if leg > 100 {
+			t.Fatalf("no arrival at %v after 100 legs, stuck at %v", goal, position)
+		}
+		route, ok := s.FindRoute(position, goal)
+		if !ok {
+			t.Fatalf("route lost from %v", position)
+		}
+		next, ok := TightenRoute(terrain, position, route, 0.25, 0.3)
+		if !ok {
+			t.Fatalf("no leg from %v along %v", position, route)
+		}
+		position = next
+	}
+}
+
 func TestTightenRoute_WalksEveryRouteToItsEnd(t *testing.T) {
+	for _, maxLength := range []float64{0.3, 0.7, 1.0} {
+		t.Run(fmt.Sprintf("maxLength %v", maxLength), func(t *testing.T) {
+			walksEveryRouteToItsEnd(t, maxLength)
+		})
+	}
+}
+
+func walksEveryRouteToItsEnd(t *testing.T, maxLength float64) {
+	t.Helper()
 	rng := rand.New(rand.NewPCG(7, 8))
 	walks := 0
 	for trial := range 500 {
@@ -167,14 +190,14 @@ func TestTightenRoute_WalksEveryRouteToItsEnd(t *testing.T) {
 		walks++
 
 		for leg := 0; position != goal; leg++ {
-			if leg > 400 {
-				t.Fatalf("trial %d, radius %v: no arrival at %v after 400 legs, stuck at %v", trial, radius, goal, position)
+			if leg > 1000 {
+				t.Fatalf("trial %d, radius %v: no arrival at %v after 1000 legs, stuck at %v", trial, radius, goal, position)
 			}
 			route, ok := s.FindRoute(position, goal)
 			if !ok {
 				t.Fatalf("trial %d: route lost from %v", trial, position)
 			}
-			next, ok := TightenRoute(terrain, position, route, radius, 1.0)
+			next, ok := TightenRoute(terrain, position, route, radius, maxLength)
 			if !ok {
 				t.Fatalf("trial %d, radius %v: no leg from %v along %v", trial, radius, position, route)
 			}

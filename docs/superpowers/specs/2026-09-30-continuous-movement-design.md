@@ -238,10 +238,13 @@ float64) (geometry.Vector2, bool)` returns where the next leg ends:
 
 * It walks the route in order, keeping the last point `WalkIsClear` accepts from `from`.
 * It stops at the first point that fails, and also right after the first point farther than
-  `maxLength` from `from`. That bound keeps the cost at a handful of walk tests however long the
-  route is.
+  `max(maxLength, 1)` from `from`. That lookahead keeps the cost at a handful of walk tests
+  however long the route is, and always looks at least one tile ahead so the centre of the
+  tile the body stands in cannot end the scan.
 * It shortens the result to `maxLength` along the straight line from `from`. Part of a clear
-  capsule is clear, so the shortened leg is clear.
+  capsule is clear, so the shortened leg is clear. If rounding nevertheless pushes the end onto
+  a blocked tile, it falls back to the farthest scanned route point within `maxLength`, or
+  reports false when there is none.
 * It reports false when no point is clear, or when the only clear point is `from` itself.
 
 Two differences from nrg's brief: the leg cap is built in, and the scan is bounded. A caller
@@ -350,3 +353,8 @@ guarantee.
 
 1. `FindRoute` returns `([]geometry.Vector2, bool)` rather than a slice alone, so an empty route
    (already there) and no route are told apart by `ok` rather than by nil versus empty.
+2. `TightenRoute` scans at least one tile ahead (`max(maxLength, 1)`) while still capping the
+   leg at `maxLength`: with a shorter lookahead the centre of the tile the body stands in could
+   end the scan and walk the body back, so legs shorter than about 0.71 tiles oscillated
+   forever. A capped leg end that rounding pushes onto a blocked tile falls back to the
+   farthest scanned route point within `maxLength`.
