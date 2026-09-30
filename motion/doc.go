@@ -27,4 +27,8 @@
 // paths one bounded step at a time. Game policy stays with the caller: each
 // attempt returns a MoveStart describing what happened so the consuming game
 // can update its own entity states, AI scheduling, and logs.
+//
+// Continuous movement lets a body stand and walk anywhere rather than hop
+// between tile centres. WalkIsClear tests whether a round body can walk
+// straight from one point to another without touching a blocked tile.
 package motion
