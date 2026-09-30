@@ -18,6 +18,11 @@
 //     fast and slow ground, learned from the terrain a cell at a time; the
 //     first search over new ground pays for reading it.
 //
+// FindBodyPath is the same search for a round body: it never steps diagonally
+// past a blocked tile, since a body cannot squeeze through the corner, and it
+// ignores reservations, since bodies do not route around each other. Continuous
+// movement in the motion package routes with it.
+//
 // A search that fails has to expand every reachable tile to establish that, so
 // the two ways a goal is commonly unenterable — its own tile occupied, or every
 // tile next to it unenterable — are answered without searching at all. Any

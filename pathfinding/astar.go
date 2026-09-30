@@ -113,8 +113,9 @@ func calculateMovementCost(terrain TerrainProvider, origin, dest Coord, distance
 }
 
 // canMoveDiagonally checks if diagonal movement is allowed from one coord to another.
-// Diagonal movement is allowed if at least one adjacent cardinal path is traversable.
-func canMoveDiagonally(terrain TerrainProvider, from, to Coord) bool {
+// Diagonal movement is allowed if at least one adjacent cardinal path is traversable,
+// or both of them when strictCorners is set.
+func canMoveDiagonally(terrain TerrainProvider, from, to Coord, strictCorners bool) bool {
 	dx := to.X - from.X
 	dy := to.Y - from.Y
 
@@ -131,6 +132,9 @@ func canMoveDiagonally(terrain TerrainProvider, from, to Coord) bool {
 	walkable1 := terrain.IsInBounds(adjacent1.X, adjacent1.Y) && terrain.IsWalkable(adjacent1.X, adjacent1.Y)
 	walkable2 := terrain.IsInBounds(adjacent2.X, adjacent2.Y) && terrain.IsWalkable(adjacent2.X, adjacent2.Y)
 
+	if strictCorners {
+		return walkable1 && walkable2
+	}
 	return walkable1 || walkable2
 }
 
@@ -197,6 +201,23 @@ func isGoalApproachable(terrain TerrainProvider, start, goal Coord, isOccupied O
 // otherwise, because a zero budget would silently mean an unbounded search,
 // which is the hang this parameter exists to rule out.
 func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic) (path []Coord, expanded int) {
+	return findPath(terrain, start, goal, isOccupied, maxExpansions, heuristic, false)
+}
+
+// FindBodyPath finds a path for a round body, with the search FindPath runs
+// and two differences. A diagonal step is allowed only when both tiles beside
+// it are walkable: the segment between two diagonal tile centres runs through
+// their shared corner, so a body of any radius cannot pass a blocked corner
+// there. And reservations play no part, since bodies do not route around each
+// other. The budget, the heuristic, the quick rejections and what expanded
+// reports are as FindPath documents.
+func FindBodyPath(terrain TerrainProvider, start, goal Coord, maxExpansions int, heuristic Heuristic) (path []Coord, expanded int) {
+	return findPath(terrain, start, goal, nil, maxExpansions, heuristic, true)
+}
+
+// findPath is FindPath and FindBodyPath's shared search; strictCorners selects
+// FindBodyPath's diagonal rule.
+func findPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyChecker, maxExpansions int, heuristic Heuristic, strictCorners bool) (path []Coord, expanded int) {
 	if maxExpansions <= 0 {
 		panic(fmt.Sprintf("finding path from %v to %v: maxExpansions must be positive, got %d", start, goal, maxExpansions))
 	}
@@ -298,7 +319,7 @@ func FindPath(terrain TerrainProvider, start, goal Coord, isOccupied OccupancyCh
 			}
 
 			// Skip if diagonal movement is not allowed
-			if !isCardinalDirection(dir.X, dir.Y) && !canMoveDiagonally(terrain, current.coord, neighbor) {
+			if !isCardinalDirection(dir.X, dir.Y) && !canMoveDiagonally(terrain, current.coord, neighbor, strictCorners) {
 				continue
 			}
 
