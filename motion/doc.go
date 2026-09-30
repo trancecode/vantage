@@ -38,5 +38,9 @@
 // straight from one point to another without touching a blocked tile.
 // System.FindRoute plans a route between two arbitrary points through tile
 // centres, never cutting a blocked corner, and keeps every step between its
-// points walkable for a body of radius under 0.5.
+// points walkable for a body of radius under 0.5. TightenRoute picks the next
+// leg along such a route: the farthest point a body can walk to in a straight
+// line, capped at a leg length. A game walks by starting each leg with
+// MoveEntity, normally with a fixed MoveOptions.Duration, reserving through a
+// tilemap.CircleReservations.
 package motion
