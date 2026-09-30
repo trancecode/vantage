@@ -291,10 +291,12 @@ Following the existing `motion` convention, misconfiguration panics with context
 * a negative radius, in `WalkIsClear`, `TightenRoute` and `CircleReservations.Place`;
 * an entity absent from the circle table, in its `Available`, `Claim` and `Stop`;
 * neither a positive `Speed` nor a positive `Duration` in `MoveOptions`;
+* a positive `Duration` passed to `MoveEntityTowards` or `MoveEntityTowardsArea` (ruling 3);
+* a `maxLength` that is not positive (including NaN), in `TightenRoute`;
 * `FindRoute` without `Terrain` or `MaxPathExpansions`.
 
 Normal outcomes are not errors: an occupied destination is `MoveOutcomeDestinationOccupied`, no
-route is nil, and no leg is `false`.
+route is `ok == false`, and no leg is `false`.
 
 ## Testing
 
@@ -357,4 +359,11 @@ guarantee.
    leg at `maxLength`: with a shorter lookahead the centre of the tile the body stands in could
    end the scan and walk the body back, so legs shorter than about 0.71 tiles oscillated
    forever. A capped leg end that rounding pushes onto a blocked tile falls back to the
-   farthest scanned route point within `maxLength`.
+   last scanned route point within `maxLength`.
+3. `MoveEntityTowards` and `MoveEntityTowardsArea` panic on a positive `MoveOptions.Duration`
+   rather than applying it to each step: their steps come from a route the caller never sees,
+   so a duration per step has no meaning a caller can plan. A game wanting timed steps calls
+   `MoveEntity` itself.
+4. The final multi-lens review of `f409f9e..793918e` found 0 must-fix, 1 should-fix (ruling 3)
+   and 3 suggestions, refuted none, and resolved the should-fix; no style guide finding needed
+   a rationale.
