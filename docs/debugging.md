@@ -479,7 +479,10 @@ rendered output. It builds a synthetic sprite sheet, loads it once with
 `render.LoadSpriteAutoCropped` (the cropped, repacked path), draws both to
 offscreen images at a scale that genuinely resamples, reads the pixels back
 with `ebiten.Image.ReadPixels`, and compares them with
-`visualtest.CompareImages`.
+`visualtest.CompareImages`. It also compares `VisibleBounds` and
+`VisibleTopAboveZero` between the two sprites, which must agree because both are
+reported in frame space; those read pixels back and so can only run inside the
+game loop.
 
 This is the one level none of the package's other tests reach: the packer's
 own unit tests read the CPU-side atlas before it ever reaches the GPU, and

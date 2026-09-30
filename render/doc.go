@@ -6,19 +6,20 @@
 // variants; Sprite.DrawAnimationScaled draws one at a per-call display scale,
 // for views that need a different size without mutating the shared sprite.
 // An Animation's frames each carry an Offset: where the frame's image sits in
-// the animation's frame space, the uncropped cell it was cut from. The anchor
-// a sprite is drawn and hit-tested against is per animation and in frame
-// space, so a frame cropped to its content is drawn with the anchor less its
-// offset, and VisibleBounds reports frame space too. SetZeroPosition sets one
-// anchor across every animation on the sprite, which is what a uniform sheet
-// wants, and Anchor reads the resolved value for a given AnimationType,
-// resolving a mirrored animation to the animation it is drawn from. AnimationSpec describes one animation's frames, anchor and
-// duration at load time; LoadSpriteAnimations builds a sprite from a map of
-// them, and LoadSprite is the convenience for a uniform grid built on top of
-// it. LoadSpriteAutoCropped crops each animation to its own content, repacks
-// the frames into a smaller image before upload, and derives each animation's
-// anchor from a sheet-wide one, so a sparse sheet costs only the video memory
-// its content actually needs. RegisterAnimationName gives an AnimationType a
+// the animation's frame space, the uncropped cell it was cut from. The anchor a
+// sprite is drawn and hit-tested against is per animation and in frame space,
+// so a frame cropped to its content is drawn with the anchor less its offset,
+// and VisibleBounds reports frame space too. SetZeroPosition sets one anchor
+// across every animation on the sprite, which is what a uniform sheet wants,
+// and Anchor reads the resolved value for a given AnimationType, resolving a
+// mirrored animation to the animation it is drawn from. AnimationSpec describes
+// one animation's frames, anchor and duration at load time;
+// LoadSpriteAnimations builds a sprite from a map of them, and LoadSprite is
+// the convenience for a uniform grid built on top of it. LoadSpriteAutoCropped
+// crops each frame to its own content, repacks the frames into a smaller image
+// before upload, and records each frame's offset in its cell so the sheet-wide
+// anchor serves every frame, so a sparse sheet costs only the video memory its
+// content actually needs. RegisterAnimationName gives an AnimationType a
 // display name for labels such as the sprite showcase's; AnimationName returns
 // it, falling back to the type's generated String with the engine's Animation
 // prefix trimmed. TextWriter renders text using loaded fonts. DrawNameplate and

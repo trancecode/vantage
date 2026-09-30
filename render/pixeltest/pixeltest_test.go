@@ -60,9 +60,9 @@ const (
 // across two concerns the test covers separately (see buildScenarios):
 //
 //   - Cells 0 and 1 (row 0) are two frames of AnimationIdleDown, with content
-//     at different cell-local offsets, so their union crop box is strictly
-//     larger than either frame's own content and the union path is
-//     exercised. Cell 2 is AnimationIdleRight and carries a non-square block
+//     of different sizes at different cell-local offsets, so each crops to its
+//     own box and the two frames are stored at different sizes and offsets.
+//     Cell 2 is AnimationIdleRight and carries a non-square block
 //     at an off-diagonal cell-local origin: a square block at a square
 //     origin cannot distinguish an x/y transposition in the crop or the
 //     anchor rebase, so this shape can. All three cells carry real cell
@@ -112,8 +112,8 @@ func buildFixtureSheet() *image.RGBA {
 	fill(2, 5, 10, 9, red)
 	// Cell 1 (col 1, row 0): AnimationIdleDown frame 1, a 12x8 block at
 	// cell-local (6,9). Frame 0's content is (2,5)-(10,9) and frame 1's is
-	// (6,9)-(18,17): neither contains the other, so their union, (2,5)-(18,17),
-	// is a real union rather than one frame's box in disguise.
+	// (6,9)-(18,17), so the two frames crop to different sizes at different
+	// offsets.
 	fill(cellSize+6, 9, cellSize+18, 17, red)
 	// Cell 2 (col 2, row 0): AnimationIdleRight, an 8x2 block at the
 	// off-diagonal cell-local origin (3,7).
@@ -152,9 +152,10 @@ var fixtureDurations = map[render.AnimationType]time.Duration{
 
 // fixtureAnchor is the sheet-wide anchor passed to both load paths: to
 // [render.Sprite.SetZeroPosition] for the uniform sprite, and to
-// [render.LoadSpriteAutoCropped] for the cropped one. Both loaders rebase it
-// into per-animation coordinates their own way, and the property under test is
-// that the two rebases agree on where every sheet pixel ends up on screen.
+// [render.LoadSpriteAutoCropped] for the cropped one. The uniform sprite draws every
+// frame against it directly; the cropped sprite draws each frame against it
+// less that frame's offset. The property under test is that the two agree on
+// where every sheet pixel ends up on screen.
 //
 // Its fractional part is deliberate, not decorative. Every crop box in this
 // fixture sits at an integer cell-local offset, so with an integer anchor and
@@ -186,9 +187,10 @@ type scenario struct {
 // two concerns buildFixtureSheet describes:
 //
 // AnimationIdleDown (both frames), AnimationIdleRight and AnimationIdleLeft
-// exercise the crop and anchor-rebase math: an off-diagonal box, a union of
-// two frames, and a mirrored flip. Under FilterNearest the comparison is
-// exact and unmasked, over the whole canvas. Under FilterLinear it needs
+// exercise the crop and anchor-rebase math: an off-diagonal box, two frames of
+// one animation cropped to different boxes, and a mirrored flip. Under
+// FilterNearest the comparison is exact and unmasked, over the whole canvas.
+// Under FilterLinear it needs
 // masking, for a reason that has nothing to do with the packing gutter:
 // Ebitengine's built-in shader (AddressUnsafe addressing) spreads content
 // about half a source texel past its true edge, and that feather is
@@ -230,10 +232,8 @@ type scenario struct {
 // AnimationAttackRight's different color is that one-pixel gutter.
 //
 // AnimationIdleDown's two frames are drawn separately rather than as one
-// scenario, because they are not interchangeable: autoCropAtlas packs frame
-// 0's content into one half of its box and frame 1's into the other, so only
-// one of them reaches a packed edge. Frame 0 alone would exercise the union
-// computation without ever touching a seam.
+// scenario, because they are cropped to different boxes at different offsets:
+// each needs its own quad and its own offset checked.
 func buildScenarios() []scenario {
 	var scenarios []scenario
 
@@ -318,5 +318,8 @@ func TestAutoCroppedSpriteRendersIdenticallyToUniform(t *testing.T) {
 		if r.mismatch != nil {
 			t.Errorf("scenario %s: uniform and auto-cropped renders differ: %v", r.name, r.mismatch)
 		}
+	}
+	for _, m := range game.extentMismatches {
+		t.Errorf("visible extent differs between uniform and auto-cropped: %s", m)
 	}
 }

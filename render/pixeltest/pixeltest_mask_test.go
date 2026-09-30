@@ -3,6 +3,7 @@ package pixeltest
 import (
 	"image"
 	"math"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
@@ -11,19 +12,17 @@ import (
 )
 
 // croppedQuadOnScreen computes the on-screen rectangle
-// [render.Sprite.DrawAnimationScaled] draws animation a into, for the given
-// camera, position and scale. It has to replicate Sprite.buildDrawOp's math,
-// since that method is unexported, using only exported API: [render.Sprite.Anchor],
-// [render.Sprite.TileRatio], the frame's own size from [render.Sprite.Image], and
-// [render.Camera.Adjust]. Mirrors [render.Sprite.DrawAnimationScaled]'s own
-// resolution of a mirrored animation type, since [render.Sprite.Image] (unlike
-// Anchor) does not resolve one itself.
+// [render.Sprite.DrawAnimationScaled] draws animation a into at elapsed, for
+// the given camera, position and scale. It replicates Sprite.buildDrawOp's
+// math, which is unexported, from exported API: the frame
+// [render.Animation.FrameAt] picks, its Offset, [render.Sprite.Anchor],
+// [render.Sprite.TileRatio] and [render.Camera.Adjust]. A mirrored animation is
+// resolved the way DrawAnimationScaled resolves it.
 //
-// This is what a comparison masks down to for FilterLinear scenarios that compare
-// a padded frame against a genuinely smaller cropped one: see buildScenarios for
-// why the region outside this quad is expected to differ and is not what those
-// scenarios check.
-func croppedQuadOnScreen(sprite *render.Sprite, camera *render.Camera, pos geometry.Vector2, a render.AnimationType, scale float64) image.Rectangle {
+// This is what a comparison masks down to for FilterLinear scenarios that
+// compare a padded frame against a genuinely smaller cropped one: see
+// buildScenarios for why the region outside this quad is expected to differ.
+func croppedQuadOnScreen(sprite *render.Sprite, camera *render.Camera, pos geometry.Vector2, a render.AnimationType, elapsed time.Duration, scale float64) image.Rectangle {
 	drawFrom := a
 	requiresFlip := false
 	if !sprite.HasAnimation(a) {
@@ -32,11 +31,12 @@ func croppedQuadOnScreen(sprite *render.Sprite, camera *render.Camera, pos geome
 			requiresFlip = true
 		}
 	}
-	frame := sprite.Image(drawFrom).Bounds()
-	w, h := float64(frame.Dx()), float64(frame.Dy())
+	frame := sprite.Animations[drawFrom].FrameAt(elapsed)
+	bounds := frame.Image.Bounds()
+	w, h := float64(bounds.Dx()), float64(bounds.Dy())
 
 	effectiveScale := sprite.TileRatio() * scale
-	anchor := sprite.Anchor(a)
+	anchor := sprite.Anchor(a).Sub(geometry.NewVector2(frame.Offset.X, frame.Offset.Y))
 
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(effectiveScale, effectiveScale)

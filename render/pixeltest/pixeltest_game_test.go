@@ -3,6 +3,7 @@ package pixeltest
 import (
 	"fmt"
 	"image"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
@@ -28,6 +29,10 @@ type comparisonGame struct {
 	uniform, cropped *render.Sprite
 	scenarios        []scenario
 	results          []scenarioResult
+
+	// extentMismatches describes every animation whose visible extent differs
+	// between the two sprites, filled in by Draw.
+	extentMismatches []string
 
 	frame int
 	done  bool
@@ -85,6 +90,21 @@ func (g *comparisonGame) Draw(screen *ebiten.Image) {
 		})
 	}
 
+	// The visible-extent queries are what a game hit-tests and places
+	// nameplates with, and they must not notice the crop either. They are in
+	// frame space, so the uniform and cropped answers are directly comparable.
+	for _, a := range []render.AnimationType{
+		render.AnimationIdleDown, render.AnimationIdleRight, render.AnimationIdleLeft,
+		render.AnimationAttackDown, render.AnimationAttackRight,
+	} {
+		if want, got := g.uniform.VisibleBounds(a), g.cropped.VisibleBounds(a); got != want {
+			g.extentMismatches = append(g.extentMismatches, fmt.Sprintf("%s VisibleBounds = %v, want %v", a, got, want))
+		}
+		if want, got := g.uniform.VisibleTopAboveZero(a), g.cropped.VisibleTopAboveZero(a); math.Abs(got-want) > 1e-9 {
+			g.extentMismatches = append(g.extentMismatches, fmt.Sprintf("%s VisibleTopAboveZero = %v, want %v", a, got, want))
+		}
+	}
+
 	g.done = true
 }
 
@@ -110,7 +130,7 @@ func drawToImage(sprite *render.Sprite, camera *render.Camera, pos geometry.Vect
 // pins down that the padded side's feather does not reach any further than
 // expected.
 func compareMasked(cropped *render.Sprite, camera *render.Camera, pos geometry.Vector2, sc scenario, want, got *image.RGBA) *visualtest.Mismatch {
-	quad := croppedQuadOnScreen(cropped, camera, pos, sc.animation, sc.scale)
+	quad := croppedQuadOnScreen(cropped, camera, pos, sc.animation, sc.elapsed, sc.scale)
 	expanded := quad.Inset(-featherMargin(sc.scale))
 
 	wantMasked := cloneRGBA(want)

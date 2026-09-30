@@ -29,39 +29,38 @@ func autoCropTestSheet() *image.RGBA {
 	return img
 }
 
-// TestAutoCropTightensEachAnimation covers the core measurement: each animation
-// gets a crop box around its own content, and its anchor is rebased into that
-// box so the drawn result is unchanged.
-func TestAutoCropTightensEachAnimation(t *testing.T) {
+// TestAutoCropTightensEachFrame covers the core measurement: each frame gets a
+// crop box around its own content and records the box's corner as its offset,
+// while the animation keeps the sheet-wide anchor, so the drawn result is
+// unchanged.
+func TestAutoCropTightensEachFrame(t *testing.T) {
 	atlas, specs, err := autoCropAtlas(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
-		AnimationIdleDown:  {0},
-		AnimationIdleRight: {1},
+		AnimationIdleDown: {0, 1},
 	}, nil, geometry.NewVector2(8, 16))
 	if err != nil {
 		t.Fatalf("autoCropAtlas returned error: %v", err)
 	}
 
 	down := specs[AnimationIdleDown]
-	if got := down.Frames[0].Rect.Dx(); got != 8 {
-		t.Fatalf("IdleDown crop width = %d, want 8", got)
+	for i, want := range []struct {
+		width, height int
+		offset        image.Point
+	}{
+		{8, 8, image.Pt(4, 4)},
+		{4, 4, image.Pt(2, 2)},
+	} {
+		frame := down.Frames[i]
+		if frame.Rect.Dx() != want.width || frame.Rect.Dy() != want.height {
+			t.Fatalf("frame %d size = %dx%d, want %dx%d", i, frame.Rect.Dx(), frame.Rect.Dy(), want.width, want.height)
+		}
+		if frame.Offset != want.offset {
+			t.Fatalf("frame %d offset = %v, want %v", i, frame.Offset, want.offset)
+		}
 	}
-	if got := down.Frames[0].Rect.Dy(); got != 8 {
-		t.Fatalf("IdleDown crop height = %d, want 8", got)
-	}
-	// The box starts at cell-local (4,4), so the anchor moves by that much.
-	if got, want := down.Anchor, geometry.NewVector2(4, 12); got != want {
-		t.Fatalf("IdleDown anchor = %v, want %v", got, want)
+	if got, want := down.Anchor, geometry.NewVector2(8, 16); got != want {
+		t.Fatalf("anchor = %v, want the sheet anchor %v", got, want)
 	}
 
-	right := specs[AnimationIdleRight]
-	if got := right.Frames[0].Rect.Dx(); got != 4 {
-		t.Fatalf("IdleRight crop width = %d, want 4", got)
-	}
-	if got, want := right.Anchor, geometry.NewVector2(6, 14); got != want {
-		t.Fatalf("IdleRight anchor = %v, want %v", got, want)
-	}
-
-	// The packed atlas is smaller than the source it came from.
 	srcArea := 32 * 32
 	atlasArea := atlas.Bounds().Dx() * atlas.Bounds().Dy()
 	if atlasArea >= srcArea {
@@ -110,28 +109,15 @@ func TestAutoCropIsReproducible(t *testing.T) {
 			t.Fatalf("atlas bounds = %v, want %v", next.Bounds(), first.Bounds())
 		}
 		for a, spec := range nextSpecs {
-			if spec.Frames[0].Rect != firstSpecs[a].Frames[0].Rect {
-				t.Fatalf("animation %s frame = %v, want %v", a, spec.Frames[0], firstSpecs[a].Frames[0])
+			for i := range spec.Frames {
+				if spec.Frames[i] != firstSpecs[a].Frames[i] {
+					t.Fatalf("animation %s frame %d = %v, want %v", a, i, spec.Frames[i], firstSpecs[a].Frames[i])
+				}
 			}
 		}
 		if string(next.Pix) != string(first.Pix) {
 			t.Fatal("atlas pixels differ between runs")
 		}
-	}
-}
-
-// TestAutoCropFallsBackForAnAllTransparentAnimation covers the pathological
-// case: an animation with nothing drawn keeps its full cell rather than
-// producing a degenerate box or an error.
-func TestAutoCropFallsBackForAnAllTransparentAnimation(t *testing.T) {
-	_, specs, err := autoCropAtlas(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
-		AnimationIdleDown: {2},
-	}, nil, geometry.Zero2D())
-	if err != nil {
-		t.Fatalf("autoCropAtlas returned error: %v", err)
-	}
-	if got := specs[AnimationIdleDown].Frames[0].Rect.Dx(); got != 16 {
-		t.Fatalf("all-transparent crop width = %d, want the full cell width 16", got)
 	}
 }
 
@@ -164,36 +150,6 @@ func TestAutoCropRejectsABadGrid(t *testing.T) {
 	}
 }
 
-// TestAutoCropUnionsFramesOfOneAnimation covers the central semantic of this
-// task: an animation's box is the union across all of its frames, not any one
-// frame's own box. Frame 0's content sits at cell-local (4,4)-(12,12) and frame
-// 1's sits at cell-local (2,2)-(6,6), so the union is (2,2)-(12,12): both frames
-// must come out at that shared 10x10 size, and the anchor rebases against the
-// union's origin rather than either frame's own.
-func TestAutoCropUnionsFramesOfOneAnimation(t *testing.T) {
-	_, specs, err := autoCropAtlas(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
-		AnimationIdleDown: {0, 1},
-	}, nil, geometry.NewVector2(8, 16))
-	if err != nil {
-		t.Fatalf("autoCropAtlas returned error: %v", err)
-	}
-
-	down := specs[AnimationIdleDown]
-	for i, frame := range down.Frames {
-		if got := frame.Rect.Dx(); got != 10 {
-			t.Fatalf("frame %d width = %d, want the union width 10", i, got)
-		}
-		if got := frame.Rect.Dy(); got != 10 {
-			t.Fatalf("frame %d height = %d, want the union height 10", i, got)
-		}
-	}
-	// The union starts at cell-local (2,2), so the anchor moves by that much,
-	// not by frame 0's own (4,4) origin.
-	if got, want := down.Anchor, geometry.NewVector2(6, 14); got != want {
-		t.Fatalf("IdleDown anchor = %v, want %v", got, want)
-	}
-}
-
 // autoCropAsymmetricTestSheet builds a 2x2 grid of 16 pixel cells where cell 0
 // carries a non-square 8x2 opaque block at a non-square, off-diagonal cell-local
 // origin of (3,7). autoCropTestSheet's blocks all sit on the diagonal with equal
@@ -214,14 +170,12 @@ func autoCropAsymmetricTestSheet() *image.RGBA {
 	return img
 }
 
-// TestAutoCropAnchorRebaseResistsTransposition covers the anchor rebase at
-// render_spriteautocrop.go's `anchor.Sub(geometry.NewVector2(box.Min.X,
-// box.Min.Y))`. A fixture where a crop box's width equals its height and its
-// origin sits on the diagonal cannot distinguish that rebase from one that
-// swaps box.Min.X and box.Min.Y: the wrong computation reads back the same
-// numbers. This fixture's box is 8x2 and starts off the diagonal at (3,7), so
-// the two computations disagree, and the test would fail if they were swapped.
-func TestAutoCropAnchorRebaseResistsTransposition(t *testing.T) {
+// TestAutoCropOffsetResistsTransposition covers the offset recorded for a crop
+// box. A box whose width equals its height and whose corner sits on the
+// diagonal cannot tell an offset from one with X and Y swapped. This fixture's
+// box is 8x2 and starts off the diagonal at (3,7), so a transposed offset
+// reads back as (7,3) and fails.
+func TestAutoCropOffsetResistsTransposition(t *testing.T) {
 	_, specs, err := autoCropAtlas(autoCropAsymmetricTestSheet(), 2, 2, map[AnimationType][]int{
 		AnimationIdleDown: {0},
 	}, nil, geometry.NewVector2(20, 30))
@@ -229,19 +183,15 @@ func TestAutoCropAnchorRebaseResistsTransposition(t *testing.T) {
 		t.Fatalf("autoCropAtlas returned error: %v", err)
 	}
 
-	down := specs[AnimationIdleDown]
-	if got := down.Frames[0].Rect.Dx(); got != 8 {
-		t.Fatalf("crop width = %d, want 8", got)
+	frame := specs[AnimationIdleDown].Frames[0]
+	if frame.Rect.Dx() != 8 || frame.Rect.Dy() != 2 {
+		t.Fatalf("crop size = %dx%d, want 8x2", frame.Rect.Dx(), frame.Rect.Dy())
 	}
-	if got := down.Frames[0].Rect.Dy(); got != 2 {
-		t.Fatalf("crop height = %d, want 2", got)
+	if got, want := frame.Offset, image.Pt(3, 7); got != want {
+		t.Fatalf("offset = %v, want %v", got, want)
 	}
-	// The box starts at cell-local (3,7), so the correct rebase is
-	// (20,30) - (3,7) = (17,23). A rebase that swapped X and Y would instead
-	// subtract (7,3), giving (13,27): a different point, not just a
-	// coincidentally equal one.
-	if got, want := down.Anchor, geometry.NewVector2(17, 23); got != want {
-		t.Fatalf("anchor = %v, want %v", got, want)
+	if got, want := specs[AnimationIdleDown].Anchor, geometry.NewVector2(20, 30); got != want {
+		t.Fatalf("anchor = %v, want the sheet anchor %v", got, want)
 	}
 }
 
@@ -295,18 +245,19 @@ func TestAutoCropDoesNotSwapAnimationsPixels(t *testing.T) {
 // repack is invisible in the game.
 //
 // This tracks a sheet pixel through both load paths rather than comparing an
-// anchor to itself. In the uniform sprite, an animation's frame is the whole
-// cell, so a pixel at cell-local (qx, qy) is at frame-local (qx, qy). In the
-// cropped sprite, that same pixel is at frame-local (qx-originX, qy-originY),
-// where origin is that animation's crop box top-left in cell-local
-// coordinates. origin is hardcoded from autoCropTestSheet's fixture, not read
-// back from autoCropAtlas, so a wrong rebase cannot cancel itself out of the
-// comparison: cell 0's content is an 8x8 block at cell-local (4,4), cell 1's
-// is a 4x4 block at cell-local (2,2).
+// anchor to itself. In the uniform sprite a frame is the whole cell, so a pixel
+// at cell-local (qx, qy) is at frame-local (qx, qy). In the cropped sprite the
+// same pixel is at frame-local (qx-originX, qy-originY), where origin is that
+// frame's crop box corner in the cell. origin is hardcoded from
+// autoCropTestSheet's fixture rather than read back from autoCropAtlas, so a
+// wrong offset cannot cancel itself out: cell 0's content is an 8x8 block at
+// cell-local (4,4), cell 1's a 4x4 block at cell-local (2,2).
 func TestAutoCroppedDrawsWhereTheUncroppedSpriteWould(t *testing.T) {
 	sheet := autoCropTestSheet()
+	// IdleDown's two frames crop to different boxes; IdleLeft is drawn by
+	// flipping IdleRight.
 	indexes := map[AnimationType][]int{
-		AnimationIdleDown:  {0},
+		AnimationIdleDown:  {0, 1},
 		AnimationIdleRight: {1},
 	}
 	anchor := geometry.NewVector2(8, 16)
@@ -326,36 +277,131 @@ func TestAutoCroppedDrawsWhereTheUncroppedSpriteWould(t *testing.T) {
 	p := geometry.NewVector2(3, 5)
 	const eps = 1e-9
 
-	// origin is each animation's crop box top-left in cell-local coordinates.
-	// probes are cell-local points inside that box: the top-left corner itself,
-	// so an offset error shows up, and a second point elsewhere in the box, so
-	// a scale error shows up too.
+	// probes are cell-local points inside the frame's box: its corner, so an
+	// offset error shows up, and a second point, so a scale error does too.
 	cases := []struct {
-		a       AnimationType
-		originX float64
-		originY float64
-		probeX  []float64
-		probeY  []float64
+		a            AnimationType
+		frame        int
+		requiresFlip bool
+		origin       image.Point
+		probes       []image.Point
 	}{
-		{AnimationIdleDown, 4, 4, []float64{4, 11}, []float64{4, 11}},
-		{AnimationIdleRight, 2, 2, []float64{2, 5}, []float64{2, 5}},
+		{AnimationIdleDown, 0, false, image.Pt(4, 4), []image.Point{{4, 4}, {11, 11}}},
+		{AnimationIdleDown, 1, false, image.Pt(2, 2), []image.Point{{2, 2}, {5, 5}}},
+		{AnimationIdleRight, 0, false, image.Pt(2, 2), []image.Point{{2, 2}, {5, 5}}},
+		{AnimationIdleLeft, 0, true, image.Pt(2, 2), []image.Point{{2, 2}, {5, 5}}},
 	}
 
 	for _, tc := range cases {
-		uniformOp := uniform.buildDrawOp(p, tc.a, image.Point{}, false, c, 1.0)
-		croppedOp := cropped.buildDrawOp(p, tc.a, image.Point{}, false, c, 1.0)
+		source, _ := cropped.resolveAnimation(tc.a)
+		offset := source.Frames[tc.frame].Offset
+		uniformOp := uniform.buildDrawOp(p, tc.a, image.Point{}, tc.requiresFlip, c, 1.0)
+		croppedOp := cropped.buildDrawOp(p, tc.a, offset, tc.requiresFlip, c, 1.0)
 
-		for i := range tc.probeX {
-			qx, qy := tc.probeX[i], tc.probeY[i]
-			wantX, wantY := uniformOp.GeoM.Apply(qx, qy)
-			gotX, gotY := croppedOp.GeoM.Apply(qx-tc.originX, qy-tc.originY)
-
+		for _, q := range tc.probes {
+			wantX, wantY := uniformOp.GeoM.Apply(float64(q.X), float64(q.Y))
+			gotX, gotY := croppedOp.GeoM.Apply(float64(q.X-tc.origin.X), float64(q.Y-tc.origin.Y))
 			if diff := gotX - wantX; diff > eps || diff < -eps {
-				t.Errorf("animation %s: sheet pixel (%v,%v) X = %v, want %v", tc.a, qx, qy, gotX, wantX)
+				t.Errorf("%s frame %d: sheet pixel %v X = %v, want %v", tc.a, tc.frame, q, gotX, wantX)
 			}
 			if diff := gotY - wantY; diff > eps || diff < -eps {
-				t.Errorf("animation %s: sheet pixel (%v,%v) Y = %v, want %v", tc.a, qx, qy, gotY, wantY)
+				t.Errorf("%s frame %d: sheet pixel %v Y = %v, want %v", tc.a, tc.frame, q, gotY, wantY)
 			}
+		}
+	}
+}
+
+// TestAutoCropStoresAnEmptyFrameAsOnePixel covers frames with nothing drawn,
+// such as the blank tail of a death animation: each becomes a single
+// transparent pixel at offset zero rather than a full cell, whether or not the
+// rest of its animation has content.
+func TestAutoCropStoresAnEmptyFrameAsOnePixel(t *testing.T) {
+	atlas, specs, err := autoCropAtlas(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
+		AnimationIdleDown:  {0, 2},
+		AnimationIdleRight: {2, 2},
+	}, nil, geometry.NewVector2(8, 16))
+	if err != nil {
+		t.Fatalf("autoCropAtlas returned error: %v", err)
+	}
+
+	for _, frame := range []FrameSpec{
+		specs[AnimationIdleDown].Frames[1],
+		specs[AnimationIdleRight].Frames[0],
+		specs[AnimationIdleRight].Frames[1],
+	} {
+		if frame.Rect.Dx() != 1 || frame.Rect.Dy() != 1 {
+			t.Fatalf("empty frame size = %dx%d, want 1x1", frame.Rect.Dx(), frame.Rect.Dy())
+		}
+		if frame.Offset != (image.Point{}) {
+			t.Fatalf("empty frame offset = %v, want zero", frame.Offset)
+		}
+		if _, _, _, a := atlas.At(frame.Rect.Min.X, frame.Rect.Min.Y).RGBA(); a != 0 {
+			t.Fatalf("empty frame pixel at %v has alpha %d, want transparent", frame.Rect.Min, a)
+		}
+	}
+
+	// An animation with no content at all still loads.
+	if _, err := LoadSpriteAutoCropped(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
+		AnimationIdleRight: {2},
+	}, nil, geometry.Zero2D()); err != nil {
+		t.Fatalf("LoadSpriteAutoCropped of an all-empty animation returned error: %v", err)
+	}
+}
+
+// TestShelfPackKeepsTheGutterForMixedSizes covers shelving frames whose sizes
+// differ, which per-frame crop boxes make the normal case: every frame keeps
+// its own size, stays inside the atlas, and never touches another.
+func TestShelfPackKeepsTheGutterForMixedSizes(t *testing.T) {
+	sizes := []image.Point{{5, 5}, {3, 7}, {1, 1}, {8, 2}, {4, 4}, {6, 3}, {2, 9}}
+	frames := make([]placement, len(sizes))
+	for i, size := range sizes {
+		frames[i] = placement{source: image.Rect(0, 0, size.X, size.Y)}
+	}
+
+	atlas, placed := shelfPack(frames)
+	for i, p := range placed {
+		if p.dest.Size() != sizes[i] {
+			t.Fatalf("frame %d placed at size %v, want %v", i, p.dest.Size(), sizes[i])
+		}
+		if !p.dest.In(atlas.Bounds()) {
+			t.Fatalf("frame %d at %v is outside the atlas %v", i, p.dest, atlas.Bounds())
+		}
+		for j := i + 1; j < len(placed); j++ {
+			if p.dest.Inset(-1).Overlaps(placed[j].dest) {
+				t.Fatalf("frame %d %v and frame %d %v are adjacent or overlapping", i, p.dest, j, placed[j].dest)
+			}
+		}
+	}
+}
+
+// TestSetZeroPositionAfterAutoCropIsANoOp covers the hazard per-frame anchors
+// would have created: the auto-cropped anchor is the sheet anchor in cell
+// coordinates, so setting that same anchor again afterwards changes neither
+// the anchor nor where any frame draws.
+func TestSetZeroPositionAfterAutoCropIsANoOp(t *testing.T) {
+	anchor := geometry.NewVector2(8, 16)
+	s, err := LoadSpriteAutoCropped(autoCropTestSheet(), 2, 2, map[AnimationType][]int{
+		AnimationIdleDown: {0, 1},
+	}, nil, anchor)
+	if err != nil {
+		t.Fatalf("LoadSpriteAutoCropped returned error: %v", err)
+	}
+	c := drawOpTestCamera()
+	p := geometry.NewVector2(3, 5)
+	frames := s.Animations[AnimationIdleDown].Frames
+	before := make([]*ebiten.DrawImageOptions, len(frames))
+	for i, frame := range frames {
+		before[i] = s.buildDrawOp(p, AnimationIdleDown, frame.Offset, false, c, 1.0)
+	}
+
+	s.SetZeroPosition(anchor)
+
+	if got := s.Anchor(AnimationIdleDown); got != anchor {
+		t.Fatalf("Anchor after SetZeroPosition = %v, want %v", got, anchor)
+	}
+	for i, frame := range frames {
+		if after := s.buildDrawOp(p, AnimationIdleDown, frame.Offset, false, c, 1.0); !geoMEquals(after, before[i]) {
+			t.Fatalf("frame %d draw moved: %v, want %v", i, after.GeoM, before[i].GeoM)
 		}
 	}
 }

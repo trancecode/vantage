@@ -264,7 +264,7 @@ frame. See [performance_limits.md](performance_limits.md#draw-ordering).
 ## Auto-crop startup scan cost (render/render_spriteautocrop.go)
 
 `autoCropAtlas`, used by `LoadSpriteAutoCropped`, scans a sprite sheet's full
-alpha channel at load time to find a tight crop box per animation, then
+alpha channel at load time to find a tight crop box per frame, then
 repacks the referenced frames into a smaller atlas. The design assumed this
 startup cost was acceptable by analogy with a full-image CPU pass a consuming
 game already makes per sheet; that was an inference, not a measurement.

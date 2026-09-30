@@ -58,9 +58,11 @@ type placement struct {
 	dest   image.Rectangle
 }
 
-// autoCropAtlas measures a tight crop box per animation over the uniform grid
-// described by columns, rows and indexes, packs every referenced frame into a new
-// atlas at that box's size, and rebases anchor into each box.
+// autoCropAtlas measures a tight crop box per frame over the uniform grid
+// described by columns, rows and indexes, and packs every referenced frame into
+// a new atlas at its own box's size. Each frame records its box's corner as its
+// offset in the cell, and every animation keeps anchor, which is already in
+// cell coordinates, unchanged.
 //
 // Cells no animation references are never visited, so a sheet laid out one
 // animation per row does not pay for the empty tail of a short row. The result is
@@ -102,32 +104,27 @@ func autoCropAtlas(
 			continue
 		}
 
-		// One box per animation: the union over its frames, so every frame is
-		// stored at the same size and the anchor stays per animation.
-		box := image.Rectangle{}
+		frames := make([]FrameSpec, 0, len(frameIndexes))
 		for _, index := range frameIndexes {
 			if index < 0 || index >= columns*rows {
 				return nil, nil, fmt.Errorf("animation %s: frame index %d is outside a %dx%d grid", a, index, columns, rows)
 			}
-			if frameBox, ok := cropBoxIn(alphaAt, cellAt(index)); ok {
-				box = box.Union(frameBox)
+			cell := cellAt(index)
+			box, ok := cropBoxIn(alphaAt, cell)
+			if !ok {
+				// Nothing is drawn in this frame. The cell's corner pixel is
+				// transparent, so one pixel of it stands in for the frame at
+				// almost no cost, where a full cell would charge a blank frame
+				// for padding.
+				box = image.Rect(0, 0, 1, 1)
 			}
-		}
-		if box.Empty() {
-			// Nothing is drawn in any frame. Keeping the full cell is safe and
-			// costs only what the uncropped sheet already cost.
-			box = image.Rect(0, 0, cellWidth, cellHeight)
-		}
-
-		frames := make([]FrameSpec, 0, len(frameIndexes))
-		for _, index := range frameIndexes {
-			source := box.Add(cellAt(index).Min)
-			frames = append(frames, FrameSpec{Rect: source})
+			source := box.Add(cell.Min)
+			frames = append(frames, FrameSpec{Rect: source, Offset: box.Min})
 			pending = append(pending, placement{source: source})
 		}
 		specs[a] = AnimationSpec{
 			Frames:   frames,
-			Anchor:   anchor.Sub(geometry.NewVector2(box.Min.X, box.Min.Y)),
+			Anchor:   anchor,
 			Duration: durations[a],
 		}
 	}
@@ -157,9 +154,10 @@ func autoCropAtlas(
 // tallest first, and returns the atlas to copy them into along with where each
 // one goes. The order of the returned placements matches the input.
 //
-// Shelf packing is deliberately simple. Frames of one animation all share a size,
-// so they shelf neatly, and the win being chased here is dropping transparent
-// padding rather than the last few percent of packing efficiency.
+// Shelf packing is deliberately simple. Tallest-first shelving keeps each
+// shelf's wasted height down even for frames of mixed sizes, and the win being
+// chased here is dropping transparent padding rather than the last few percent
+// of packing efficiency.
 //
 // Every pair of placements leaves a one pixel gutter between them, along a
 // shelf and between shelves alike. Ebitengine's builtin shader picks the
@@ -224,10 +222,11 @@ func shelfPack(frames []placement) (*image.RGBA, []placement) {
 }
 
 // LoadSpriteAutoCropped builds a sprite from a uniform sheet, cropping each
-// animation to its own content and repacking the frames into a smaller texture
-// before upload. anchor is the sheet-wide anchor in cell-local pixels; each
-// animation's anchor is derived from it and its own crop box, so no per-animation
-// anchor has to be supplied.
+// frame to its own content and repacking the frames into a smaller texture
+// before upload. anchor is the sheet-wide anchor in cell-local pixels, which is
+// the sprite's frame space: every animation keeps it as its anchor, and each
+// frame records where its crop box sat in its cell. SetZeroPosition afterwards
+// therefore behaves as it would on the uniform sheet.
 //
 // It takes an image.Image, not an *ebiten.Image, because the crop must happen
 // before the sheet is uploaded: a sheet is mostly transparent padding, and
