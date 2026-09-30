@@ -327,3 +327,27 @@ registration would remove the per-frame walk. This is acceptable for a debug
 scene reached by an explicit flag, and it is deliberately not optimized, but a
 library of thousands of sprites would need viewport culling on top of the
 caching.
+
+## Straight walk test tile scan (motion/motion_walk.go)
+
+`WalkIsClear` visits every tile the capsule can touch column by column and
+calls the terrain's `IsInBounds` and `IsWalkable` on each, even on open ground
+where no tile is blocked. A game with a coarse blocked-tile index (for example,
+a bitset per chunk that is all-walkable) could skip whole columns. Left as a
+plain scan because a one-tile leg touches about a dozen tiles; revisit if walk
+tests show up in a profile, most likely from long direct-to-goal checks.
+
+## Circle reservation search margin (tilemap/tilemap_circles.go)
+
+`CircleReservations` searches around a point by the entity's radius plus the
+largest radius the table has ever held, and that maximum never shrinks. One very
+large body therefore widens every later search, even after it is removed.
+Tracking radii in a sorted multiset, or indexing large bodies separately, would
+tighten the search. Left simple because every body has one radius today.
+
+## Route allocation (motion/motion_route.go)
+
+`FindRoute` allocates a fresh route slice per call, and `FindBodyPath`
+allocates its node map per search. A game planning a leg per decision for many
+bodies could pass a reusable buffer. Left as is because the search itself costs
+far more than the allocation.

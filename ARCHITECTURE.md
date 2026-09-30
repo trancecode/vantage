@@ -23,14 +23,14 @@ the most important invariant to preserve when extending the engine.
 | Package | Purpose | Depends on (vantage / ecs) |
 |---|---|---|
 | `util` | Shared infrastructure: `Time`, `Profiler`, `PriorityQueue`, logging, debug HTTP | — |
-| `geometry` | 2D geometric types and operations (`Vector2`, shapes) | `util` |
+| `geometry` | 2D geometric types and operations (`Vector2`, shapes, capsule contact) | `util` |
 | `easing` | Easing curves (`Curve`, `Apply`) for shaping interpolated progress | — |
 | `config` | Layered configuration loader (`Loader`, `Duration`) | — |
 | `asset` | Engine-bundled assets (default fonts), embedded | — |
-| `pathfinding` | A* search with terrain awareness and pluggable heuristics (octile, ScaledOctile, CoarseCost) | — |
-| `tilemap` | Tile coordinates, `SpatialGrid` (range queries), `TileOccupancyManager` | `geometry`, `ecs` |
+| `pathfinding` | A* search with terrain awareness and pluggable heuristics (octile, ScaledOctile, CoarseCost), and `FindBodyPath` for round bodies | — |
+| `tilemap` | Tile coordinates, `SpatialGrid` (range queries), `TileOccupancyManager`, `CircleReservations` | `geometry`, `ecs` |
 | `sim` | Deterministic event scheduling: `Driver`, `EventQueue`, `Event`, `TickSystem`, `EventHandler` | `util`, `ecs` |
-| `motion` | Movement components (`Spatial`, `Movement`) and `System` (a tick system) | `geometry`, `easing`, `pathfinding`, `tilemap`, `ecs` |
+| `motion` | Movement components (`Spatial`, `Movement`), `System` (a tick system), the `Occupancy` interface, and continuous movement (`WalkIsClear`, `FindRoute`, `TightenRoute`) | `geometry`, `easing`, `pathfinding`, `tilemap`, `ecs` |
 | `render` | Graphics layer: camera, sprites, sprite library, text, tile scaling, occluder fading (`Occludes`, `Fader`), `ScreenLogger` | `asset`, `geometry`, `util` |
 | `ui` | Interactive user-interface components | `asset` |
 | `scene` | `Scene` interface, the `Manager` that drives scenes, and the sprite showcase (`cmd/showcasedemo` runs it on placeholder art) | `render`, `ui`, `geometry` |
@@ -86,7 +86,11 @@ script's `GRAPHICS_PACKAGES` list.
     See `docs/superpowers/specs/2026-07-05-sim-event-queue-v2-design.md`.
 * **Spatial indexing (`tilemap`).** `SpatialGrid` answers range queries;
   `TileOccupancyManager` tracks which entity occupies which tile. Movement and
-  AI use these instead of scanning all entities.
+  AI use these instead of scanning all entities. `motion.System` reserves
+  moves through the `motion.Occupancy` interface: `TileOccupancyManager` for
+  tile-based games, or `CircleReservations`, one circle per body with its own
+  radius, for bodies that stand anywhere. See
+  `docs/superpowers/specs/2026-09-30-continuous-movement-design.md`.
 * **Debug and profiling (`util`).** `Profiler` accumulates named wall-time
   timings (the `Driver` records its systems and drain into one when attached);
   the debug HTTP server and `render.ScreenLogger` surface diagnostics. These
