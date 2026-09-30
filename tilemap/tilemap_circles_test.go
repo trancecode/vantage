@@ -110,3 +110,29 @@ func TestCircleReservations_Panics(t *testing.T) {
 		}()
 	}
 }
+
+func TestCircleReservations_GridFollowsClaimAndStop(t *testing.T) {
+	c := NewCircleReservations(1.0)
+	mover, probe := twoEntities()
+	oldSpot, newSpot := geometry.NewVector2(0.5, 0.5), geometry.NewVector2(5.5, 5.5)
+	c.Place(mover, oldSpot, 0.25)
+	c.Place(probe, geometry.NewVector2(20.5, 20.5), 0.25)
+
+	if !c.Claim(mover, oldSpot, newSpot) {
+		t.Fatal("expected the claim to an empty spot to succeed")
+	}
+	if c.Available(probe, newSpot) {
+		t.Error("expected the claimed spot to conflict for another entity")
+	}
+	if !c.Available(probe, oldSpot) {
+		t.Error("expected the released spot to be free")
+	}
+
+	c.Stop(mover, newSpot, oldSpot)
+	if c.Available(probe, oldSpot) {
+		t.Error("expected the spot the body stopped on to conflict")
+	}
+	if !c.Available(probe, newSpot) {
+		t.Error("expected the abandoned spot to be free")
+	}
+}

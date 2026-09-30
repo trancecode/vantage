@@ -29,9 +29,10 @@
 // paths one bounded step at a time. System.Occupancy reserves through the
 // Occupancy interface: a tilemap.TileOccupancyManager for tile-based games, or
 // a tilemap.CircleReservations for bodies that stand anywhere. CancelMove stops
-// a move where the body stands and settles its reservation there. Game policy stays with the caller: each
-// attempt returns a MoveStart describing what happened so the consuming game
-// can update its own entity states, AI scheduling, and logs.
+// a move where the body stands and settles its reservation there. Game policy
+// stays with the caller: each attempt returns a MoveStart describing what
+// happened so the consuming game can update its own entity states, AI
+// scheduling, and logs.
 //
 // Continuous movement lets a body stand and walk anywhere rather than hop
 // between tile centres. WalkIsClear tests whether a round body can walk

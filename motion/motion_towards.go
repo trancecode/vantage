@@ -27,8 +27,9 @@ import (
 // already exactly at destination. The entity must have a Spatial;
 // MoveEntityTowards panics otherwise. MaxMoveActionDistance must be
 // configured (> 0) and opts.Speed must be positive; MoveEntityTowards panics
-// otherwise. The step moves under opts (average speed in tiles per second,
-// and the easing curve shaping it).
+// otherwise, and also on a positive opts.Duration, which the tile route
+// helpers do not support. The step moves under opts (average speed in tiles
+// per second, and the easing curve shaping it).
 func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.Vector2, opts MoveOptions) MoveStart {
 	if s.MaxMoveActionDistance <= 0 {
 		panic(fmt.Sprintf("moving entity %v towards destination: MaxMoveActionDistance not configured", entityId))
@@ -36,6 +37,10 @@ func (s *System) MoveEntityTowards(entityId ecs.EntityId, destination geometry.V
 
 	if opts.Speed <= 0 {
 		panic(fmt.Sprintf("moving entity %v towards destination: speed must be positive, got %v", entityId, opts.Speed))
+	}
+
+	if opts.Duration > 0 {
+		panic(fmt.Sprintf("moving entity %v towards destination: Duration is not supported by the tile route helpers, got %v", entityId, opts.Duration))
 	}
 
 	sc, ok := s.Spatials.Get(entityId)
@@ -112,9 +117,10 @@ func (s *System) moveAlongPath(entityId ecs.EntityId, currentPos, destination ge
 // already inside the area and MoveOutcomeNoPath when no tile in the area is
 // reachable (normal flow when every tile around the target is occupied). The
 // entity must have a Spatial, MaxMoveActionDistance must be configured (> 0)
-// and opts.Speed must be positive; MoveEntityTowardsArea panics otherwise.
-// The step moves under opts (average speed in tiles per second, and the
-// easing curve shaping it).
+// and opts.Speed must be positive; MoveEntityTowardsArea panics otherwise,
+// and also on a positive opts.Duration, which the tile route helpers do not
+// support. The step moves under opts (average speed in tiles per second, and
+// the easing curve shaping it).
 func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Vector2, radius float64, opts MoveOptions) MoveStart {
 	if s.RecordPhase != nil {
 		defer func(start time.Time) { s.RecordPhase("move_towards_area", time.Since(start)) }(time.Now())
@@ -126,6 +132,10 @@ func (s *System) MoveEntityTowardsArea(entityId ecs.EntityId, center geometry.Ve
 
 	if opts.Speed <= 0 {
 		panic(fmt.Sprintf("moving entity %v towards area: speed must be positive, got %v", entityId, opts.Speed))
+	}
+
+	if opts.Duration > 0 {
+		panic(fmt.Sprintf("moving entity %v towards area: Duration is not supported by the tile route helpers, got %v", entityId, opts.Duration))
 	}
 
 	sc, ok := s.Spatials.Get(entityId)

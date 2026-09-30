@@ -9,9 +9,11 @@ import (
 )
 
 // walkScanMargin widens the tile rows and columns WalkIsClear considers, so
-// that floating-point rounding in the slab arithmetic never skips a tile the
-// capsule touches exactly on its boundary. Every tile it adds is still tested
-// exactly, so the margin costs a few extra checks and changes no answer.
+// that floating-point rounding in the slab arithmetic does not skip a tile the
+// capsule touches exactly on its boundary. The margin is absolute, so it
+// covers that rounding only up to tile coordinates of about 2^25; beyond
+// that, rounding can exceed it. Every tile it adds is still tested exactly,
+// so the margin costs a few extra checks and changes no answer.
 const walkScanMargin = 1e-9
 
 // WalkIsClear reports whether a round body of radius can walk in a straight

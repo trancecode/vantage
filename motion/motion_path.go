@@ -33,8 +33,8 @@ func (s *System) CanReach(entityId ecs.EntityId, destination geometry.Vector2) b
 // FindTilePath finds a tile path from start to goal using A* over the
 // System's Terrain, routing around tiles reserved in a tile ledger Occupancy.
 // It returns nil when no path exists or when the search exhausts
-// MaxPathExpansions first. Terrain and MaxPathExpansions must be set; FindTilePath panics
-// otherwise.
+// MaxPathExpansions first. Terrain and MaxPathExpansions must be set;
+// FindTilePath panics otherwise.
 func (s *System) FindTilePath(start, goal tilemap.TileCoord) []tilemap.TileCoord {
 	if s.Terrain == nil {
 		panic("finding tile path: System.Terrain is nil")

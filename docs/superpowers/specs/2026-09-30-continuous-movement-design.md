@@ -96,8 +96,8 @@ radius.
   `FindPathBetween`, `MoveEntityTowards` and `MoveEntityTowardsArea`) route around reserved
   tiles through an unexported interface holding `GetOccupant(tilemap.TileCoord)`, which they
   type-assert `Occupancy` against. The tile ledger satisfies it, so these helpers behave exactly
-  as today. The circle table does not, so under it they ignore bodies, as nrg-rs's route search
-  does.
+  as today. The circle table does not, so under it the tile route search ignores bodies, as nrg-rs's
+  route search does, while `CanReach` and the step helpers still consult its `Available`.
 
 Lockstep and nrg assign `Occupancy: world.TileOccupancyManager`, a non-nil
 `*tilemap.TileOccupancyManager`, which still compiles against the interface. A nil pointer

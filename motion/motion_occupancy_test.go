@@ -104,3 +104,22 @@ func TestCanReach_WithCircleReservationsUsesThePoint(t *testing.T) {
 		t.Error("a point in the same tile but clear of the other circle should be reachable")
 	}
 }
+
+func TestCancelMove_PanicsWithoutSpatialAndKeepsTheMovement(t *testing.T) {
+	s, w := newTestSystem()
+	id := w.NewEntity()
+	s.Movements.Add(id, Movement{Destination: geometry.NewVector2(2.5, 0.5)})
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("expected a panic for a Movement without a Spatial")
+			}
+		}()
+		s.CancelMove(id)
+	}()
+
+	if !s.Movements.Has(id) {
+		t.Error("expected the Movement left in place by the panicking call")
+	}
+}

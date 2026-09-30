@@ -19,8 +19,8 @@ import (
 // at least one tile ahead, so the centre of the tile the body stands in, never
 // more than sqrt(2)/2 away, cannot end it. It reports false when no point is
 // walkable, or when the only one is from itself. Should rounding push the
-// shortened end onto a blocked tile, it falls back to the farthest scanned
-// point within maxLength, or reports false when there is none.
+// shortened end onto a blocked tile, it falls back to the last scanned
+// route point within maxLength, or reports false when there is none.
 //
 // For a radius under 0.5 and a route from FindRoute whose ends are legal
 // positions, the first point is always walkable, so tightening always makes

@@ -273,3 +273,24 @@ func TestMoveEntityTowards_CarriesOptionsThrough(t *testing.T) {
 		t.Errorf("expected the curve to reach the Movement, got %v", mc.Ease)
 	}
 }
+
+func TestMoveEntityTowards_PanicsWithPositiveDuration(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when opts.Duration is positive")
+		}
+	}()
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	s.MoveEntityTowards(e.id, tilemap.TileToWorldPosition(tilemap.TileCoord{X: 3, Y: 0}), MoveOptions{Speed: 1.0, Duration: time.Second})
+}
+
+func TestMoveEntityTowardsArea_PanicsWithPositiveDuration(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when opts.Duration is positive")
+		}
+	}()
+	s, e := newPathTestSystem(t, tilemap.TileCoord{X: 0, Y: 0})
+	center := tilemap.TileToWorldPosition(tilemap.TileCoord{X: 5, Y: 0})
+	s.MoveEntityTowardsArea(e.id, center, 2.0, MoveOptions{Speed: 1.0, Duration: time.Second})
+}

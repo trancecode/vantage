@@ -34,8 +34,11 @@ type System struct {
 	// off, and CancelMove settles the claim where the entity stopped. A
 	// tilemap.TileOccupancyManager reserves whole tiles, and the tile route
 	// helpers (FindTilePath and everything built on it) route around its
-	// reserved tiles. Any other Occupancy, such as tilemap.CircleReservations,
-	// is ignored by those helpers.
+	// reserved tiles. The tile route search routes without regard to any other
+	// Occupancy, such as tilemap.CircleReservations, while CanReach and the
+	// step helpers built on it still consult its Available. Assign nil, not a
+	// nil *tilemap.TileOccupancyManager, to mean no reservations, since a nil
+	// pointer in the interface is not nil.
 	Occupancy Occupancy
 
 	// Terrain provides walkability for CanReach and the pathfinding helpers.

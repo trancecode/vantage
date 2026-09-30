@@ -46,10 +46,10 @@ type MoveStart struct {
 	// MoveOutcomeStarted.
 	Distance float64
 
-	// Duration is the game time the started move will take at the requested
-	// speed. Zero unless Outcome is MoveOutcomeStarted. It is truncated to
-	// whole nanoseconds, so a move whose duration is under a nanosecond
-	// reports zero.
+	// Duration is the game time the started move will take: the requested
+	// Duration, or the distance at the requested speed. Zero unless Outcome
+	// is MoveOutcomeStarted. It is truncated to whole nanoseconds, so a move
+	// whose duration is under a nanosecond reports zero.
 	Duration time.Duration
 }
 
@@ -67,8 +67,8 @@ type MoveOptions struct {
 	// not needed: the move runs at distance divided by Duration. Such a move is
 	// timed (see Movement.Timed), so its position is independent of how game
 	// time is sliced into ticks. Zero leaves the duration to Speed. The tile
-	// route helpers (MoveEntityTowards, MoveEntityTowardsArea) still require
-	// a positive Speed.
+	// route helpers (MoveEntityTowards, MoveEntityTowardsArea) require a
+	// positive Speed and panic on a positive Duration.
 	Duration time.Duration
 
 	// Ease shapes the speed over the move's duration. The zero value,
@@ -98,7 +98,8 @@ type MoveOptions struct {
 // Occupancy.Claim moves the entity's reservation to it as the move starts.
 //
 // The entity's facing direction is set toward the destination. The entity must
-// have a Spatial and opts must carry a positive Speed or Duration; MoveEntity panics otherwise.
+// have a Spatial and opts must carry a positive Speed or Duration; MoveEntity
+// panics otherwise.
 // A move started on an entity that is already moving is re-anchored from its
 // current position, so the new move takes its full distance divided by its
 // speed. MoveEntity is intended for entities settled on their reserved tile:
@@ -123,11 +124,14 @@ func (s *System) MoveEntity(id ecs.EntityId, destination geometry.Vector2, opts 
 	}
 
 	distance := sc.Position.DistanceTo(destination)
-	speed := opts.Speed
-	total := time.Duration(distance / speed * float64(time.Second))
+	var speed float64
+	var total time.Duration
 	if opts.Duration > 0 {
 		speed = distance / opts.Duration.Seconds()
 		total = opts.Duration
+	} else {
+		speed = opts.Speed
+		total = time.Duration(distance / speed * float64(time.Second))
 	}
 
 	// Re-anchor every parametric field: a stale Start or Total from a
@@ -162,14 +166,14 @@ func (s *System) CancelMove(id ecs.EntityId) bool {
 	if !ok {
 		return false
 	}
+	sc, ok := s.Spatials.Get(id)
+	if !ok {
+		panic(fmt.Sprintf("cancelling move of entity %v: no Spatial component", id))
+	}
 	destination := mc.Destination
 	s.Movements.Remove(id)
 
 	if s.Occupancy != nil {
-		sc, ok := s.Spatials.Get(id)
-		if !ok {
-			panic(fmt.Sprintf("cancelling move of entity %v: no Spatial component", id))
-		}
 		s.Occupancy.Stop(id, destination, sc.Position)
 	}
 	return true

@@ -85,3 +85,30 @@ func TestMoveEntity_PanicsWithNeitherSpeedNorDuration(t *testing.T) {
 	s.Spatials.Add(id, Spatial{Position: geometry.NewVector2(0.0, 0.0)})
 	s.MoveEntity(id, geometry.NewVector2(1.0, 0.0), MoveOptions{})
 }
+
+func TestMoveEntity_DurationWinsOverSpeed(t *testing.T) {
+	s, w := newTestSystem()
+	id := w.NewEntity()
+	s.Spatials.Add(id, Spatial{Position: geometry.NewVector2(0.0, 0.0)})
+
+	s.MoveEntity(id, geometry.NewVector2(3.0, 4.0), MoveOptions{Speed: 4.0, Duration: 2 * time.Second})
+
+	mc, _ := s.Movements.Get(id)
+	if !mc.Timed || mc.Total != 2*time.Second || mc.Speed != 2.5 {
+		t.Errorf("expected a timed Movement of 2s at 2.5 tiles/s, got %+v", mc)
+	}
+}
+
+func TestMoveEntity_SpeedMoveAfterTimedMoveIsNotTimed(t *testing.T) {
+	s, w := newTestSystem()
+	id := w.NewEntity()
+	s.Spatials.Add(id, Spatial{Position: geometry.NewVector2(0.0, 0.0)})
+	s.MoveEntity(id, geometry.NewVector2(3.0, 4.0), MoveOptions{Duration: 2 * time.Second})
+
+	s.MoveEntity(id, geometry.NewVector2(3.0, 4.0), MoveOptions{Speed: 2.0})
+
+	mc, _ := s.Movements.Get(id)
+	if mc.Timed || mc.Total != 2500*time.Millisecond || mc.Speed != 2.0 {
+		t.Errorf("expected an untimed Movement of 2.5s at 2 tiles/s, got %+v", mc)
+	}
+}
