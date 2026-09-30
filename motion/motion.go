@@ -27,7 +27,7 @@ type Movement struct {
 	// is the average speed rather than the instantaneous one: the total
 	// duration is still the distance divided by Speed. Editing Speed
 	// mid-move changes a constant-speed move immediately, but has no effect
-	// on an eased move, whose Total was fixed when the move started;
+	// on an eased or timed move, whose Total was fixed when the move started;
 	// restart the move through MoveEntity to change an eased move's speed.
 	Speed float64
 
@@ -46,6 +46,14 @@ type Movement struct {
 	// Total is the game time the move takes end to end, fixed when the move
 	// starts as the distance divided by Speed.
 	Total time.Duration
+
+	// Timed makes the move run on the parametric path whatever its Ease: the
+	// position is a pure function of Start, Destination and Elapsed over
+	// Total, so it comes out the same however game time is sliced into
+	// ticks. MoveEntity sets it for a move started with a fixed
+	// MoveOptions.Duration. False, the zero value, routes a CurveLinear move
+	// to the incremental constant-speed path, as before Timed existed.
+	Timed bool
 }
 
 // Progress reports how far through its duration the move is, from 0 to 1.
@@ -131,8 +139,8 @@ func ProcessMovement(currentPosition, destination geometry.Vector2, speed float6
 
 // ProcessMove advances a move by duration and returns the movement with its
 // Elapsed advanced, the entity's new position, and whether the move completed.
-// It routes constant-speed moves to ProcessMovement and eased moves to the
-// parametric formula, where position is a pure function of the move's start,
+// It routes constant-speed moves to ProcessMovement, and eased or timed moves to
+// the parametric formula, where position is a pure function of the move's start,
 // destination and progress, and therefore independent of how the elapsed game
 // time was sliced into ticks.
 //
@@ -160,7 +168,7 @@ func ProcessMovement(currentPosition, destination geometry.Vector2, speed float6
 // body from there, and an unset Total makes the move snap to its destination
 // and complete on its first positive-duration tick.
 func ProcessMove(mc Movement, currentPosition geometry.Vector2, duration time.Duration) (updated Movement, newPosition geometry.Vector2, completed bool) {
-	if mc.Ease == easing.CurveLinear {
+	if mc.Ease == easing.CurveLinear && !mc.Timed {
 		newPosition, completed = ProcessMovement(currentPosition, mc.Destination, mc.Speed, duration)
 		if duration > 0 {
 			mc.Elapsed += duration

@@ -16,7 +16,9 @@
 // duration, while the constant-speed path completes on a distance tolerance
 // and an overshoot test, so under a tick that does not divide the duration
 // evenly the two can differ by one tick in either direction. ProcessMove
-// routes between them by the movement's easing.Curve, and a zero-duration
+// routes between them by the movement's easing.Curve and its Timed flag: a
+// move started with a fixed MoveOptions.Duration is timed and runs on the
+// parametric path even at constant speed. A zero-duration
 // tick moves nothing and never completes an in-flight move on either.
 //
 // System bundles the component handles and spatial indexes movement operates

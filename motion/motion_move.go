@@ -60,8 +60,16 @@ func (m MoveStart) Started() bool { return m.Outcome == MoveOutcomeStarted }
 // is distributed over the move.
 type MoveOptions struct {
 	// Speed is the average movement speed in tiles per second. It must be
-	// positive; the move entry points panic otherwise.
+	// positive unless Duration is set; the move entry points panic otherwise.
 	Speed float64
+
+	// Duration, when positive, fixes how long the move takes, and Speed is then
+	// not needed: the move runs at distance divided by Duration. Such a move is
+	// timed (see Movement.Timed), so its position is independent of how game
+	// time is sliced into ticks. Zero leaves the duration to Speed. The tile
+	// route helpers (MoveEntityTowards, MoveEntityTowardsArea) still require
+	// a positive Speed.
+	Duration time.Duration
 
 	// Ease shapes the speed over the move's duration. The zero value,
 	// easing.CurveLinear, is constant speed, which is what every move did
@@ -90,15 +98,15 @@ type MoveOptions struct {
 // Occupancy.Claim moves the entity's reservation to it as the move starts.
 //
 // The entity's facing direction is set toward the destination. The entity must
-// have a Spatial and opts.Speed must be positive; MoveEntity panics otherwise.
+// have a Spatial and opts must carry a positive Speed or Duration; MoveEntity panics otherwise.
 // A move started on an entity that is already moving is re-anchored from its
 // current position, so the new move takes its full distance divided by its
 // speed. MoveEntity is intended for entities settled on their reserved tile:
 // redirecting an entity mid-move can strand its old destination reservation
 // and clear a tile it no longer holds.
 func (s *System) MoveEntity(id ecs.EntityId, destination geometry.Vector2, opts MoveOptions) MoveStart {
-	if opts.Speed <= 0 {
-		panic(fmt.Sprintf("moving entity %v: speed must be positive, got %v", id, opts.Speed))
+	if opts.Speed <= 0 && opts.Duration <= 0 {
+		panic(fmt.Sprintf("moving entity %v: needs a positive speed or duration, got speed %v and duration %v", id, opts.Speed, opts.Duration))
 	}
 
 	sc, ok := s.Spatials.Get(id)
@@ -115,17 +123,23 @@ func (s *System) MoveEntity(id ecs.EntityId, destination geometry.Vector2, opts 
 	}
 
 	distance := sc.Position.DistanceTo(destination)
-	total := time.Duration(distance / opts.Speed * float64(time.Second))
+	speed := opts.Speed
+	total := time.Duration(distance / speed * float64(time.Second))
+	if opts.Duration > 0 {
+		speed = distance / opts.Duration.Seconds()
+		total = opts.Duration
+	}
 
 	// Re-anchor every parametric field: a stale Start or Total from a
 	// previous move would make the body jump or arrive at the wrong time.
 	mc := s.Movements.GetOrAdd(id, Movement{})
 	mc.Destination = destination
-	mc.Speed = opts.Speed
+	mc.Speed = speed
 	mc.Ease = opts.Ease
 	mc.Start = sc.Position
 	mc.Elapsed = 0
 	mc.Total = total
+	mc.Timed = opts.Duration > 0
 	sc.Direction = destination.Sub(sc.Position)
 
 	return MoveStart{
