@@ -42,10 +42,10 @@ func TestAutoCropTightensEachAnimation(t *testing.T) {
 	}
 
 	down := specs[AnimationIdleDown]
-	if got := down.Frames[0].Dx(); got != 8 {
+	if got := down.Frames[0].Rect.Dx(); got != 8 {
 		t.Fatalf("IdleDown crop width = %d, want 8", got)
 	}
-	if got := down.Frames[0].Dy(); got != 8 {
+	if got := down.Frames[0].Rect.Dy(); got != 8 {
 		t.Fatalf("IdleDown crop height = %d, want 8", got)
 	}
 	// The box starts at cell-local (4,4), so the anchor moves by that much.
@@ -54,7 +54,7 @@ func TestAutoCropTightensEachAnimation(t *testing.T) {
 	}
 
 	right := specs[AnimationIdleRight]
-	if got := right.Frames[0].Dx(); got != 4 {
+	if got := right.Frames[0].Rect.Dx(); got != 4 {
 		t.Fatalf("IdleRight crop width = %d, want 4", got)
 	}
 	if got, want := right.Anchor, geometry.NewVector2(6, 14); got != want {
@@ -79,7 +79,7 @@ func TestAutoCropCopiesThePixels(t *testing.T) {
 		t.Fatalf("autoCropAtlas returned error: %v", err)
 	}
 
-	rect := specs[AnimationIdleDown].Frames[0]
+	rect := specs[AnimationIdleDown].Frames[0].Rect
 	// Every pixel of a tight crop around a solid block is opaque.
 	for y := rect.Min.Y; y < rect.Max.Y; y++ {
 		for x := rect.Min.X; x < rect.Max.X; x++ {
@@ -110,7 +110,7 @@ func TestAutoCropIsReproducible(t *testing.T) {
 			t.Fatalf("atlas bounds = %v, want %v", next.Bounds(), first.Bounds())
 		}
 		for a, spec := range nextSpecs {
-			if spec.Frames[0] != firstSpecs[a].Frames[0] {
+			if spec.Frames[0].Rect != firstSpecs[a].Frames[0].Rect {
 				t.Fatalf("animation %s frame = %v, want %v", a, spec.Frames[0], firstSpecs[a].Frames[0])
 			}
 		}
@@ -130,7 +130,7 @@ func TestAutoCropFallsBackForAnAllTransparentAnimation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("autoCropAtlas returned error: %v", err)
 	}
-	if got := specs[AnimationIdleDown].Frames[0].Dx(); got != 16 {
+	if got := specs[AnimationIdleDown].Frames[0].Rect.Dx(); got != 16 {
 		t.Fatalf("all-transparent crop width = %d, want the full cell width 16", got)
 	}
 }
@@ -180,10 +180,10 @@ func TestAutoCropUnionsFramesOfOneAnimation(t *testing.T) {
 
 	down := specs[AnimationIdleDown]
 	for i, frame := range down.Frames {
-		if got := frame.Dx(); got != 10 {
+		if got := frame.Rect.Dx(); got != 10 {
 			t.Fatalf("frame %d width = %d, want the union width 10", i, got)
 		}
-		if got := frame.Dy(); got != 10 {
+		if got := frame.Rect.Dy(); got != 10 {
 			t.Fatalf("frame %d height = %d, want the union height 10", i, got)
 		}
 	}
@@ -230,10 +230,10 @@ func TestAutoCropAnchorRebaseResistsTransposition(t *testing.T) {
 	}
 
 	down := specs[AnimationIdleDown]
-	if got := down.Frames[0].Dx(); got != 8 {
+	if got := down.Frames[0].Rect.Dx(); got != 8 {
 		t.Fatalf("crop width = %d, want 8", got)
 	}
-	if got := down.Frames[0].Dy(); got != 2 {
+	if got := down.Frames[0].Rect.Dy(); got != 2 {
 		t.Fatalf("crop height = %d, want 2", got)
 	}
 	// The box starts at cell-local (3,7), so the correct rebase is
@@ -279,11 +279,11 @@ func TestAutoCropDoesNotSwapAnimationsPixels(t *testing.T) {
 		t.Fatalf("autoCropAtlas returned error: %v", err)
 	}
 
-	downMin := specs[AnimationIdleDown].Frames[0].Min
+	downMin := specs[AnimationIdleDown].Frames[0].Rect.Min
 	if r, g, b, _ := atlas.At(downMin.X, downMin.Y).RGBA(); r == 0 || g != 0 || b != 0 {
 		t.Fatalf("IdleDown pixel at %v is not red: r=%d g=%d b=%d", downMin, r, g, b)
 	}
-	rightMin := specs[AnimationIdleRight].Frames[0].Min
+	rightMin := specs[AnimationIdleRight].Frames[0].Rect.Min
 	if r, g, b, _ := atlas.At(rightMin.X, rightMin.Y).RGBA(); g == 0 || r != 0 || b != 0 {
 		t.Fatalf("IdleRight pixel at %v is not green: r=%d g=%d b=%d", rightMin, r, g, b)
 	}
@@ -342,8 +342,8 @@ func TestAutoCroppedDrawsWhereTheUncroppedSpriteWould(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		uniformOp := uniform.buildDrawOp(p, tc.a, false, c, 1.0)
-		croppedOp := cropped.buildDrawOp(p, tc.a, false, c, 1.0)
+		uniformOp := uniform.buildDrawOp(p, tc.a, image.Point{}, false, c, 1.0)
+		croppedOp := cropped.buildDrawOp(p, tc.a, image.Point{}, false, c, 1.0)
 
 		for i := range tc.probeX {
 			qx, qy := tc.probeX[i], tc.probeY[i]
@@ -369,7 +369,7 @@ func TestLoadSpriteAutoCroppedShrinksTheFrames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadSpriteAutoCropped returned error: %v", err)
 	}
-	if got := s.Animations[AnimationIdleDown].Images[0].Bounds().Dx(); got != 8 {
+	if got := s.Animations[AnimationIdleDown].Frames[0].Image.Bounds().Dx(); got != 8 {
 		t.Fatalf("frame width = %d, want the cropped 8 rather than the 16 pixel cell", got)
 	}
 }

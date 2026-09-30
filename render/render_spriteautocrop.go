@@ -119,10 +119,10 @@ func autoCropAtlas(
 			box = image.Rect(0, 0, cellWidth, cellHeight)
 		}
 
-		frames := make([]image.Rectangle, 0, len(frameIndexes))
+		frames := make([]FrameSpec, 0, len(frameIndexes))
 		for _, index := range frameIndexes {
 			source := box.Add(cellAt(index).Min)
-			frames = append(frames, source)
+			frames = append(frames, FrameSpec{Rect: source})
 			pending = append(pending, placement{source: source})
 		}
 		specs[a] = AnimationSpec{
@@ -140,7 +140,7 @@ func autoCropAtlas(
 	for _, a := range sortedAnimationTypes(specs) {
 		spec := specs[a]
 		for i := range spec.Frames {
-			spec.Frames[i] = placed[next].dest
+			spec.Frames[i].Rect = placed[next].dest
 			next++
 		}
 		specs[a] = spec

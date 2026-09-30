@@ -74,7 +74,7 @@ func TestDrawAnimationGeometryIsUnchangedByTheDisplayScale(t *testing.T) {
 		}
 		c.Adjust(want, p)
 
-		got := s.buildDrawOp(p, AnimationDefault, requiresFlip, c, 1.0)
+		got := s.buildDrawOp(p, AnimationDefault, image.Point{}, requiresFlip, c, 1.0)
 		if !geoMEquals(got, want) {
 			t.Fatalf("flip=%v: buildDrawOp at display scale 1 = %v, want %v", requiresFlip, got.GeoM, want.GeoM)
 		}
@@ -130,11 +130,11 @@ func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
 
 			// The frame's top-left corner, whose distance from the anchor is
 			// the drawn extent the display scale is supposed to shrink.
-			cornerX, cornerY := s.buildDrawOp(p, AnimationDefault, false, c, 1.0).GeoM.Apply(0, 0)
+			cornerX, cornerY := s.buildDrawOp(p, AnimationDefault, image.Point{}, false, c, 1.0).GeoM.Apply(0, 0)
 
 			const eps = 1e-9
 			for _, displayScale := range []float64{1.0, 0.5, 0.25} {
-				op := s.buildDrawOp(p, AnimationDefault, false, c, displayScale)
+				op := s.buildDrawOp(p, AnimationDefault, image.Point{}, false, c, displayScale)
 
 				gotX, gotY := op.GeoM.Apply(anchorSourceX, anchorSourceY)
 				if diff := gotX - wantAnchor.X(); diff > eps || diff < -eps {
@@ -232,7 +232,7 @@ func TestBuildDrawOpUnchangedWithoutASourceTileSize(t *testing.T) {
 	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
 	s.SetZeroPosition(geometry.NewVector2(8, 24))
 
-	got := s.buildDrawOp(geometry.NewVector2(3, 4), AnimationDefault, false, c, 1.0)
+	got := s.buildDrawOp(geometry.NewVector2(3, 4), AnimationDefault, image.Point{}, false, c, 1.0)
 
 	want := &ebiten.DrawImageOptions{}
 	want.GeoM.Translate(-8, -24)
@@ -253,7 +253,7 @@ func TestBuildDrawOpAppliesTheTileRatio(t *testing.T) {
 	c := drawOpTestCamera()
 	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
 
-	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 1.0)
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, image.Point{}, false, c, 1.0)
 
 	want := &ebiten.DrawImageOptions{}
 	want.GeoM.Scale(0.5, 0.5)
@@ -275,7 +275,7 @@ func TestBuildDrawOpComposesRatioAndDisplayScale(t *testing.T) {
 	c := drawOpTestCamera()
 	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
 
-	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 2.0)
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, image.Point{}, false, c, 2.0)
 
 	// 0.5 * 2 = 1
 	want := &ebiten.DrawImageOptions{}
@@ -298,7 +298,7 @@ func TestTileRatioScalesTheAnchor(t *testing.T) {
 	c := drawOpTestCamera()
 	s := NewSprite().SetSourceTileSize(64) // ratio 0.5
 
-	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 1.0)
+	got := s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, image.Point{}, false, c, 1.0)
 
 	want := &ebiten.DrawImageOptions{}
 	want.GeoM.Scale(0.5, 0.5)
@@ -313,7 +313,7 @@ func TestTileRatioScalesTheAnchor(t *testing.T) {
 	s = NewSprite().SetSourceTileSize(64)
 	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
 	s.SetZeroPosition(geometry.NewVector2(10, 20))
-	got = s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, false, c, 1.0)
+	got = s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, image.Point{}, false, c, 1.0)
 
 	want = &ebiten.DrawImageOptions{}
 	want.GeoM.Scale(0.5, 0.5)
@@ -466,12 +466,12 @@ func TestLoadSpriteAnimationsBuildsPerAnimationGeometry(t *testing.T) {
 	img := ebiten.NewImage(64, 64)
 	specs := map[AnimationType]AnimationSpec{
 		AnimationIdleDown: {
-			Frames:   []image.Rectangle{image.Rect(0, 0, 8, 12), image.Rect(8, 0, 16, 12)},
+			Frames:   []FrameSpec{{Rect: image.Rect(0, 0, 8, 12)}, {Rect: image.Rect(8, 0, 16, 12)}},
 			Anchor:   geometry.NewVector2(4, 12),
 			Duration: 200 * time.Millisecond,
 		},
 		AnimationIdleRight: {
-			Frames: []image.Rectangle{image.Rect(0, 16, 32, 48)},
+			Frames: []FrameSpec{{Rect: image.Rect(0, 16, 32, 48)}},
 			Anchor: geometry.NewVector2(16, 32),
 		},
 	}
@@ -481,7 +481,7 @@ func TestLoadSpriteAnimationsBuildsPerAnimationGeometry(t *testing.T) {
 		t.Fatalf("LoadSpriteAnimations returned error: %v", err)
 	}
 
-	if got := len(s.Animations[AnimationIdleDown].Images); got != 2 {
+	if got := len(s.Animations[AnimationIdleDown].Frames); got != 2 {
 		t.Fatalf("IdleDown frame count = %d, want 2", got)
 	}
 	if got, want := s.Anchor(AnimationIdleDown), geometry.NewVector2(4, 12); got != want {
@@ -498,7 +498,7 @@ func TestLoadSpriteAnimationsBuildsPerAnimationGeometry(t *testing.T) {
 		t.Fatalf("IdleRight duration = %v, want %v", got, want)
 	}
 	// Frames of different animations may differ in size.
-	if got := s.Animations[AnimationIdleRight].Images[0].Bounds().Dx(); got != 32 {
+	if got := s.Animations[AnimationIdleRight].Frames[0].Image.Bounds().Dx(); got != 32 {
 		t.Fatalf("IdleRight frame width = %d, want 32", got)
 	}
 }
@@ -513,8 +513,8 @@ func TestLoadSpriteAnimationsRejectsBadGeometry(t *testing.T) {
 		spec AnimationSpec
 	}{
 		{"no frames", AnimationSpec{}},
-		{"empty rectangle", AnimationSpec{Frames: []image.Rectangle{image.Rect(4, 4, 4, 4)}}},
-		{"outside the image", AnimationSpec{Frames: []image.Rectangle{image.Rect(0, 0, 128, 128)}}},
+		{"empty rectangle", AnimationSpec{Frames: []FrameSpec{{Rect: image.Rect(4, 4, 4, 4)}}}},
+		{"outside the image", AnimationSpec{Frames: []FrameSpec{{Rect: image.Rect(0, 0, 128, 128)}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, err := LoadSpriteAnimations(img, map[AnimationType]AnimationSpec{
@@ -539,17 +539,17 @@ func TestLoadSpriteMatchesLoadSpriteAnimations(t *testing.T) {
 	}
 
 	fromSpecs, err := LoadSpriteAnimations(img, map[AnimationType]AnimationSpec{
-		AnimationIdleDown: {Frames: []image.Rectangle{
-			image.Rect(0, 0, 16, 16), image.Rect(16, 0, 32, 16),
+		AnimationIdleDown: {Frames: []FrameSpec{
+			{Rect: image.Rect(0, 0, 16, 16)}, {Rect: image.Rect(16, 0, 32, 16)},
 		}},
 	})
 	if err != nil {
 		t.Fatalf("LoadSpriteAnimations returned error: %v", err)
 	}
 
-	for i := range fromGrid.Animations[AnimationIdleDown].Images {
-		got := fromGrid.Animations[AnimationIdleDown].Images[i].Bounds()
-		want := fromSpecs.Animations[AnimationIdleDown].Images[i].Bounds()
+	for i := range fromGrid.Animations[AnimationIdleDown].Frames {
+		got := fromGrid.Animations[AnimationIdleDown].Frames[i].Image.Bounds()
+		want := fromSpecs.Animations[AnimationIdleDown].Frames[i].Image.Bounds()
 		if got != want {
 			t.Fatalf("frame %d bounds = %v, want %v", i, got, want)
 		}
@@ -575,7 +575,7 @@ func TestBuildDrawOpUsesTheAnimationAnchor(t *testing.T) {
 	const eps = 1e-9
 	for _, a := range []AnimationType{AnimationIdleDown, AnimationIdleRight} {
 		anchor := s.Anchor(a)
-		op := s.buildDrawOp(p, a, false, c, 1.0)
+		op := s.buildDrawOp(p, a, image.Point{}, false, c, 1.0)
 		gotX, gotY := op.GeoM.Apply(anchor.X(), anchor.Y())
 		if diff := gotX - want.X(); diff > eps || diff < -eps {
 			t.Errorf("animation %v: anchor X = %v, want %v", a, gotX, want.X())
@@ -583,5 +583,125 @@ func TestBuildDrawOpUsesTheAnimationAnchor(t *testing.T) {
 		if diff := gotY - want.Y(); diff > eps || diff < -eps {
 			t.Errorf("animation %v: anchor Y = %v, want %v", a, gotY, want.Y())
 		}
+	}
+}
+
+// TestFrameAtPicksTheFrameForTheElapsedTime covers the frame arithmetic every
+// animated draw shares: frames split the duration evenly and the animation
+// loops.
+func TestFrameAtPicksTheFrameForTheElapsedTime(t *testing.T) {
+	animation := &Animation{
+		Frames: []Frame{
+			{Offset: image.Pt(0, 0)},
+			{Offset: image.Pt(1, 0)},
+			{Offset: image.Pt(2, 0)},
+			{Offset: image.Pt(3, 0)},
+		},
+		Duration: 400 * time.Millisecond,
+	}
+	for _, tc := range []struct {
+		elapsed time.Duration
+		want    int
+	}{
+		{0, 0},
+		{99 * time.Millisecond, 0},
+		{100 * time.Millisecond, 1},
+		{350 * time.Millisecond, 3},
+		{400 * time.Millisecond, 0},
+		{520 * time.Millisecond, 1},
+	} {
+		if got := animation.FrameAt(tc.elapsed).Offset.X; got != tc.want {
+			t.Errorf("FrameAt(%v) = frame %d, want %d", tc.elapsed, got, tc.want)
+		}
+	}
+}
+
+// TestFrameAtWithoutADurationShowsTheFirstFrame covers a zero duration, which
+// holds the first frame rather than dividing by zero.
+func TestFrameAtWithoutADurationShowsTheFirstFrame(t *testing.T) {
+	animation := &Animation{Frames: []Frame{{Offset: image.Pt(7, 0)}, {Offset: image.Pt(8, 0)}}}
+	if got := animation.FrameAt(time.Hour).Offset.X; got != 7 {
+		t.Fatalf("FrameAt with no duration = frame at offset %d, want the first frame's 7", got)
+	}
+}
+
+// TestBuildDrawOpAppliesTheFrameOffset covers the core of per-frame geometry:
+// a frame stored at an offset inside its uncropped cell is drawn so that the
+// animation's anchor, which is in cell coordinates, still lands on the world
+// position. In the frame's own pixels that anchor is ZeroPosition - Offset.
+// The mirrored case flips about that same point, so it must land there too.
+func TestBuildDrawOpAppliesTheFrameOffset(t *testing.T) {
+	c := drawOpTestCamera()
+	p := geometry.NewVector2(3, 5)
+	zero := geometry.NewVector2(10, 20)
+	offset := image.Pt(3, 7)
+
+	s := NewSprite()
+	s.AddImage(AnimationIdleRight, ebiten.NewImage(8, 2))
+	s.Animations[AnimationIdleRight].ZeroPosition = zero
+
+	want := c.WorldToScreen(p)
+	// The anchor pixel in the cropped frame's own coordinates.
+	localX, localY := zero.X()-float64(offset.X), zero.Y()-float64(offset.Y)
+	const eps = 1e-9
+	for _, tc := range []struct {
+		a            AnimationType
+		requiresFlip bool
+	}{
+		{AnimationIdleRight, false},
+		{AnimationIdleLeft, true},
+	} {
+		for _, displayScale := range []float64{1.0, 0.5} {
+			op := s.buildDrawOp(p, tc.a, offset, tc.requiresFlip, c, displayScale)
+			gotX, gotY := op.GeoM.Apply(localX, localY)
+			if diff := gotX - want.X(); diff > eps || diff < -eps {
+				t.Errorf("%s at scale %v: anchor X = %v, want %v", tc.a, displayScale, gotX, want.X())
+			}
+			if diff := gotY - want.Y(); diff > eps || diff < -eps {
+				t.Errorf("%s at scale %v: anchor Y = %v, want %v", tc.a, displayScale, gotY, want.Y())
+			}
+		}
+	}
+}
+
+// TestLoadSpriteAnimationsCarriesFrameOffsets covers that a spec's per-frame
+// offsets reach the loaded frames unchanged, alongside the animation anchor.
+func TestLoadSpriteAnimationsCarriesFrameOffsets(t *testing.T) {
+	img := ebiten.NewImage(64, 64)
+	s, err := LoadSpriteAnimations(img, map[AnimationType]AnimationSpec{
+		AnimationIdleDown: {
+			Frames: []FrameSpec{
+				{Rect: image.Rect(0, 0, 8, 12), Offset: image.Pt(4, 2)},
+				{Rect: image.Rect(8, 0, 12, 4), Offset: image.Pt(1, 9)},
+			},
+			Anchor: geometry.NewVector2(8, 16),
+		},
+	})
+	if err != nil {
+		t.Fatalf("LoadSpriteAnimations returned error: %v", err)
+	}
+	frames := s.Animations[AnimationIdleDown].Frames
+	if got, want := frames[0].Offset, image.Pt(4, 2); got != want {
+		t.Fatalf("frame 0 offset = %v, want %v", got, want)
+	}
+	if got, want := frames[1].Offset, image.Pt(1, 9); got != want {
+		t.Fatalf("frame 1 offset = %v, want %v", got, want)
+	}
+	if got := frames[1].Image.Bounds().Dx(); got != 4 {
+		t.Fatalf("frame 1 width = %d, want 4", got)
+	}
+	if got, want := s.Anchor(AnimationIdleDown), geometry.NewVector2(8, 16); got != want {
+		t.Fatalf("Anchor(IdleDown) = %v, want %v", got, want)
+	}
+}
+
+// TestAddImageStoresAnUncroppedFrame covers hand-built sprites, such as a
+// game's own layered loader: AddImage frames sit at offset zero, so they draw
+// exactly as they did before frames had offsets.
+func TestAddImageStoresAnUncroppedFrame(t *testing.T) {
+	s := NewSprite()
+	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
+	if got := s.Animations[AnimationIdleDown].Frames[0].Offset; got != (image.Point{}) {
+		t.Fatalf("AddImage frame offset = %v, want zero", got)
 	}
 }

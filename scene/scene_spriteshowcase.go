@@ -89,11 +89,11 @@ func showcaseFitScale(sprite *render.Sprite) float64 {
 	drawnScale := sprite.TileRatio()
 	artPixels := 0.0
 	for _, animation := range sprite.Animations {
-		for _, image := range animation.Images {
-			if image == nil {
+		for _, frame := range animation.Frames {
+			if frame.Image == nil {
 				continue
 			}
-			bounds := image.Bounds()
+			bounds := frame.Image.Bounds()
 			artPixels = max(artPixels, float64(max(bounds.Dx(), bounds.Dy()))*drawnScale)
 		}
 	}

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"image"
 	"strings"
 	"testing"
 
@@ -64,12 +65,12 @@ func TestBuildDrawOpAppliesSpriteFilter(t *testing.T) {
 	camera := NewCamera(640, 480)
 
 	SpriteFilter = ebiten.FilterLinear
-	if op := s.buildDrawOp(geometry.Zero2D(), AnimationDefault, false, camera, 1.0); op.Filter != ebiten.FilterLinear {
+	if op := s.buildDrawOp(geometry.Zero2D(), AnimationDefault, image.Point{}, false, camera, 1.0); op.Filter != ebiten.FilterLinear {
 		t.Fatalf("buildDrawOp Filter = %v, want FilterLinear", op.Filter)
 	}
 
 	SpriteFilter = ebiten.FilterNearest
-	if op := s.buildDrawOp(geometry.Zero2D(), AnimationDefault, false, camera, 1.0); op.Filter != ebiten.FilterNearest {
+	if op := s.buildDrawOp(geometry.Zero2D(), AnimationDefault, image.Point{}, false, camera, 1.0); op.Filter != ebiten.FilterNearest {
 		t.Fatalf("buildDrawOp Filter = %v, want FilterNearest", op.Filter)
 	}
 }

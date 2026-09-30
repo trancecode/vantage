@@ -34,16 +34,46 @@ type Sprite struct {
 	cachedVisibleBounds map[AnimationType]image.Rectangle
 }
 
-// Animation represents a sequence of images forming an animation.
+// Animation represents a sequence of frames forming an animation.
 type Animation struct {
-	Images   []*ebiten.Image
+	// Frames are the animation's images in order, each with where it sits in
+	// the animation's frame space.
+	Frames []Frame
+
+	// Duration is how long one pass through all the frames takes.
 	Duration time.Duration
 
-	// ZeroPosition is this animation's anchor: the pixel inside its frames that
-	// sits on the drawn world position, in its own frames' local pixels. Frames
-	// of different animations need not share a size or an anchor, which is what
-	// lets a sheet be cropped per animation.
+	// ZeroPosition is this animation's anchor: the pixel that sits on the drawn
+	// world position, in frame space. Frame space is the coordinate system of
+	// one uncropped frame, such as the sheet cell a frame was cut from. Frames of
+	// different animations need not share a size or an anchor.
 	ZeroPosition geometry.Vector2
+}
+
+// Frame is one image of an animation and where that image sits in the
+// animation's frame space. Cropping a frame to its content moves its image's
+// top-left corner away from frame space's origin, and Offset records by how
+// much, so the animation keeps a single anchor however each frame was cropped.
+type Frame struct {
+	// Image is the frame's pixels.
+	Image *ebiten.Image
+
+	// Offset is where Image's top-left pixel sits in frame space: zero for an
+	// uncropped frame, the crop box's corner for a cropped one. The anchor in
+	// Image's own pixels is the animation's ZeroPosition minus Offset.
+	Offset image.Point
+}
+
+// FrameAt returns the frame shown once elapsed has passed since the animation
+// started, looping. The frames split Duration evenly; a zero Duration holds
+// the first frame. It panics on an animation with no frames.
+func (a *Animation) FrameAt(elapsed time.Duration) Frame {
+	index := 0
+	if a.Duration > 0 {
+		index = int(elapsed / (a.Duration / time.Duration(len(a.Frames))))
+		index %= len(a.Frames)
+	}
+	return a.Frames[index]
 }
 
 // NewSprite creates and returns a new Sprite with default values.
@@ -55,28 +85,27 @@ func NewSprite() *Sprite {
 	}
 }
 
-// AddImage adds an image to the specified animation type.
+// AddImage adds an uncropped frame, at offset zero, to the specified animation
+// type.
 func (s *Sprite) AddImage(animationType AnimationType, img *ebiten.Image) {
 	if _, ok := s.Animations[animationType]; !ok {
-		s.Animations[animationType] = &Animation{
-			Images: []*ebiten.Image{},
-		}
+		s.Animations[animationType] = &Animation{}
 	}
-	s.Animations[animationType].Images = append(s.Animations[animationType].Images, img)
+	s.Animations[animationType].Frames = append(s.Animations[animationType].Frames, Frame{Image: img})
 }
 
 // Image returns the first image of the specified animation type.
 // It panics if the animation type does not exist or has no images, unless
 // UsePlaceholderSpriteImages is set, in which case it returns nil.
 func (s *Sprite) Image(animationType AnimationType) *ebiten.Image {
-	if _, ok := s.Animations[animationType]; !ok || len(s.Animations[animationType].Images) == 0 {
+	if _, ok := s.Animations[animationType]; !ok || len(s.Animations[animationType].Frames) == 0 {
 		if !UsePlaceholderSpriteImages {
 			panic(fmt.Sprintf("no such animation type: %s", animationType))
 		}
 		// TODO: return a default image
 		return nil
 	}
-	return s.Animations[animationType].Images[0]
+	return s.Animations[animationType].Frames[0].Image
 }
 
 // HasAnimation checks if the sprite has a specific animation defined.
@@ -111,44 +140,36 @@ func (s *Sprite) AllAnimations() []AnimationType {
 
 // Draw draws the sprite at the given position with the specified animation type.
 func (s *Sprite) Draw(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType) {
-	var img *ebiten.Image
-	requiresFlip := false
-
-	// A missing animation can be rendered by horizontally flipping its mirror.
-	if _, ok := s.Animations[a]; !ok {
-		if existingAnimationType, shouldFlip := MirroredAnimations[a]; shouldFlip {
-			img = s.Image(existingAnimationType)
-			if _, ok := s.Animations[existingAnimationType]; ok {
-				requiresFlip = true
-			}
+	animation, requiresFlip := s.resolveAnimation(a)
+	if animation == nil || len(animation.Frames) == 0 {
+		if !UsePlaceholderSpriteImages {
+			panic(fmt.Sprintf("no such animation type: %s", a))
 		}
-	}
-
-	if img == nil {
-		img = s.Image(a)
-	}
-	if img == nil {
 		return
 	}
-
-	op := s.buildDrawOp(p, a, requiresFlip, c, 1.0)
-	screen.DrawImage(img, op)
+	frame := animation.Frames[0]
+	if frame.Image == nil {
+		return
+	}
+	screen.DrawImage(frame.Image, s.buildDrawOp(p, a, frame.Offset, requiresFlip, c, 1.0))
 }
 
-// buildDrawOp builds the draw options for the sprite at world-tile position p:
-// the tile ratio combined with displayScale, the zero-position offset, an
-// optional horizontal flip, then the camera transform.
+// buildDrawOp builds the draw options for one frame of the sprite at
+// world-tile position p: the tile ratio combined with displayScale, the
+// frame's anchor offset, an optional horizontal flip, then the camera
+// transform. The frame's anchor is the animation's anchor less the frame's
+// offset in frame space.
 //
 // The scale and the anchor offset use the same factor, so the transform is a
-// uniform scale about the zero position: the pixel anchored at the world
-// position p stays at p, and only the drawn extent changes. A displayScale of 1
-// draws the sprite at the size the game draws it.
-func (s *Sprite) buildDrawOp(p geometry.Vector2, a AnimationType, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
+// uniform scale about the anchor: the pixel anchored at the world position p
+// stays at p, and only the drawn extent changes. A displayScale of 1 draws the
+// sprite at the size the game draws it.
+func (s *Sprite) buildDrawOp(p geometry.Vector2, a AnimationType, offset image.Point, requiresFlip bool, c *Camera, displayScale float64) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.Filter = SpriteFilter
 	scale := s.TileRatio() * displayScale
 	op.GeoM.Scale(scale, scale)
-	anchor := s.Anchor(a)
+	anchor := s.Anchor(a).Sub(geometry.NewVector2(offset.X, offset.Y))
 	op.GeoM.Translate(-anchor.X()*scale, -anchor.Y()*scale)
 	if requiresFlip {
 		op.GeoM.Scale(-1, 1)
@@ -170,42 +191,25 @@ func (s *Sprite) DrawAnimation(screen *ebiten.Image, c *Camera, p geometry.Vecto
 // stays on p at any display scale and only the drawn extent changes. A
 // displayScale of 1 is identical to DrawAnimation.
 func (s *Sprite) DrawAnimationScaled(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType, duration time.Duration, displayScale float64) {
-	var requiresFlip bool
-	animation, animationExists := s.Animations[a]
-
-	if !animationExists {
-		// Check if we need to flip horizontally
-		if existingAnimationType, shouldFlip := MirroredAnimations[a]; shouldFlip {
-			requiresFlip = true
-			animation = s.Animations[existingAnimationType]
-		} else {
-			panic(fmt.Sprintf("no such animation type: %s", a))
-		}
+	animation, requiresFlip := s.resolveAnimation(a)
+	if animation == nil {
+		panic(fmt.Sprintf("no such animation type: %s", a))
 	}
-
-	if len(animation.Images) == 0 {
+	if len(animation.Frames) == 0 {
 		panic(fmt.Sprintf("no image for this animation type: %s", a))
 	}
 
-	// Determine which frame to draw based on the duration and animation speed
-	frameIndex := 0
-	if animation.Duration > 0 {
-		frameIndex = int(duration / (animation.Duration / time.Duration(len(animation.Images))))
-		frameIndex %= len(animation.Images) // Loop the animation
-	}
-
-	img := animation.Images[frameIndex]
-	if img == nil {
+	frame := animation.FrameAt(duration)
+	if frame.Image == nil {
 		return
 	}
-
-	op := s.buildDrawOp(p, a, requiresFlip, c, displayScale)
-	screen.DrawImage(img, op)
+	screen.DrawImage(frame.Image, s.buildDrawOp(p, a, frame.Offset, requiresFlip, c, displayScale))
 }
 
 // VisibleBounds returns the bounding rectangle of non-transparent pixels in
-// the first frame of the given animation, expressed in frame-local pixel
-// coordinates. Cached per animation after first call. Returns an empty
+// the first frame of the given animation, expressed in frame space, the same
+// coordinates as Anchor, so a hit test combines the two directly. Cached per
+// animation after first call. Returns an empty
 // rectangle if no visible content is found.
 //
 // The rectangle is in the source animation's own coordinates and is not
@@ -215,14 +219,15 @@ func (s *Sprite) VisibleBounds(a AnimationType) image.Rectangle {
 	if cached, ok := s.cachedVisibleBounds[a]; ok {
 		return cached
 	}
-	img := s.animationFrame(a)
+	frame, ok := s.firstFrame(a)
 	var result image.Rectangle
-	if img != nil {
-		frame := img.Bounds()
-		minX, minY := frame.Max.X, frame.Max.Y
-		maxX, maxY := frame.Min.X-1, frame.Min.Y-1
-		for y := frame.Min.Y; y < frame.Max.Y; y++ {
-			for x := frame.Min.X; x < frame.Max.X; x++ {
+	if ok && frame.Image != nil {
+		img := frame.Image
+		bounds := img.Bounds()
+		minX, minY := bounds.Max.X, bounds.Max.Y
+		maxX, maxY := bounds.Min.X-1, bounds.Min.Y-1
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
 				_, _, _, alpha := img.At(x, y).RGBA()
 				if alpha == 0 {
 					continue
@@ -242,11 +247,11 @@ func (s *Sprite) VisibleBounds(a AnimationType) image.Rectangle {
 			}
 		}
 		if maxX >= minX && maxY >= minY {
-			// Normalize to frame-local (0,0) origin.
+			// Normalize to the frame's own origin, then place it in frame space.
 			result = image.Rect(
-				minX-frame.Min.X, minY-frame.Min.Y,
-				maxX-frame.Min.X+1, maxY-frame.Min.Y+1,
-			)
+				minX-bounds.Min.X, minY-bounds.Min.Y,
+				maxX-bounds.Min.X+1, maxY-bounds.Min.Y+1,
+			).Add(frame.Offset)
 		}
 	}
 	s.cachedVisibleBounds[a] = result
@@ -276,10 +281,13 @@ func (s *Sprite) VisibleTopAboveZero(a AnimationType) float64 {
 		return cached * s.TileRatio()
 	}
 
-	img := s.animationFrame(a)
+	frame, ok := s.firstFrame(a)
 	result := 0.0
-	if img != nil {
-		anchorY := s.Anchor(a).Y()
+	if ok && frame.Image != nil {
+		img := frame.Image
+		// The anchor in this frame's own pixels, which is what the row index
+		// below is measured in.
+		anchorY := s.Anchor(a).Y() - float64(frame.Offset.Y)
 		bounds := img.Bounds()
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			rowHasPixel := false
@@ -292,9 +300,9 @@ func (s *Sprite) VisibleTopAboveZero(a AnimationType) float64 {
 			}
 			if rowHasPixel {
 				// (y - bounds.Min.Y) is the row index within the frame. Both it
-				// and ZeroPosition are in source pixels, so the first visible
-				// pixel sits ZeroPosition.Y() - rowIndex source pixels above
-				// ZeroPosition.
+				// and anchorY are in the frame's own source pixels, so the first
+				// visible pixel sits anchorY - rowIndex source pixels above the
+				// anchor.
 				result = anchorY - float64(y-bounds.Min.Y)
 				break
 			}
@@ -334,35 +342,37 @@ func (s *Sprite) TileRatio() float64 {
 // end up on screen. An animation the sprite does not have returns the zero
 // vector: this is a query, not a draw.
 func (s *Sprite) Anchor(a AnimationType) geometry.Vector2 {
+	animation, _ := s.resolveAnimation(a)
+	if animation == nil {
+		return geometry.Zero2D()
+	}
+	return animation.ZeroPosition
+}
+
+// resolveAnimation returns the animation that a is drawn from and whether
+// drawing it needs a horizontal flip: a itself when the sprite has it,
+// otherwise its mirror from MirroredAnimations. It returns nil when neither
+// exists.
+func (s *Sprite) resolveAnimation(a AnimationType) (*Animation, bool) {
 	if animation, ok := s.Animations[a]; ok {
-		return animation.ZeroPosition
+		return animation, false
 	}
 	if other, mirrored := MirroredAnimations[a]; mirrored {
 		if animation, ok := s.Animations[other]; ok {
-			return animation.ZeroPosition
+			return animation, true
 		}
 	}
-	return geometry.Zero2D()
+	return nil, false
 }
 
-// animationFrame returns the first frame of a, resolving a mirrored animation
-// to the animation it is drawn from, and nil when neither exists or has
-// frames.
-func (s *Sprite) animationFrame(a AnimationType) *ebiten.Image {
-	animation, ok := s.Animations[a]
-	if !ok {
-		other, mirrored := MirroredAnimations[a]
-		if !mirrored {
-			return nil
-		}
-		if animation, ok = s.Animations[other]; !ok {
-			return nil
-		}
+// firstFrame returns the first frame of a, resolving a mirrored animation to
+// the animation it is drawn from, and false when neither exists or has frames.
+func (s *Sprite) firstFrame(a AnimationType) (Frame, bool) {
+	animation, _ := s.resolveAnimation(a)
+	if animation == nil || len(animation.Frames) == 0 {
+		return Frame{}, false
 	}
-	if len(animation.Images) == 0 {
-		return nil
-	}
-	return animation.Images[0]
+	return animation.Frames[0], true
 }
 
 // SetZeroPosition sets one anchor on every animation the sprite currently has,
@@ -397,23 +407,34 @@ var (
 )
 
 // AnimationSpec describes one animation's geometry within an image: where its
-// frames are, where its anchor sits inside them, and how long it runs. It is the
-// load-time description of an animation, where Animation is the loaded form; the
-// two differ in that a spec names frames as rectangles into a source image while
-// an Animation holds uploaded textures.
+// frames are, where each sits in frame space, where the anchor is, and how
+// long it runs. It is the load-time description of an animation, where
+// Animation is the loaded form; the two differ in that a spec names frames as
+// rectangles into a source image while an Animation holds uploaded textures.
 //
 // Frames need not be the same size as each other or as another animation's,
-// which is what lets a sheet be packed with one crop box per animation.
+// which is what lets a sheet be packed with one crop box per frame.
 type AnimationSpec struct {
-	// Frames are the source rectangles of this animation's frames, in order.
-	Frames []image.Rectangle
+	// Frames are this animation's frames, in order.
+	Frames []FrameSpec
 
-	// Anchor is the pixel inside this animation's frames that sits on the drawn
-	// world position, in frame-local pixels.
+	// Anchor is the pixel that sits on the drawn world position, in frame
+	// space.
 	Anchor geometry.Vector2
 
 	// Duration is how long the whole animation runs. Zero means one second.
 	Duration time.Duration
+}
+
+// FrameSpec is one frame of an AnimationSpec: its source rectangle and where
+// that rectangle's top-left sits in frame space.
+type FrameSpec struct {
+	// Rect is the frame's source rectangle in the image.
+	Rect image.Rectangle
+
+	// Offset is where Rect's top-left pixel sits in frame space, zero for an
+	// uncropped frame.
+	Offset image.Point
 }
 
 // sortedAnimationTypes returns m's keys in ascending order, so anything built
@@ -429,7 +450,7 @@ func sortedAnimationTypes[V any](m map[AnimationType]V) []AnimationType {
 }
 
 // LoadSpriteAnimations builds a sprite whose animations each carry their own
-// frame rectangles, anchor and duration. Frames are sub-images of img, so the
+// frame rectangles and offsets, anchor and duration. Frames are sub-images of img, so the
 // whole sprite costs one texture however many animations it has.
 //
 // Use it when a sheet is not a uniform grid, or when animations need different
@@ -444,22 +465,22 @@ func LoadSpriteAnimations(img *ebiten.Image, specs map[AnimationType]AnimationSp
 		if len(spec.Frames) == 0 {
 			return nil, fmt.Errorf("animation %s: no frames", a)
 		}
-		for i, rect := range spec.Frames {
-			if rect.Empty() {
-				return nil, fmt.Errorf("animation %s frame %d: empty rectangle %v", a, i, rect)
+		frames := make([]Frame, 0, len(spec.Frames))
+		for i, f := range spec.Frames {
+			if f.Rect.Empty() {
+				return nil, fmt.Errorf("animation %s frame %d: empty rectangle %v", a, i, f.Rect)
 			}
-			if !rect.In(bounds) {
-				return nil, fmt.Errorf("animation %s frame %d: rectangle %v is outside the image bounds %v", a, i, rect, bounds)
+			if !f.Rect.In(bounds) {
+				return nil, fmt.Errorf("animation %s frame %d: rectangle %v is outside the image bounds %v", a, i, f.Rect, bounds)
 			}
-			sprite.AddImage(a, img.SubImage(rect).(*ebiten.Image))
+			frames = append(frames, Frame{Image: img.SubImage(f.Rect).(*ebiten.Image), Offset: f.Offset})
 		}
 
-		animation := sprite.Animations[a]
-		animation.ZeroPosition = spec.Anchor
-		animation.Duration = spec.Duration
-		if animation.Duration == 0 {
-			animation.Duration = time.Second
+		duration := spec.Duration
+		if duration == 0 {
+			duration = time.Second
 		}
+		sprite.Animations[a] = &Animation{Frames: frames, Duration: duration, ZeroPosition: spec.Anchor}
 	}
 
 	return sprite, nil
@@ -494,11 +515,11 @@ func LoadSprite(img *ebiten.Image, width, height int, indexes map[AnimationType]
 		if len(animationIndexes) == 0 {
 			continue
 		}
-		frames := make([]image.Rectangle, 0, len(animationIndexes))
+		frames := make([]FrameSpec, 0, len(animationIndexes))
 		for _, index := range animationIndexes {
 			x := (index % width) * tileWidth
 			y := (index / width) * tileHeight
-			frames = append(frames, image.Rect(x, y, x+tileWidth, y+tileHeight))
+			frames = append(frames, FrameSpec{Rect: image.Rect(x, y, x+tileWidth, y+tileHeight)})
 		}
 		specs[animationType] = AnimationSpec{Frames: frames, Duration: durations[animationType]}
 	}
