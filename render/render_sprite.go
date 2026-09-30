@@ -10,8 +10,9 @@ import (
 	"github.com/trancecode/vantage/geometry"
 )
 
-// UsePlaceholderSpriteImages, when true, makes drawing a missing animation type
-// draw nothing instead of panicking. Set by engine configuration.
+// UsePlaceholderSpriteImages, when true, makes Draw draw nothing for a missing
+// animation type instead of panicking; DrawAnimation and DrawAnimationScaled
+// still panic. Set by engine configuration.
 var UsePlaceholderSpriteImages bool
 
 // Sprite represents a game sprite with animations.
