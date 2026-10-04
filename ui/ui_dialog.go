@@ -20,6 +20,9 @@ const (
 	dialogOptionHeight = 36.0
 	dialogMinWidth     = 300.0
 	dialogSpacing      = 12.0
+
+	// defaultCancelLabel labels the cancel button of a dialog whose CancelLabel is empty.
+	defaultCancelLabel = "Cancel"
 )
 
 // DialogOption represents a selectable option in the dialog.
@@ -39,14 +42,19 @@ type Dialog struct {
 	// Title is displayed at the top of the dialog.
 	Title string
 
-	// Context is optional text displayed between the title and options.
+	// Context is optional text displayed between the title and options, as a
+	// single line: the dialog grows wide enough to hold it.
 	Context string
 
 	// Options is the list of selectable options.
 	Options []DialogOption
 
-	// OnCancel is called when the dialog is dismissed with ESC.
+	// OnCancel is called when the dialog is dismissed with ESC or its cancel button.
 	OnCancel func()
+
+	// CancelLabel is the label of the cancel button drawn below the options,
+	// for example "Close" on a dialog that only informs. Empty means "Cancel".
+	CancelLabel string
 
 	// SelectedIndex is the currently highlighted option (for keyboard navigation).
 	SelectedIndex int
@@ -271,7 +279,7 @@ func (d *Dialog) recalculateLayout() {
 	// Cancel button at the bottom
 	cancelY := optionsY + float64(len(d.Options))*dialogOptionHeight + dialogSpacing
 	d.cancelButton = Button{
-		Label:         "Cancel",
+		Label:         d.cancelLabel(),
 		ShortcutLabel: "ESC",
 		X:             dialogX + dialogPaddingX,
 		Y:             cancelY,
@@ -303,13 +311,16 @@ func (d *Dialog) dialogSize() (float64, float64) {
 		}
 	}
 	// Cancel button width
-	cancelWidth := text.Advance("[ESC] Cancel", optionFace)
+	cancelWidth := text.Advance("[ESC] "+d.cancelLabel(), optionFace)
 	if cancelWidth > maxOptionWidth {
 		maxOptionWidth = cancelWidth
 	}
 
-	// Width: max of title, options, and minimum
+	// Width: max of title, context, options, and minimum
 	contentWidth := titleWidth
+	if d.Context != "" {
+		contentWidth = max(contentWidth, text.Advance(d.Context, optionFace))
+	}
 	if maxOptionWidth+24 > contentWidth { // 24 for shortcut padding
 		contentWidth = maxOptionWidth + 24
 	}
@@ -326,6 +337,14 @@ func (d *Dialog) dialogSize() (float64, float64) {
 	height += dialogPaddingY                               // Bottom padding
 
 	return width, height
+}
+
+// cancelLabel returns the cancel button's label: CancelLabel, or "Cancel" when it is empty.
+func (d *Dialog) cancelLabel() string {
+	if d.CancelLabel == "" {
+		return defaultCancelLabel
+	}
+	return d.CancelLabel
 }
 
 func (d *Dialog) optionsStartY(dialogY float64) float64 {
