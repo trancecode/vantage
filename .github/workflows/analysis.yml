@@ -15,6 +15,11 @@ jobs:
     uses: trancecode/github-workflows/.github/workflows/go-analysis.yml@main
     with:
       system-packages: 'libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config xorg-dev'
+      # The shared defaults (staticcheck 2026.2.1, golangci-lint v2.13.1)
+      # cannot read Go 1.27.2's export data. Drop these overrides once the
+      # shared workflow's defaults reach these releases.
+      staticcheck-version: '2026.2.2'
+      golangci-version: 'v2.14.0'
       golangci-args: '--disable=staticcheck'
       staticcheck-checks: 'inherit'
       check-modernizers: true
