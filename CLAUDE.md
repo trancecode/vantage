@@ -82,8 +82,6 @@ The `go` directive in `go.mod` is the single source of truth for the repository'
 
 * Never hardcode a `go-version:` literal in a workflow. Use `go-version-file: go.mod` with `actions/setup-go` so the version follows `go.mod` automatically.
 * The same rule applies to any other surface that needs a Go version (Dockerfiles, tool configs): derive it from `go.mod` rather than repeating it. A second copy of the version can drift; there is no sync check to catch it.
-* `.github/workflows/check-go-version.yml` runs weekly and compares the `go` directive against the latest stable Go release. When the repository falls behind, it opens a `claude`-labelled issue asking for the bump.
-* That workflow deliberately only opens an issue, never a pull request. A workflow that crafted the bump itself would have to push it with the built-in `GITHUB_TOKEN`, which may not push commits touching files under `.github/workflows/` — the failure mode that sank an earlier design, back when the version had to be updated in a workflow file too. Keeping the workflow out of the git plumbing entirely also keeps the bump on the normal pull-request path, where the checks that matter for a compiler upgrade actually run.
 
 ### Go-Specific Testing Requirements
 
