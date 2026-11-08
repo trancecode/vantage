@@ -2,6 +2,7 @@ package render
 
 import (
 	"image"
+	"image/color"
 	"testing"
 	"time"
 
@@ -173,6 +174,40 @@ func TestDrawAnimationScaledDrawsEveryDisplayScale(t *testing.T) {
 		// AnimationIdleLeft is not authored, so it is drawn by flipping
 		// AnimationIdleRight.
 		s.DrawAnimationScaled(screen, c, p, AnimationIdleLeft, 100*time.Millisecond, displayScale)
+	}
+}
+
+// TestSilhouettePaintsEveryPixelFlat checks the silhouette's colour matrix
+// turns every colour into the one given at the pixel's own alpha, an opaque
+// pixel and a half-transparent one alike, and leaves a transparent one
+// transparent. Colours are premultiplied, as ebitengine's are.
+func TestSilhouettePaintsEveryPixelFlat(t *testing.T) {
+	m := silhouette(color.White)
+	for _, tc := range []struct{ in, want color.RGBA }{
+		{color.RGBA{40, 80, 120, 255}, color.RGBA{255, 255, 255, 255}},
+		{color.RGBA{20, 10, 0, 128}, color.RGBA{128, 128, 128, 128}},
+		{color.RGBA{}, color.RGBA{}},
+	} {
+		got := color.RGBAModel.Convert(m.Apply(tc.in)).(color.RGBA)
+		near := func(a, b uint8) bool { return int(a)-int(b) <= 1 && int(b)-int(a) <= 1 }
+		if !near(got.R, tc.want.R) || !near(got.G, tc.want.G) || !near(got.B, tc.want.B) || !near(got.A, tc.want.A) {
+			t.Errorf("silhouette of %v = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestDrawAnimationSilhouetteDrawsEveryDisplayScale keeps the silhouette's
+// draw path covered end to end, the mirrored-animation branch included.
+func TestDrawAnimationSilhouetteDrawsEveryDisplayScale(t *testing.T) {
+	c := drawOpTestCamera()
+	screen := ebiten.NewImage(640, 480)
+	s := NewSprite()
+	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+
+	p := geometry.NewVector2(1, 1)
+	for _, displayScale := range []float64{1.0, 0.5} {
+		s.DrawAnimationSilhouette(screen, c, p, AnimationIdleRight, 100*time.Millisecond, displayScale, color.White)
+		s.DrawAnimationSilhouette(screen, c, p, AnimationIdleLeft, 100*time.Millisecond, displayScale, color.White)
 	}
 }
 

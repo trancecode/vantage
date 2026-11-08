@@ -3,10 +3,12 @@ package render
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"slices"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/trancecode/vantage/geometry"
 )
 
@@ -193,6 +195,39 @@ func (s *Sprite) DrawAnimationScaled(screen *ebiten.Image, c *Camera, p geometry
 		return
 	}
 	screen.DrawImage(frame.Image, s.buildDrawOp(p, a, frame.Offset, requiresFlip, c, displayScale))
+}
+
+// DrawAnimationSilhouette is DrawAnimationScaled drawn as a silhouette:
+// every pixel of the frame in clr, keeping the frame's own alpha, so a
+// translucent edge stays translucent. It is the old-school hit flash, drawn
+// from the sprite's own frames rather than from a second, pre-painted copy
+// of them, which a colour scale cannot give since it only multiplies.
+func (s *Sprite) DrawAnimationSilhouette(screen *ebiten.Image, c *Camera, p geometry.Vector2, a AnimationType, duration time.Duration, displayScale float64, clr color.Color) {
+	animation, requiresFlip := s.resolveAnimation(a)
+	if animation == nil {
+		panic(fmt.Sprintf("no such animation type: %s", a))
+	}
+	if len(animation.Frames) == 0 {
+		panic(fmt.Sprintf("no image for this animation type: %s", a))
+	}
+
+	frame := animation.FrameAt(duration)
+	if frame.Image == nil {
+		return
+	}
+	op := s.buildDrawOp(p, a, frame.Offset, requiresFlip, c, displayScale)
+	colorm.DrawImage(screen, frame.Image, silhouette(clr), &colorm.DrawImageOptions{GeoM: op.GeoM, Filter: op.Filter})
+}
+
+// silhouette returns the colour matrix that draws every pixel in clr with
+// its own alpha: the colour channels are cleared and clr's added in, the
+// alpha kept.
+func silhouette(clr color.Color) colorm.ColorM {
+	r, g, b, _ := clr.RGBA()
+	var m colorm.ColorM
+	m.Scale(0, 0, 0, 1)
+	m.Translate(float64(r)/0xffff, float64(g)/0xffff, float64(b)/0xffff, 0)
+	return m
 }
 
 // VisibleBounds returns the bounding rectangle of non-transparent pixels in
