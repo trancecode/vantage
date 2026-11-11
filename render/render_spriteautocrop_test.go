@@ -262,7 +262,7 @@ func TestAutoCroppedDrawsWhereTheUncroppedSpriteWould(t *testing.T) {
 	}
 	anchor := geometry.NewVector2(8, 16)
 
-	uniform, err := LoadSprite(ebiten.NewImageFromImage(sheet), 2, 2, indexes, nil)
+	uniform, err := LoadSprite(sheet, 2, 2, indexes, nil)
 	if err != nil {
 		t.Fatalf("LoadSprite returned error: %v", err)
 	}

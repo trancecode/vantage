@@ -9,8 +9,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-
 	"github.com/trancecode/vantage/geometry"
 )
 
@@ -245,7 +243,7 @@ func LoadSpriteAutoCropped(
 	if err != nil {
 		return nil, fmt.Errorf("cropping sprite sheet: %w", err)
 	}
-	return LoadSpriteAnimations(ebiten.NewImageFromImage(atlas), specs)
+	return LoadSpriteAnimations(atlas, specs)
 }
 
 // MustLoadSpriteAutoCropped is like LoadSpriteAutoCropped but panics on error.

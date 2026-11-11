@@ -13,7 +13,9 @@ package drawbench
 
 import (
 	"fmt"
+	"image"
 	"image/color"
+	"image/draw"
 	"sync"
 	"testing"
 	"time"
@@ -87,10 +89,10 @@ func countLabel(count int) string {
 // through a screen camera with world zero at the canvas's top-left corner. It
 // creates images, so it runs inside the game loop.
 func buildCases() ([]drawCase, error) {
-	img := ebiten.NewImage(spritePixels, spritePixels)
-	img.Fill(color.White)
+	pixels := image.NewRGBA(image.Rect(0, 0, spritePixels, spritePixels))
+	draw.Draw(pixels, pixels.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 	sprite := render.NewSprite()
-	sprite.AddImage(render.AnimationDefault, img)
+	sprite.AddImage(render.AnimationDefault, ebiten.NewImageFromImage(pixels), pixels)
 	camera := render.NewScreenCamera(canvasWidth, canvasHeight)
 	camera.SetZeroAsTopLeft()
 	label := render.NewTextWriter().Text("label")

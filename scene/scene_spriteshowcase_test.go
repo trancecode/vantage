@@ -13,12 +13,18 @@ import (
 	"github.com/trancecode/vantage/render"
 )
 
+// addBlankFrame adds a transparent frame of the given size to a, as AddImage
+// does for a decoded frame.
+func addBlankFrame(s *render.Sprite, a render.AnimationType, width, height int) {
+	s.AddImage(a, ebiten.NewImage(width, height), image.NewRGBA(image.Rect(0, 0, width, height)))
+}
+
 // showcaseTestSprite returns a sprite with one frame per requested animation,
 // built from a blank image so the test needs no asset files.
 func showcaseTestSprite(animations ...render.AnimationType) *render.Sprite {
 	s := render.NewSprite()
 	for _, a := range animations {
-		s.AddImage(a, ebiten.NewImage(16, 16))
+		addBlankFrame(s, a, 16, 16)
 	}
 	return s
 }
@@ -28,7 +34,7 @@ func showcaseTestSprite(animations ...render.AnimationType) *render.Sprite {
 func showcaseTestSpriteSized(size int, animations ...render.AnimationType) *render.Sprite {
 	s := render.NewSprite()
 	for _, a := range animations {
-		s.AddImage(a, ebiten.NewImage(size, size))
+		addBlankFrame(s, a, size, size)
 	}
 	return s
 }
@@ -347,9 +353,9 @@ func TestShowcaseFitScaleMeasuresTheArtAtItsDrawnSize(t *testing.T) {
 // it finds, so a sprite whose frames differ in size still fits its slot.
 func TestShowcaseFitScaleMeasuresTheLargestFrameOfTheSprite(t *testing.T) {
 	s := render.NewSprite()
-	s.AddImage(render.AnimationIdleDown, ebiten.NewImage(16, 16))
-	s.AddImage(render.AnimationIdleDown, ebiten.NewImage(64, 64))
-	s.AddImage(render.AnimationMoveDown, ebiten.NewImage(16, 16))
+	addBlankFrame(s, render.AnimationIdleDown, 16, 16)
+	addBlankFrame(s, render.AnimationIdleDown, 64, 64)
+	addBlankFrame(s, render.AnimationMoveDown, 16, 16)
 
 	if got := showcaseFitScale(s); got != 0.25 {
 		t.Fatalf("showcaseFitScale = %v, want 0.25 (the 64x64 frame must win)", got)

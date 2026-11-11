@@ -9,7 +9,11 @@
 // the animation's frame space, the uncropped cell it was cut from. The anchor a
 // sprite is drawn and hit-tested against is per animation and in frame space,
 // so a frame cropped to its content is drawn with the anchor less its offset,
-// and VisibleBounds reports frame space too. SetZeroPosition sets one anchor
+// and VisibleBounds reports frame space too. A frame's visible rectangle is
+// measured from the decoded pixels when it is loaded, which is why the loaders
+// and AddImage take an image.Image beside or instead of the uploaded texture:
+// measuring the texture would read it back from the graphics card and stall
+// the frame. SetZeroPosition sets one anchor
 // across every animation on the sprite, which is what a uniform sheet wants,
 // and Anchor reads the resolved value for a given AnimationType, resolving a
 // mirrored animation to the animation it is drawn from. AnimationSpec describes

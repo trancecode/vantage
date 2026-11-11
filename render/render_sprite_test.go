@@ -16,7 +16,7 @@ import (
 // data-driven frame list) left no entry in sprite.Animations, causing
 // LoadSprite to dereference a nil *Animation when setting the duration.
 func TestLoadSpriteEmptyIndexesDoesNotPanic(t *testing.T) {
-	img := ebiten.NewImage(4, 4)
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	indexes := map[AnimationType][]int{
 		AnimationIdleUp: {},
 	}
@@ -28,6 +28,24 @@ func TestLoadSpriteEmptyIndexesDoesNotPanic(t *testing.T) {
 	if sprite.HasAnimation(AnimationIdleUp) {
 		t.Fatalf("expected no animation entry for an empty index list")
 	}
+}
+
+// addBlankFrame adds a transparent frame of the given size to a, as AddImage
+// does for a decoded frame.
+func addBlankFrame(s *Sprite, a AnimationType, width, height int) {
+	s.AddImage(a, ebiten.NewImage(width, height), image.NewRGBA(image.Rect(0, 0, width, height)))
+}
+
+// frameWithPixels returns a width by height decoded frame, transparent except
+// for an opaque rectangle at opaque, and its upload.
+func frameWithPixels(width, height int, opaque image.Rectangle) (*ebiten.Image, *image.NRGBA) {
+	pixels := image.NewNRGBA(image.Rect(0, 0, width, height))
+	for y := opaque.Min.Y; y < opaque.Max.Y; y++ {
+		for x := opaque.Min.X; x < opaque.Max.X; x++ {
+			pixels.SetNRGBA(x, y, color.NRGBA{R: 200, A: 255})
+		}
+	}
+	return ebiten.NewImageFromImage(pixels), pixels
 }
 
 // drawOpTestCamera returns a camera with a deterministic, non-identity
@@ -63,7 +81,7 @@ func TestDrawAnimationGeometryIsUnchangedByTheDisplayScale(t *testing.T) {
 	p := geometry.NewVector2(3, 5)
 	zero := geometry.NewVector2(8, 24)
 	s := NewSprite()
-	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationDefault, 16, 16)
 	s.SetZeroPosition(zero)
 
 	for _, requiresFlip := range []bool{false, true} {
@@ -103,7 +121,7 @@ func TestDisplayScaleShrinksAboutTheZeroPosition(t *testing.T) {
 
 	newAnchoredSprite := func() *Sprite {
 		s := NewSprite()
-		s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+		addBlankFrame(s, AnimationDefault, 16, 16)
 		return s
 	}
 
@@ -166,7 +184,7 @@ func TestDrawAnimationScaledDrawsEveryDisplayScale(t *testing.T) {
 	c := drawOpTestCamera()
 	screen := ebiten.NewImage(640, 480)
 	s := NewSprite()
-	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationIdleRight, 16, 16)
 
 	p := geometry.NewVector2(1, 1)
 	s.DrawAnimation(screen, c, p, AnimationIdleRight, 100*time.Millisecond)
@@ -202,7 +220,7 @@ func TestDrawAnimationSilhouetteDrawsEveryDisplayScale(t *testing.T) {
 	c := drawOpTestCamera()
 	screen := ebiten.NewImage(640, 480)
 	s := NewSprite()
-	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationIdleRight, 16, 16)
 
 	p := geometry.NewVector2(1, 1)
 	for _, displayScale := range []float64{1.0, 0.5} {
@@ -264,7 +282,7 @@ func TestSetSourceTileSizeChains(t *testing.T) {
 func TestBuildDrawOpUnchangedWithoutASourceTileSize(t *testing.T) {
 	c := drawOpTestCamera()
 	s := NewSprite()
-	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationDefault, 16, 16)
 	s.SetZeroPosition(geometry.NewVector2(8, 24))
 
 	got := s.buildDrawOp(geometry.NewVector2(3, 4), AnimationDefault, image.Point{}, false, c, 1.0)
@@ -346,7 +364,7 @@ func TestTileRatioScalesTheAnchor(t *testing.T) {
 
 	// With a real anchor, the translate is the anchor times the ratio.
 	s = NewSprite().SetSourceTileSize(64)
-	s.AddImage(AnimationDefault, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationDefault, 16, 16)
 	s.SetZeroPosition(geometry.NewVector2(10, 20))
 	got = s.buildDrawOp(geometry.NewVector2(0, 0), AnimationDefault, image.Point{}, false, c, 1.0)
 
@@ -361,19 +379,16 @@ func TestTileRatioScalesTheAnchor(t *testing.T) {
 }
 
 // TestVisibleTopAboveZeroScalesWithTheTileRatio covers that the tile ratio is
-// applied on every return path from the cache, so a tile size change after the
-// sprite's visible extent was first measured is still picked up.
-//
-// Seeded rather than measured: VisibleTopAboveZero scans pixels with img.At,
-// which cannot run outside an ebiten.RunGame loop. The cache holds the
-// pre-ratio value, so seeding it is exactly what a prior measurement would have
-// left behind.
+// applied on every call, so a tile size change after the sprite was loaded is
+// still picked up.
 func TestVisibleTopAboveZeroScalesWithTheTileRatio(t *testing.T) {
 	original := TileSize
 	t.Cleanup(func() { TileSize = original })
 
 	s := NewSprite()
-	s.cachedVisibleTopAboveZero[AnimationIdleDown] = 12.0
+	img, pixels := frameWithPixels(16, 16, image.Rect(2, 4, 10, 16))
+	s.AddImage(AnimationIdleDown, img, pixels)
+	s.Animations[AnimationIdleDown].ZeroPosition = geometry.NewVector2(8, 16)
 
 	if got := s.VisibleTopAboveZero(AnimationIdleDown); got != 12.0 {
 		t.Fatalf("VisibleTopAboveZero = %v without a source tile size, want 12", got)
@@ -393,10 +408,12 @@ func TestVisibleTopAboveZeroScalesWithTheTileRatio(t *testing.T) {
 // drift vertically as a character changed animation.
 func TestVisibleExtentIsPerAnimation(t *testing.T) {
 	s := NewSprite()
-	s.cachedVisibleTopAboveZero[AnimationIdleDown] = 12.0
-	s.cachedVisibleTopAboveZero[AnimationIdleRight] = 40.0
-	s.cachedVisibleBounds[AnimationIdleDown] = image.Rect(0, 0, 8, 12)
-	s.cachedVisibleBounds[AnimationIdleRight] = image.Rect(0, 0, 32, 40)
+	down, downPixels := frameWithPixels(16, 16, image.Rect(0, 4, 8, 16))
+	right, rightPixels := frameWithPixels(64, 64, image.Rect(0, 24, 32, 64))
+	s.AddImage(AnimationIdleDown, down, downPixels)
+	s.AddImage(AnimationIdleRight, right, rightPixels)
+	s.Animations[AnimationIdleDown].ZeroPosition = geometry.NewVector2(4, 16)
+	s.Animations[AnimationIdleRight].ZeroPosition = geometry.NewVector2(16, 64)
 
 	if got, want := s.VisibleTopAboveZero(AnimationIdleDown), 12.0; got != want {
 		t.Fatalf("VisibleTopAboveZero(IdleDown) = %v, want %v", got, want)
@@ -404,11 +421,100 @@ func TestVisibleExtentIsPerAnimation(t *testing.T) {
 	if got, want := s.VisibleTopAboveZero(AnimationIdleRight), 40.0; got != want {
 		t.Fatalf("VisibleTopAboveZero(IdleRight) = %v, want %v", got, want)
 	}
-	if got, want := s.VisibleBounds(AnimationIdleDown), image.Rect(0, 0, 8, 12); got != want {
+	if got, want := s.VisibleBounds(AnimationIdleDown), image.Rect(0, 4, 8, 16); got != want {
 		t.Fatalf("VisibleBounds(IdleDown) = %v, want %v", got, want)
 	}
-	if got, want := s.VisibleBounds(AnimationIdleRight), image.Rect(0, 0, 32, 40); got != want {
+	if got, want := s.VisibleBounds(AnimationIdleRight), image.Rect(0, 24, 32, 64); got != want {
 		t.Fatalf("VisibleBounds(IdleRight) = %v, want %v", got, want)
+	}
+}
+
+// TestVisibleExtentOfATransparentFrameIsEmpty covers a frame with nothing
+// drawn: no rectangle and no height, rather than the whole frame.
+func TestVisibleExtentOfATransparentFrameIsEmpty(t *testing.T) {
+	s := NewSprite()
+	addBlankFrame(s, AnimationIdleDown, 16, 16)
+	s.Animations[AnimationIdleDown].ZeroPosition = geometry.NewVector2(8, 16)
+	if got := s.VisibleBounds(AnimationIdleDown); !got.Empty() {
+		t.Fatalf("VisibleBounds of a transparent frame = %v, want empty", got)
+	}
+	if got := s.VisibleTopAboveZero(AnimationIdleDown); got != 0 {
+		t.Fatalf("VisibleTopAboveZero of a transparent frame = %v, want 0", got)
+	}
+}
+
+// TestLoadSpriteAnimationsMeasuresEachFrameInFrameSpace covers the loader's
+// measurement: the visible rectangle is taken from the decoded pixels inside
+// the frame's own rectangle and placed in frame space by its offset.
+func TestLoadSpriteAnimationsMeasuresEachFrameInFrameSpace(t *testing.T) {
+	_, pixels := frameWithPixels(32, 16, image.Rect(18, 3, 22, 9))
+	s, err := LoadSpriteAnimations(pixels, map[AnimationType]AnimationSpec{
+		AnimationIdleDown: {Frames: []FrameSpec{
+			{Rect: image.Rect(16, 0, 32, 16), Offset: image.Pt(5, 7)},
+			{Rect: image.Rect(0, 0, 16, 16)},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("LoadSpriteAnimations returned error: %v", err)
+	}
+	frames := s.Animations[AnimationIdleDown].Frames
+	if got, want := frames[0].Visible, image.Rect(7, 10, 11, 16); got != want {
+		t.Fatalf("frame 0 visible = %v, want %v", got, want)
+	}
+	if got := frames[1].Visible; !got.Empty() {
+		t.Fatalf("frame 1 visible = %v, want empty", got)
+	}
+}
+
+// TestLoadSpriteAnimationsKeepsASourcesOwnBounds covers a source whose bounds
+// do not start at the origin, such as a sub-image of a sheet: the specs'
+// rectangles address the texture and the pixels alike, so the frame shows and
+// measures the same pixels.
+func TestLoadSpriteAnimationsKeepsASourcesOwnBounds(t *testing.T) {
+	_, sheet := frameWithPixels(96, 32, image.Rect(40, 10, 44, 20))
+	src := sheet.SubImage(image.Rect(32, 8, 64, 24))
+	rect := image.Rect(36, 8, 52, 24)
+	s, err := LoadSpriteAnimations(src, map[AnimationType]AnimationSpec{
+		AnimationIdleDown: {Frames: []FrameSpec{{Rect: rect}}},
+	})
+	if err != nil {
+		t.Fatalf("LoadSpriteAnimations returned error: %v", err)
+	}
+	frame := s.Animations[AnimationIdleDown].Frames[0]
+	if got := frame.Image.Bounds(); got != rect {
+		t.Fatalf("frame image bounds = %v, want %v", got, rect)
+	}
+	if got, want := frame.Visible, image.Rect(4, 2, 8, 12); got != want {
+		t.Fatalf("frame visible = %v, want %v", got, want)
+	}
+}
+
+// TestLoadSpriteAnimationsRefusesAnUploadedImage covers the guard that keeps
+// read-backs out: an *ebiten.Image cannot be measured without one.
+func TestLoadSpriteAnimationsRefusesAnUploadedImage(t *testing.T) {
+	if _, err := LoadSpriteAnimations(ebiten.NewImage(16, 16), map[AnimationType]AnimationSpec{
+		AnimationIdleDown: {Frames: []FrameSpec{{Rect: image.Rect(0, 0, 16, 16)}}},
+	}); err == nil {
+		t.Fatal("LoadSpriteAnimations accepted an *ebiten.Image")
+	}
+}
+
+// TestAddImagePanicsOnMismatchedPixels covers AddImage's guards: the pixels
+// must be the decoded frame, of the image's own size.
+func TestAddImagePanicsOnMismatchedPixels(t *testing.T) {
+	for name, pixels := range map[string]image.Image{
+		"nil":             nil,
+		"an ebiten.Image": ebiten.NewImage(16, 16),
+		"another size":    image.NewRGBA(image.Rect(0, 0, 8, 16)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("AddImage did not panic")
+				}
+			}()
+			NewSprite().AddImage(AnimationIdleDown, ebiten.NewImage(16, 16), pixels)
+		})
 	}
 }
 
@@ -430,8 +536,8 @@ func TestVisibleExtentOfAnUnknownAnimationIsEmpty(t *testing.T) {
 // own animation rather than one of them winning for both.
 func TestAnchorIsPerAnimation(t *testing.T) {
 	s := NewSprite()
-	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
-	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationIdleDown, 16, 16)
+	addBlankFrame(s, AnimationIdleRight, 16, 16)
 	s.Animations[AnimationIdleDown].ZeroPosition = geometry.NewVector2(4, 8)
 	s.Animations[AnimationIdleRight].ZeroPosition = geometry.NewVector2(10, 2)
 
@@ -448,7 +554,7 @@ func TestAnchorIsPerAnimation(t *testing.T) {
 // the frames on screen.
 func TestAnchorResolvesAMirroredAnimation(t *testing.T) {
 	s := NewSprite()
-	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationIdleRight, 16, 16)
 	s.Animations[AnimationIdleRight].ZeroPosition = geometry.NewVector2(10, 2)
 
 	if got, want := s.Anchor(AnimationIdleLeft), geometry.NewVector2(10, 2); got != want {
@@ -468,8 +574,8 @@ func TestAnchorOfAnUnknownAnimationIsZero(t *testing.T) {
 // one call sets the anchor on all animations currently on the sprite.
 func TestSetZeroPositionWritesEveryAnimation(t *testing.T) {
 	s := NewSprite()
-	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
-	s.AddImage(AnimationIdleRight, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationIdleDown, 16, 16)
+	addBlankFrame(s, AnimationIdleRight, 16, 16)
 
 	zero := geometry.NewVector2(8, 24)
 	if got := s.SetZeroPosition(zero); got != s {
@@ -498,7 +604,7 @@ func TestSetZeroPositionPanicsWithoutAnimations(t *testing.T) {
 // loader: each animation gets its own frames, its own anchor and its own
 // duration, with no uniform grid involved.
 func TestLoadSpriteAnimationsBuildsPerAnimationGeometry(t *testing.T) {
-	img := ebiten.NewImage(64, 64)
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
 	specs := map[AnimationType]AnimationSpec{
 		AnimationIdleDown: {
 			Frames:   []FrameSpec{{Rect: image.Rect(0, 0, 8, 12)}, {Rect: image.Rect(8, 0, 16, 12)}},
@@ -542,7 +648,7 @@ func TestLoadSpriteAnimationsBuildsPerAnimationGeometry(t *testing.T) {
 // wrong, each of which is a programming error worth naming rather than drawing
 // something wrong.
 func TestLoadSpriteAnimationsRejectsBadGeometry(t *testing.T) {
-	img := ebiten.NewImage(64, 64)
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
 	for _, tc := range []struct {
 		name string
 		spec AnimationSpec
@@ -564,7 +670,7 @@ func TestLoadSpriteAnimationsRejectsBadGeometry(t *testing.T) {
 // TestLoadSpriteMatchesLoadSpriteAnimations covers that the uniform grid is just
 // a convenient way to describe the same thing, since LoadSprite is a wrapper.
 func TestLoadSpriteMatchesLoadSpriteAnimations(t *testing.T) {
-	img := ebiten.NewImage(32, 32)
+	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
 
 	fromGrid, err := LoadSprite(img, 2, 2, map[AnimationType][]int{
 		AnimationIdleDown: {0, 1},
@@ -601,8 +707,8 @@ func TestBuildDrawOpUsesTheAnimationAnchor(t *testing.T) {
 	p := geometry.NewVector2(3, 5)
 
 	s := NewSprite()
-	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
-	s.AddImage(AnimationIdleRight, ebiten.NewImage(64, 64))
+	addBlankFrame(s, AnimationIdleDown, 16, 16)
+	addBlankFrame(s, AnimationIdleRight, 64, 64)
 	s.Animations[AnimationIdleDown].ZeroPosition = geometry.NewVector2(8, 16)
 	s.Animations[AnimationIdleRight].ZeroPosition = geometry.NewVector2(32, 60)
 
@@ -672,7 +778,7 @@ func TestBuildDrawOpAppliesTheFrameOffset(t *testing.T) {
 	offset := image.Pt(3, 7)
 
 	s := NewSprite()
-	s.AddImage(AnimationIdleRight, ebiten.NewImage(8, 2))
+	addBlankFrame(s, AnimationIdleRight, 8, 2)
 	s.Animations[AnimationIdleRight].ZeroPosition = zero
 
 	want := c.WorldToScreen(p)
@@ -702,7 +808,7 @@ func TestBuildDrawOpAppliesTheFrameOffset(t *testing.T) {
 // TestLoadSpriteAnimationsCarriesFrameOffsets covers that a spec's per-frame
 // offsets reach the loaded frames unchanged, alongside the animation anchor.
 func TestLoadSpriteAnimationsCarriesFrameOffsets(t *testing.T) {
-	img := ebiten.NewImage(64, 64)
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
 	s, err := LoadSpriteAnimations(img, map[AnimationType]AnimationSpec{
 		AnimationIdleDown: {
 			Frames: []FrameSpec{
@@ -735,23 +841,8 @@ func TestLoadSpriteAnimationsCarriesFrameOffsets(t *testing.T) {
 // exactly as they did before frames had offsets.
 func TestAddImageStoresAnUncroppedFrame(t *testing.T) {
 	s := NewSprite()
-	s.AddImage(AnimationIdleDown, ebiten.NewImage(16, 16))
+	addBlankFrame(s, AnimationIdleDown, 16, 16)
 	if got := s.Animations[AnimationIdleDown].Frames[0].Offset; got != (image.Point{}) {
 		t.Fatalf("AddImage frame offset = %v, want zero", got)
-	}
-}
-
-// TestSetZeroPositionDropsTheCachedVisibleTop covers the cache that is
-// measured against the anchor: moving the anchor must not leave the old
-// measurement behind.
-func TestSetZeroPositionDropsTheCachedVisibleTop(t *testing.T) {
-	s := NewSprite()
-	s.AddImage(AnimationDefault, ebiten.NewImage(4, 4))
-	s.cachedVisibleTopAboveZero[AnimationDefault] = 99
-
-	s.SetZeroPosition(geometry.NewVector2(1, 1))
-
-	if got, ok := s.cachedVisibleTopAboveZero[AnimationDefault]; ok {
-		t.Fatalf("cachedVisibleTopAboveZero still holds %v after SetZeroPosition", got)
 	}
 }

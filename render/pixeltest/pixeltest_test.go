@@ -290,7 +290,7 @@ func buildScenarios() []scenario {
 func TestAutoCroppedSpriteRendersIdenticallyToUniform(t *testing.T) {
 	sheet := buildFixtureSheet()
 
-	uniform, err := render.LoadSprite(ebiten.NewImageFromImage(sheet), sheetColumns, sheetRows, fixtureIndexes, fixtureDurations)
+	uniform, err := render.LoadSprite(sheet, sheetColumns, sheetRows, fixtureIndexes, fixtureDurations)
 	if err != nil {
 		t.Fatalf("loading uniform sprite: %v", err)
 	}

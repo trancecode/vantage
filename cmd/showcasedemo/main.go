@@ -27,7 +27,9 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"image/color"
+	"image/draw"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -77,19 +79,16 @@ const (
 	defaultWindowHeight = 600
 )
 
-// frame returns a square of the given size: a white border around a solid fill,
-// so a sprite's real extent stays visible after the showcase scales it down.
-func frame(size int, fill color.RGBA) *ebiten.Image {
+// frame returns a square of the given size, uploaded and as decoded pixels: a
+// white border around a solid fill, so a sprite's real extent stays visible
+// after the showcase scales it down.
+func frame(size int, fill color.RGBA) (*ebiten.Image, *image.RGBA) {
 	inset := max(size/frameInset, 1)
-	img := ebiten.NewImage(size, size)
-	img.Fill(color.RGBA{R: 255, G: 255, B: 255, A: 255})
-
-	inner := ebiten.NewImage(size-2*inset, size-2*inset)
-	inner.Fill(fill)
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(float64(inset), float64(inset))
-	img.DrawImage(inner, op)
-	return img
+	pixels := image.NewRGBA(image.Rect(0, 0, size, size))
+	draw.Draw(pixels, pixels.Bounds(), image.NewUniform(color.RGBA{R: 255, G: 255, B: 255, A: 255}), image.Point{}, draw.Src)
+	inner := image.Rect(inset, inset, size-inset, size-inset)
+	draw.Draw(pixels, inner, image.NewUniform(fill), image.Point{}, draw.Src)
+	return ebiten.NewImageFromImage(pixels), pixels
 }
 
 // shaded darkens a color by a factor, used to make successive animation frames
@@ -109,7 +108,8 @@ func demoSprite(size int, fill color.RGBA, animations ...render.AnimationType) *
 	s := render.NewSprite()
 	for i, a := range animations {
 		for f := range framesPerAnimation {
-			s.AddImage(a, frame(size, shaded(fill, 0.45+0.15*float64((i+f)%framesPerAnimation))))
+			img, pixels := frame(size, shaded(fill, 0.45+0.15*float64((i+f)%framesPerAnimation)))
+			s.AddImage(a, img, pixels)
 		}
 	}
 	return s

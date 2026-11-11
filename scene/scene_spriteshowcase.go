@@ -82,9 +82,8 @@ func showcaseAnimationLabelY() float64 { return ShowcaseSlotTiles + 0.8 }
 // misrepresent it: a showcase is for judging art as it will be drawn, and an
 // upscaled 8x8 sprite is not what the game shows.
 //
-// The measurement reads only image bounds and offsets, which is metadata available without
-// a running game loop, so it stays testable headlessly. Sprite.VisibleBounds
-// would be a tighter measurement but scans pixels, which is not.
+// The measurement reads only image bounds and offsets. Sprite.VisibleBounds
+// would be a tighter measurement.
 //
 // The scale is a property of this view, never of the sprite. It is passed to
 // render.Sprite.DrawAnimationScaled per draw rather than stored on the sprite,
