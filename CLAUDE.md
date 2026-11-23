@@ -18,10 +18,6 @@ For branch naming, commit formatting, pre-commit checks, and PR conventions, see
 
 * When removing logic, don't leave comments about it. If things don't exist, we don't need to mention them
 
-## Git Workflow
-
-- If the task involves large or complex changes, ask the user whether they prefer a direct commit to `main` or a PR
-
 ## Repository-Specific Guidelines
 
 This section contains guidelines specific to this repository that extend the universal guidelines above.
@@ -55,7 +51,7 @@ Two things this does not license:
 ### Code Style and Documentation
 
 * Follow the style guide from [docs/styleguide.md](docs/styleguide.md)
-* Use the `documentation-checklist` skill before marking PRs as ready for review
+* Use the `documentation-checklist` skill before pushing
 
 ### Go Version Consistency
 
@@ -94,8 +90,8 @@ is missing from PATH, so this is required before the first run.
 
 If the testing commands fail due to environment issues:
 - DO NOT push the changes
-- Comment on the PR explaining which tests could not be run, with the specific error messages
-- Wait for human review before proceeding
+- Tell the user which tests could not be run, with the specific error messages
+- Wait for the user before proceeding
 
 #### Pre-Push Checklist for Go Code
 - [ ] Set `GOMODCACHE=/tmp/go-mod-cache`
@@ -105,14 +101,12 @@ If the testing commands fail due to environment issues:
 
 ### Dependency Management for Go
 
-**IMPORTANT**: When adding new Go module dependencies, document them in the PR description:
+**IMPORTANT**: When adding new Go module dependencies, document them in the commit message:
 
 * Package name and version
 * Purpose: why the dependency is needed
 * Justification: what problem it solves
 * Scope: clearly mark test-only dependencies
-
-Failure to document new dependencies delays PR reviews.
 
 ### Performance Optimization
 
